@@ -6,14 +6,17 @@ import time
 from datetime import timedelta
 import math
 import pdb
+import PIL.Image
+import os
+from utils.images import get_image_size
 
-IMAGE_TRAIN = './data/train/'
+IMAGE_TRAIN_DIR = './data/train/'
 IMAGE_TRAIN_LABELS = './data/trainLabels.csv'
 
 BATCH_SIZE = 50
 
 
-def read_images(filename_queue, labels_csv_path, batch_size):
+def read_images(filename_queue, labels_csv_path):
     # Reading and decoding labels in csv-format
     csv_reader = tf.TextLineReader()
     record_defaults = [[''], ['0']]
@@ -26,12 +29,27 @@ def read_images(filename_queue, labels_csv_path, batch_size):
     im_filename, im_content = im_reader.read(filename_queue)
     image = tf.image.decode_jpeg(im_content)
     image = tf.cast(image, tf.float32) / 255.
-
     return image, label
+
+
+def image_size(directory):
+    first_im_path = os.listdir(directory)[0]
+    return get_image_size(directory + first_im_path)
 
 
 def main():
     # Configuration of Neural Network
+
+    # Filename queue for image data (jpeg) from data directory
+    filename_queue = tf.train.string_input_producer(
+        tf.train.match_filenames_once(IMAGE_TRAIN_DIR + '*.jpeg')
+    )
+
+    # Filename for labels (csv) from data directory
+    labels_csv_path = tf.train.string_input_producer([IMAGE_TRAIN_LABELS])
+
+    # Read the images and labels
+    image, label = read_images(filename_queue, labels_csv_path)
 
     # Convolutional Layer 1
     filter_size1 = 5        # Convolution filters are 5 x 5 pixels
@@ -44,13 +62,7 @@ def main():
     # Fully connected Layer
     fc_size = 128           # Number of neurons in fully connected layer
 
-    filename_queue = tf.train.string_input_producer(
-        tf.train.match_filenames_once(IMAGE_TRAIN + '*.jpeg')
-    )
-
-    labels_csv_path = tf.train.string_input_producer([IMAGE_TRAIN_LABELS])
-
-    image, label = read_images(filename_queue, labels_csv_path, BATCH_SIZE)
+    im_size = image_size(IMAGE_TRAIN_DIR)
 
     with tf.Session() as sess:
         tf.local_variables_initializer().run()
