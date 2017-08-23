@@ -192,14 +192,14 @@ test_batch_size = 256
 
 
 def get_true_test_labels(num):
-    cls_true = np.empty(shape=num, dtype=np.int)
+    cls_true = []
 
     with open(partial_test_labels_fn, 'rt') as f:
         reader = csv.reader(f, delimiter=',')
         for i, line in enumerate(reader):
-            np.append(cls_true, line[1])
+            cls_true.append(line[1])
 
-    return cls_true
+    return np.array(cls_true)
 
 
 def print_test_accuracy():
@@ -209,7 +209,6 @@ def print_test_accuracy():
 
     # Correct test classes
     cls_true = get_true_test_labels(num_test)
-    pdb.set_trace()
 
     # Array for the predicted classes which will be calculated in
     # batches and filled into this array
