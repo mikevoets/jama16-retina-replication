@@ -4,6 +4,10 @@ import os
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
+# Development
+import pdb
+#
+
 
 def get_image_size(fname):
     '''Determine the image type of fhandle and return its size.
@@ -46,7 +50,7 @@ def image_size(directory):
     return get_image_size(directory + first_im_path)
 
 
-def read_images(labels_path, image_dir, resize=None):
+def read_images(labels_path, image_dir, im_size):
     # Reading and decoding labels in csv-format
     csv_reader = tf.TextLineReader()
     record_defaults = [[''], ['0']]
@@ -55,21 +59,19 @@ def read_images(labels_path, image_dir, resize=None):
         csv_row, record_defaults=record_defaults)
 
     # Reading and decoding images in jpeg-format
-    image = tf.read_file(image_dir + im_path)
+    image = tf.read_file(image_dir + im_path + '.jpeg')
     image = tf.image.decode_jpeg(image, channels=3)
     image = tf.cast(image, tf.float32) / 255.
 
-    # Resize image if resize parameter is defined
-    if resize is not None:
-        image = tf.image.resize_images(image, resize)
+    # Explicitily set size of image
+    image = tf.image.resize_images(image, im_size)
 
     return image, label
 
 
-def input_pipeline(labels_path, image_dir, batch_size, resize=None):
+def input_pipeline(labels_path, image_dir, batch_size, im_size):
     # Retrieve example image and label
-    example, label = read_images(
-        labels_path, image_dir, resize=resize)
+    example, label = read_images(labels_path, image_dir, im_size)
     # min_after_dequeue defines how big a buffer we will randomly sample
     #   from -- bigger means better shuffling but slower start up and more
     #   memory used.

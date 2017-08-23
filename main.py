@@ -25,7 +25,7 @@ test_labels_fn = './data/testLabels.csv'
 partial_train_labels_fn = './data/trainLabels.part.csv'
 partial_test_labels_fn = './data/testLabels.part.csv'
 
-# Define image size (used to resize)
+# Define image size
 im_size = 256
 
 # Convolutional Layer 1
@@ -159,7 +159,8 @@ def optimize(num_iterations):
         # y_true are the true labels of those images
         x_batch, y_true_batch = im.input_pipeline(partial_train_labels_fn,
                                                   train_dir,
-                                                  batch_size)
+                                                  batch_size,
+                                                  im_shape)
 
         # Put the batch into a dict with the proper names
         # for placeholder variables in the TensorFlow graph
@@ -208,7 +209,11 @@ def print_test_accuracy():
 
         # Get the images from the test set between i in j
         images, labels = im.input_pipeline(
-            partial_test_labels_fn, test_dir, test_batch_size)
+            partial_test_labels_fn, test_dir, test_batch_size, im_shape)
+
+        images, labels = session.run([images, labels])
+
+        print('{} / {}'.format(i, j))
 
         # Create a feed dictionary with these images and labels
         feed_dict = {x: images,
@@ -271,12 +276,12 @@ def deprocessing():
 
 def main():
     # Preprocess train and test labels
-    preprocessing()
+    # preprocessing()
 
     print_test_accuracy()
 
     # Remove partial train and test labels
-    deprocessing()
+    # deprocessing()
 
 
 if __name__ == '__main__':
