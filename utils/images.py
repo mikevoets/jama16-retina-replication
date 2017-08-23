@@ -1,7 +1,6 @@
 import struct
 import imghdr
 import os
-import matplotlib.pyplot as plt
 import tensorflow as tf
 
 # Development
