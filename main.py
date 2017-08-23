@@ -281,7 +281,7 @@ def preprocessing():
     extract_labels(test_dir, test_labels_fn, partial_test_labels_fn)
 
 
-def deprocessing():
+def postprocessing():
     os.remove(partial_train_labels_fn)
     os.remove(partial_test_labels_fn)
 
@@ -293,7 +293,7 @@ def main():
     print_test_accuracy()
 
     # Remove partial train and test labels
-    # deprocessing()
+    # postprocessing()
 
 
 if __name__ == '__main__':
