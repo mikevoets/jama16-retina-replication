@@ -197,7 +197,7 @@ def get_true_test_labels(num):
         for i, line in enumerate(reader):
             cls_true.append(line[1])
 
-    return np.array(cls_true)
+    return np.array(cls_true, dtype=np.int)
 
 
 def print_test_accuracy():
@@ -219,13 +219,13 @@ def print_test_accuracy():
         # The ending index for the next batch is denoted j
         j = min(i + test_batch_size, num_test)
 
+        print('{} / {}'.format(i, j))
+
         # Get the images from the test set between i in j
         images, labels = im.input_pipeline(
             partial_test_labels_fn, test_dir, test_batch_size, im_shape)
 
         images, labels = session.run([images, labels])
-
-        print('{} / {}'.format(i, j))
 
         # Create a feed dictionary with these images and labels
         feed_dict = {x: images,
