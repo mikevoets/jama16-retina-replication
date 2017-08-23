@@ -191,10 +191,25 @@ def optimize(num_iterations):
 test_batch_size = 256
 
 
+def get_true_test_labels(num):
+    cls_true = np.empty(shape=num, dtype=np.int)
+
+    with open(partial_test_labels_fn, 'rt') as f:
+        reader = csv.reader(f, delimiter=',')
+        for i, line in enumerate(reader):
+            np.append(cls_true, line[1])
+
+    return cls_true
+
+
 def print_test_accuracy():
     # Number of images in test set
     num_test = len([f for f in os.listdir(test_dir)
                     if os.path.isfile(os.path.join(test_dir, f))])
+
+    # Correct test classes
+    cls_true = get_true_test_labels(num_test)
+    pdb.set_trace()
 
     # Array for the predicted classes which will be calculated in
     # batches and filled into this array
@@ -227,8 +242,7 @@ def print_test_accuracy():
         i = j
 
     # Convenience variable for the true class numbers of the test set
-    pdb.set_trace()
-    cls_true = (cls_true == cls_pred)
+    correct = (cls_true == cls_pred)
 
     # Calculate the number of correctly classified images
     # When summing a boolean array, False means 0 and True means 1
