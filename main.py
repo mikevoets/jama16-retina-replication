@@ -189,7 +189,7 @@ def optimize(num_iterations):
 test_batch_size = 256
 
 
-def get_true_test_labels(num):
+def get_true_test_labels():
     cls_true = []
 
     with open(partial_test_labels_fn, 'rt') as f:
@@ -206,7 +206,7 @@ def print_test_accuracy():
                     if os.path.isfile(os.path.join(test_dir, f))])
 
     # Correct test classes
-    cls_true = get_true_test_labels(num_test)
+    cls_true = get_true_test_labels()
 
     # Array for the predicted classes which will be calculated in
     # batches and filled into this array
