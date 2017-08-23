@@ -225,6 +225,7 @@ def print_test_accuracy():
         images, labels = im.input_pipeline(
             partial_test_labels_fn, test_dir, test_batch_size, im_shape)
 
+        # TODO: This seems to be wrong. Fix it!
         images, labels = session.run([images, labels])
 
         # Create a feed dictionary with these images and labels
