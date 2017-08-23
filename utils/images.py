@@ -46,20 +46,43 @@ def image_size(directory):
     return get_image_size(directory + first_im_path)
 
 
-def read_images(filename_queue, labels_csv_path):
+def read_images(labels_path, image_dir, resize=None):
     # Reading and decoding labels in csv-format
     csv_reader = tf.TextLineReader()
     record_defaults = [[''], ['0']]
-    _, csv_content = csv_reader.read(labels_csv_path)
-    label = tf.decode_csv(
-        csv_content, record_defaults=record_defaults)
+    _, csv_row = csv_reader.read(tf.train.string_input_producer([labels_path]))
+    im_path, label = tf.decode_csv(
+        csv_row, record_defaults=record_defaults)
 
     # Reading and decoding images in jpeg-format
-    im_reader = tf.WholeFileReader()
-    im_filename, im_content = im_reader.read(filename_queue)
-    image = tf.image.decode_jpeg(im_content)
+    image = tf.read_file(image_dir + im_path)
+    image = tf.image.decode_jpeg(image, channels=3)
     image = tf.cast(image, tf.float32) / 255.
+
+    # Resize image if resize parameter is defined
+    if resize is not None:
+        image = tf.image.resize_images(image, resize)
+
     return image, label
+
+
+def input_pipeline(labels_path, image_dir, batch_size, resize=None):
+    # Retrieve example image and label
+    example, label = read_images(
+        labels_path, image_dir, resize=resize)
+    # min_after_dequeue defines how big a buffer we will randomly sample
+    #   from -- bigger means better shuffling but slower start up and more
+    #   memory used.
+    # capacity must be larger than min_after_dequeue and the amount larger
+    #   determines the maximum we will prefetch.  Recommendation:
+    #   min_after_dequeue + (num_threads + a small safety margin) * batch_size
+    min_after_dequeue = 10000
+    capacity = min_after_dequeue + 3 * batch_size
+    example_batch, label_batch = tf.train.shuffle_batch(
+        [example, label], batch_size=batch_size, capacity=capacity,
+        min_after_dequeue=min_after_dequeue
+    )
+    return example_batch, label_batch
 
 
 def plot_images(images, cls_true, cls_pred=None):
