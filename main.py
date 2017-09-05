@@ -215,6 +215,16 @@ def print_test_accuracy():
     # Now calculate the predicted classes for the batches
     # We will just iterate through all the batches
     i = 0
+
+    # Get the images from the test set between i in j
+    images, labels = im.input_pipeline(
+        partial_test_labels_fn, test_dir, test_batch_size, im_shape)
+
+    images, labels = session.run([images, labels])
+
+    pdb.set_trace()
+
+    return
     while i < num_test:
         # The ending index for the next batch is denoted j
         j = min(i + test_batch_size, num_test)
