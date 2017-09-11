@@ -211,7 +211,7 @@ def print_test_accuracy():
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord)
 
-        while True:
+        while i < num_test:
             j = min(i + test_batch_size, num_test)
 
             print('{} / {}'.format(i, j))
