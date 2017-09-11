@@ -185,12 +185,11 @@ test_batch_size = 256
 
 def cls_true_labels(label_csv_path):
     return np.genfromtxt(
-        label_csv_path, delimiter=',', usecols=1, dtype=tf.int8)
+        label_csv_path, delimiter=',', usecols=1, dtype=np.int)
 
 
 def print_test_accuracy():
     cls_true = cls_true_labels(partial_test_labels_fn)
-
     # Get size of test dataset
     num_test = cls_true.size
 
