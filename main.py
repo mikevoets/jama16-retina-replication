@@ -226,7 +226,12 @@ def print_test_accuracy():
                          y_true_cls: labels}
 
             # Calculate the predicted class
-            cls_pred[i:j] = sess.run(y_pred_cls, feed_dict=feed_dict)
+            results = sess.run(y_pred_cls, feed_dict=feed_dict)
+
+            if j == num_test:
+                cls_pred[i:j] = results[0:num_test-i]
+            else:
+                cls_pred[i:j] = results
 
             # Set the start index for the next batch to the end index
             # of the current batch
