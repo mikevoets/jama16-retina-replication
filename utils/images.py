@@ -61,7 +61,7 @@ def read_images(labels_path, image_dir, im_size, record_defaults=None):
     label = row[1]
     # Reading and decoding images in jpeg-format
     image_fn = image_dir + im_path + '.jpeg'
-    assert os.path.isfile(image_file)
+    assert os.path.isfile(image_fn)
 
     image = tf.read_file(image_fn)
     image = tf.image.decode_jpeg(image, channels=3)
