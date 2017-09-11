@@ -180,7 +180,7 @@ def optimize(num_iterations):
 
 
 # Batch size for testing
-test_batch_size = 1
+test_batch_size = 64
 
 
 def cls_true_labels(label_csv_path):
@@ -220,8 +220,6 @@ def print_test_accuracy():
                 images, labels = sess.run([image, label])
             except tf.errors.OutOfRangeError:
                 break
-
-            print(images, labels)
 
             # Create a feed dictionary with these images and labels
             feed_dict = {x_image: images,

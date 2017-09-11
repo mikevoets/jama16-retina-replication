@@ -86,7 +86,7 @@ def input_pipeline(labels_path,
     #   determines the maximum we will prefetch.  Recommendation:
     #   min_after_dequeue + (num_threads + a small safety margin) * batch_size
     min_after_dequeue = 10
-    capacity = min_after_dequeue + 1 * batch_size
+    capacity = min_after_dequeue + 8 * batch_size
     example_batch, label_batch = tf.train.shuffle_batch(
         [example, label], batch_size=batch_size, capacity=capacity,
         min_after_dequeue=min_after_dequeue
