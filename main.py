@@ -219,11 +219,11 @@ def print_test_accuracy():
             except tf.errors.OutOfRangeError:
                 break
 
-            print('Feeding!')
+            print(images.shape, labels.shape)
 
             # Create a feed dictionary with these images and labels
-            feed_dict = {x: images,
-                         y_true: labels}
+            feed_dict = {x_image: images,
+                         y_true_cls: labels}
 
             # Calculate the predicted class
             cls_pred[i:j] = sess.run(y_pred_cls, feed_dict=feed_dict)
