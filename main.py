@@ -165,11 +165,11 @@ def optimize(num_iterations):
         # Print status every 100 iterations
         if i % 100 == 0:
             # Calculate the accuracy on the training set
-            accuracy = session.run(accuracy, feed_dict=feed_dict_train)
+            acc = session.run(accuracy, feed_dict=feed_dict_train)
 
             # Message for printing
             m = 'Optimization Iteration: {0:>6}, Training Accuracy: {1:>6.1%}'
-            print(m.format(i + 1, accuracy))
+            print(m.format(i + 1, acc))
 
         # Update the total number of iterations performed
         total_iterations += num_iterations
@@ -200,7 +200,7 @@ def print_test_accuracy():
     i = 0
 
     # Get the images from the test set between i in j
-    images, labels = im.input_pipeline(
+    image, label = im.input_pipeline(
         partial_test_labels_fn, test_dir, test_batch_size, im_shape,
         record_defaults=[[''], ['0'], ['']])
 
@@ -215,7 +215,7 @@ def print_test_accuracy():
             print('{} / {}'.format(i, j))
 
             try:
-                images, labels = sess.run([images, labels])
+                images, labels = sess.run([image, label])
             except tf.errors.OutOfRangeError:
                 break
 
