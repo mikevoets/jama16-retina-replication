@@ -63,7 +63,7 @@ def read_images(labels_path, image_dir, im_size, record_defaults=None):
     image_fn = image_dir + im_path + '.jpeg'
     image = tf.read_file(image_fn)
     image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.cast(image, tf.float32) / 256.
+    image = tf.cast(image, tf.float32) / 255.
 
     # Explicitily set size of image
     image = tf.image.resize_images(image, im_size)
@@ -86,7 +86,7 @@ def input_pipeline(labels_path,
     #   determines the maximum we will prefetch.  Recommendation:
     #   min_after_dequeue + (num_threads + a small safety margin) * batch_size
     min_after_dequeue = 10
-    capacity = min_after_dequeue + 3 * batch_size
+    capacity = min_after_dequeue + 1 * batch_size
     example_batch, label_batch = tf.train.shuffle_batch(
         [example, label], batch_size=batch_size, capacity=capacity,
         min_after_dequeue=min_after_dequeue
