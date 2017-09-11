@@ -60,9 +60,12 @@ def read_images(labels_path, image_dir, im_size, record_defaults=None):
     im_path = row[0]
     label = row[1]
     # Reading and decoding images in jpeg-format
-    image = tf.read_file(image_dir + im_path + '.jpeg')
+    image_fn = image_dir + im_path + '.jpeg'
+    assert os.path.isfile(image_file)
+
+    image = tf.read_file(image_fn)
     image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.cast(image, tf.float32) / 255.
+    image = tf.cast(image, tf.float32) / 256.
 
     # Explicitily set size of image
     image = tf.image.resize_images(image, im_size)
