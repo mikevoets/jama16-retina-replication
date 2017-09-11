@@ -183,13 +183,16 @@ def optimize(num_iterations):
 test_batch_size = 256
 
 
-def dataset_size(label_csv_path):
-    return np.genfromtxt(label_csv_path, delimiter=',', usecols=1).size
+def cls_true_labels(label_csv_path):
+    return np.genfromtxt(
+        label_csv_path, delimiter=',', usecols=1, dtype=tf.int8)
 
 
 def print_test_accuracy():
+    cls_true = cls_true_labels(partial_test_labels_fn)
+
     # Get size of test dataset
-    num_test = dataset_size(partial_test_labels_fn)
+    num_test = cls_true.size
 
     # Array for the predicted classes which will be calculated in
     # batches and filled into this array
@@ -218,8 +221,6 @@ def print_test_accuracy():
                 images, labels = sess.run([image, label])
             except tf.errors.OutOfRangeError:
                 break
-
-            print(images.shape, labels.shape)
 
             # Create a feed dictionary with these images and labels
             feed_dict = {x_image: images,
