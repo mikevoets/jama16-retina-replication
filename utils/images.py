@@ -49,14 +49,16 @@ def image_size(directory):
     return get_image_size(directory + first_im_path)
 
 
-def read_images(labels_path, image_dir, im_size):
+def read_images(labels_path, image_dir, im_size, record_defaults=None):
+    if record_defaults is None:
+        record_defaults = [[''], ['0']]
     # Reading and decoding labels in csv-format
-    csv_reader = tf.TextLineReader()
-    record_defaults = [[''], ['0']]
+    csv_reader = tf.TextLineReader(skip_header_lines=1)
     _, csv_row = csv_reader.read(tf.train.string_input_producer([labels_path]))
-    im_path, label = tf.decode_csv(
-        csv_row, record_defaults=record_defaults)
+    row = tf.decode_csv(csv_row, record_defaults=record_defaults)
 
+    im_path = row[0]
+    label = row[1]
     # Reading and decoding images in jpeg-format
     image = tf.read_file(image_dir + im_path + '.jpeg')
     image = tf.image.decode_jpeg(image, channels=3)
@@ -68,16 +70,21 @@ def read_images(labels_path, image_dir, im_size):
     return image, label
 
 
-def input_pipeline(labels_path, image_dir, batch_size, im_size):
+def input_pipeline(labels_path,
+                   image_dir,
+                   batch_size,
+                   im_size,
+                   record_defaults=None):
     # Retrieve example image and label
-    example, label = read_images(labels_path, image_dir, im_size)
+    example, label = read_images(
+        labels_path, image_dir, im_size, record_defaults=record_defaults)
     # min_after_dequeue defines how big a buffer we will randomly sample
     #   from -- bigger means better shuffling but slower start up and more
     #   memory used.
     # capacity must be larger than min_after_dequeue and the amount larger
     #   determines the maximum we will prefetch.  Recommendation:
     #   min_after_dequeue + (num_threads + a small safety margin) * batch_size
-    min_after_dequeue = 10000
+    min_after_dequeue = 10
     capacity = min_after_dequeue + 3 * batch_size
     example_batch, label_batch = tf.train.shuffle_batch(
         [example, label], batch_size=batch_size, capacity=capacity,

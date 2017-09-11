@@ -131,12 +131,6 @@ correct_prediction = tf.equal(y_pred_cls, y_true_cls)
 # calculating the average of these numbers
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-# TensorFlow session
-session = tf.Session()
-
-# Initialize variables (= weights and biases)
-session.run(tf.global_variables_initializer())
-
 # Batch size for training. Lower if computers runs out of RAM
 train_batch_size = 64
 # Counter for total number of iterations performed so far
@@ -189,24 +183,13 @@ def optimize(num_iterations):
 test_batch_size = 256
 
 
-def get_true_test_labels():
-    cls_true = []
-
-    with open(partial_test_labels_fn, 'rt') as f:
-        reader = csv.reader(f, delimiter=',')
-        for i, line in enumerate(reader):
-            cls_true.append(line[1])
-
-    return np.array(cls_true, dtype=np.int)
+def dataset_size(label_csv_path):
+    return np.genfromtxt(label_csv_path, delimiter=',', usecols=1).size
 
 
 def print_test_accuracy():
-    # Number of images in test set
-    num_test = len([f for f in os.listdir(test_dir)
-                    if os.path.isfile(os.path.join(test_dir, f))])
-
-    # Correct test classes
-    cls_true = get_true_test_labels()
+    # Get size of test dataset
+    num_test = dataset_size(partial_test_labels_fn)
 
     # Array for the predicted classes which will be calculated in
     # batches and filled into this array
@@ -218,36 +201,36 @@ def print_test_accuracy():
 
     # Get the images from the test set between i in j
     images, labels = im.input_pipeline(
-        partial_test_labels_fn, test_dir, test_batch_size, im_shape)
+        partial_test_labels_fn, test_dir, test_batch_size, im_shape,
+        record_defaults=[[''], ['0'], ['']])
 
-    images, labels = session.run([images, labels])
+    with tf.Session() as sess:
+        tf.global_variables_initializer().run()
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(coord=coord)
 
-    pdb.set_trace()
+        while True:
+            j = min(i + test_batch_size, num_test)
 
-    return
-    while i < num_test:
-        # The ending index for the next batch is denoted j
-        j = min(i + test_batch_size, num_test)
+            print('{} / {}'.format(i, j))
 
-        print('{} / {}'.format(i, j))
+            try:
+                images, labels = sess.run([images, labels])
+            except tf.errors.OutOfRangeError:
+                break
 
-        # Get the images from the test set between i in j
-        images, labels = im.input_pipeline(
-            partial_test_labels_fn, test_dir, test_batch_size, im_shape)
+            print('Feeding!')
 
-        # TODO: This seems to be wrong. Fix it!
-        images, labels = session.run([images, labels])
+            # Create a feed dictionary with these images and labels
+            feed_dict = {x: images,
+                         y_true: labels}
 
-        # Create a feed dictionary with these images and labels
-        feed_dict = {x: images,
-                     y_true: labels}
+            # Calculate the predicted class
+            cls_pred[i:j] = sess.run(y_pred_cls, feed_dict=feed_dict)
 
-        # Calculate the predicted class
-        cls_pred[i:j] = session.run(y_pred_cls, feed_dict=feed_dict)
-
-        # Set the start index for the next batch to the end index
-        # of the current batch
-        i = j
+            # Set the start index for the next batch to the end index
+            # of the current batch
+            i = j
 
     # Convenience variable for the true class numbers of the test set
     correct = (cls_true == cls_pred)
