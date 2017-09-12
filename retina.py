@@ -329,10 +329,11 @@ def print_start_info():
     print('Welcome to Retinalearn!\n'
           '=======================')
     print('Num threads:\t\t{}\n'
+          'Num iterations:\t\t{}\n'
           'Training batch size:\t{}\n'
           'Test batch size:\t{}\n'
           'Dequeue buffer size:\t{}'
-          .format(num_threads, train_batch_size,
+          .format(num_threads, num_iterations, train_batch_size,
                   test_batch_size, min_after_dequeue)
           )
     print('=======================')
