@@ -7,10 +7,29 @@ import os
 import utils.images as im
 import utils.convnets.layers as la
 import csv
+import argparse
 
 # Development
 import pdb
 #
+
+# Parsing arguments
+parser = argparse.ArgumentParser(description='Retina training tool',
+                                 prog='main.py')
+parser.add_argument('-t', '--num-threads',
+                    help='Number of threads', nargs=1, type=int, default=[1])
+parser.add_argument('-tb', '--test-batch-size',
+                    help='Test batch size', nargs=1, type=int, default=[16])
+parser.add_argument('-trb', '--train-batch-size',
+                    help='Train batch size', nargs=1, type=int, default=[16])
+parser.add_argument('-m', '--min-after-dequeue',
+                    help='Minimal buffer', nargs=1, type=int, default=[10])
+args = vars(parser.parse_args())
+
+num_threads = args['num_threads'][0]
+test_batch_size = args['test_batch_size'][0]
+train_batch_size = args['train_batch_size'][0]
+min_after_dequeue = args['min_after_dequeue'][0]
 
 # Image locations
 train_dir = './data/train/'
@@ -131,8 +150,6 @@ correct_prediction = tf.equal(y_pred_cls, y_true_cls)
 # calculating the average of these numbers
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-# Batch size for training. Lower if computers runs out of RAM
-train_batch_size = 64
 # Counter for total number of iterations performed so far
 total_iterations = 0
 
@@ -179,10 +196,6 @@ def optimize(num_iterations):
         print('Time usage: ' + str(timedelta(seconds=int(round(time_dif)))))
 
 
-# Batch size for testing
-test_batch_size = 64
-
-
 def cls_true_labels(label_csv_path):
     return np.genfromtxt(
         label_csv_path, delimiter=',', usecols=1, dtype=np.int)
@@ -204,7 +217,9 @@ def print_test_accuracy():
     # Get the images from the test set between i in j
     image, label = im.input_pipeline(
         partial_test_labels_fn, test_dir, test_batch_size, im_shape,
-        record_defaults=[[''], ['0'], ['']])
+        record_defaults=[[''], ['0'], ['']],
+        min_after_dequeue=min_after_dequeue,
+        num_threads=num_threads)
 
     with tf.Session() as sess:
         tf.global_variables_initializer().run()
@@ -236,6 +251,10 @@ def print_test_accuracy():
             # Set the start index for the next batch to the end index
             # of the current batch
             i = j
+
+        # Safely queue coordinator and stop threads
+        coord.request_stop()
+        coord.join(threads)
 
     # Convenience variable for the true class numbers of the test set
     correct = (cls_true == cls_pred)
@@ -284,14 +303,22 @@ def postprocessing():
     os.remove(partial_test_labels_fn)
 
 
+def print_start_info():
+    print('Welcome to Retinalearn!\n'
+          '=======================')
+    print('Num threads:\t\t{}\n'
+          'Training batch size:\t{}\n'
+          'Test batch size:\t{}\n'
+          'Dequeue buffer size:\t{}'
+          .format(num_threads, train_batch_size,
+                  test_batch_size, min_after_dequeue)
+          )
+    print('=======================')
+
+
 def main():
-    # Preprocess train and test labels
-    # preprocessing()
-
+    print_start_info()
     print_test_accuracy()
-
-    # Remove partial train and test labels
-    # postprocessing()
 
 
 if __name__ == '__main__':

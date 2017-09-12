@@ -75,7 +75,9 @@ def input_pipeline(labels_path,
                    image_dir,
                    batch_size,
                    im_size,
-                   record_defaults=None):
+                   record_defaults=None,
+                   min_after_dequeue=10,
+                   num_threads=1):
     # Retrieve example image and label
     example, label = read_images(
         labels_path, image_dir, im_size, record_defaults=record_defaults)
@@ -85,8 +87,7 @@ def input_pipeline(labels_path,
     # capacity must be larger than min_after_dequeue and the amount larger
     #   determines the maximum we will prefetch.  Recommendation:
     #   min_after_dequeue + (num_threads + a small safety margin) * batch_size
-    min_after_dequeue = 10
-    capacity = min_after_dequeue + 8 * batch_size
+    capacity = min_after_dequeue + num_threads * batch_size
     example_batch, label_batch = tf.train.shuffle_batch(
         [example, label], batch_size=batch_size, capacity=capacity,
         min_after_dequeue=min_after_dequeue
