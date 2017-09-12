@@ -24,7 +24,7 @@ parser.add_argument('-trbs', '--train-batch-size',
                     help='Train batch size', nargs=1, type=int, default=[16])
 parser.add_argument('-mad', '--min-after-dequeue',
                     help='Minimal buffer', nargs=1, type=int, default=[10])
-parser.add_argument('-i', '--iterations',
+parser.add_argument('-i', '--num-iterations',
                     help='Iterations', nargs=1, type=int, default=[100])
 args = vars(parser.parse_args())
 
