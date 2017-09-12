@@ -204,7 +204,7 @@ def optimize(num_iterations):
                 # Message for printing
                 m = 'Optimization Iteration: {0:>6},' \
                     ' Training Accuracy: {1:>6.1%}, ' \
-                    ' Time usage: {3}'
+                    ' Time usage: {2}'
                 print(m.format(
                     i + 1, acc,
                     timedelta(seconds=int(round(time_dif)))))
