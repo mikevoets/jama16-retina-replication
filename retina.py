@@ -16,20 +16,23 @@ import pdb
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Retina training tool',
                                  prog='main.py')
-parser.add_argument('-t', '--num-threads',
+parser.add_argument('-nt', '--num-threads',
                     help='Number of threads', nargs=1, type=int, default=[1])
-parser.add_argument('-tb', '--test-batch-size',
+parser.add_argument('-tbs', '--test-batch-size',
                     help='Test batch size', nargs=1, type=int, default=[16])
-parser.add_argument('-trb', '--train-batch-size',
+parser.add_argument('-trbs', '--train-batch-size',
                     help='Train batch size', nargs=1, type=int, default=[16])
-parser.add_argument('-m', '--min-after-dequeue',
+parser.add_argument('-mad', '--min-after-dequeue',
                     help='Minimal buffer', nargs=1, type=int, default=[10])
+parser.add_argument('-i', '--iterations',
+                    help='Iterations', nargs=1, type=int, default=[100])
 args = vars(parser.parse_args())
 
 num_threads = args['num_threads'][0]
 test_batch_size = args['test_batch_size'][0]
 train_batch_size = args['train_batch_size'][0]
 min_after_dequeue = args['min_after_dequeue'][0]
+num_iterations = args['num_iterations'][0]
 
 # Image locations
 train_dir = './data/train/'
@@ -154,7 +157,7 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 total_iterations = 0
 
 
-def optimize(num_iterations):
+def optimize():
     # Ensure we update the global variable rather than a local copy
     global total_iterations
 
@@ -337,7 +340,7 @@ def print_start_info():
 
 def main():
     print_start_info()
-    optimize(num_iterations=1000)
+    optimize()
     print_test_accuracy()
 
 
