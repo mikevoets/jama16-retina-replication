@@ -13,27 +13,6 @@ import argparse
 import pdb
 #
 
-# Parsing arguments
-parser = argparse.ArgumentParser(description='Retina training tool',
-                                 prog='main.py')
-parser.add_argument('-nt', '--num-threads',
-                    help='Number of threads', nargs=1, type=int, default=[1])
-parser.add_argument('-tbs', '--test-batch-size',
-                    help='Test batch size', nargs=1, type=int, default=[16])
-parser.add_argument('-trbs', '--train-batch-size',
-                    help='Train batch size', nargs=1, type=int, default=[16])
-parser.add_argument('-mad', '--min-after-dequeue',
-                    help='Minimal buffer', nargs=1, type=int, default=[10])
-parser.add_argument('-i', '--num-iterations',
-                    help='Iterations', nargs=1, type=int, default=[100])
-args = vars(parser.parse_args())
-
-num_threads = args['num_threads'][0]
-test_batch_size = args['test_batch_size'][0]
-train_batch_size = args['train_batch_size'][0]
-min_after_dequeue = args['min_after_dequeue'][0]
-num_iterations = args['num_iterations'][0]
-
 # Image locations
 train_dir = './data/train/'
 test_dir = './data/test/'
@@ -157,7 +136,7 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 total_iterations = 0
 
 
-def optimize():
+def optimize(num_iterations, num_threads, min_after_dequeue, train_batch_size):
     # Ensure we update the global variable rather than a local copy
     global total_iterations
 
@@ -222,7 +201,8 @@ def cls_true_labels(label_csv_path):
         label_csv_path, delimiter=',', usecols=1, dtype=np.int)
 
 
-def print_test_accuracy():
+def print_test_accuracy(num_threads, min_after_dequeue, test_batch_size):
+    # Get true labels from test set
     cls_true = cls_true_labels(partial_test_labels_fn)
     # Get size of test dataset
     num_test = cls_true.size
@@ -340,9 +320,44 @@ def print_start_info():
 
 
 def main():
+    # Parsing arguments
+    parser = argparse.ArgumentParser(
+        description='Retina training tool', prog='main.py')
+    parser.add_argument(
+        '-nt', '--num-threads',
+        help='Number of threads', nargs=1, type=int, default=[1])
+    parser.add_argument(
+        '-tbs', '--test-batch-size',
+        help='Test batch size', nargs=1, type=int, default=[16])
+    parser.add_argument(
+        '-trbs', '--train-batch-size',
+        help='Train batch size', nargs=1, type=int, default=[16])
+    parser.add_argument(
+        '-mad', '--min-after-dequeue',
+        help='Minimal buffer', nargs=1, type=int, default=[10])
+    parser.add_argument(
+        '-i', '--num-iterations',
+        help='Iterations', nargs=1, type=int, default=[100])
+    args = vars(parser.parse_args())
+
+    num_threads = args['num_threads'][0]
+    test_batch_size = args['test_batch_size'][0]
+    train_batch_size = args['train_batch_size'][0]
+    min_after_dequeue = args['min_after_dequeue'][0]
+    num_iterations = args['num_iterations'][0]
+
     print_start_info()
-    optimize()
-    print_test_accuracy()
+
+    print('Training!')
+    optimize(num_iterations=num_iterations,
+             num_threads=num_threads,
+             train_batch_size=train_batch_size,
+             min_after_dequeue=min_after_dequeue)
+
+    print('Testing!')
+    print_test_accuracy(num_threads=num_threads,
+                        test_batch_size=test_batch_size,
+                        min_after_dequeue=min_after_dequeue)
 
 
 if __name__ == '__main__':
