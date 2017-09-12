@@ -305,7 +305,12 @@ def postprocessing():
     os.remove(partial_test_labels_fn)
 
 
-def print_start_info():
+def print_start_info(num_threads,
+                     num_iterations,
+                     train_batch_size,
+                     test_batch_size,
+                     min_after_dequeue):
+    # Print general info about settings
     print('Welcome to Retinalearn!\n'
           '=======================')
     print('Num threads:\t\t{}\n'
@@ -346,7 +351,11 @@ def main():
     min_after_dequeue = args['min_after_dequeue'][0]
     num_iterations = args['num_iterations'][0]
 
-    print_start_info()
+    print_start_info(num_iterations=num_iterations,
+                     num_threads=num_threads,
+                     train_batch_size=train_batch_size,
+                     test_batch_size=test_batch_size,
+                     min_after_dequeue=min_after_dequeue)
 
     print('Training!')
     optimize(num_iterations=num_iterations,
