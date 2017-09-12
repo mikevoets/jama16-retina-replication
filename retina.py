@@ -190,6 +190,12 @@ def optimize(num_iterations):
             # Run the optimizer using this batch of training data
             sess.run(optimizer, feed_dict=feed_dict_train)
 
+            # Update the total number of iterations performed
+            total_iterations += num_iterations
+
+            end_time = time.time()
+            time_dif = end_time - start_time
+
             # Print status every 100 iterations
             if i % 100 == 0:
                 # Calculate the accuracy on the training set
@@ -197,16 +203,11 @@ def optimize(num_iterations):
 
                 # Message for printing
                 m = 'Optimization Iteration: {0:>6},' \
-                    ' Training Accuracy: {1:>6.1%}'
-                print(m.format(i + 1, acc))
-
-            # Update the total number of iterations performed
-            total_iterations += num_iterations
-
-            end_time = time.time()
-            time_dif = end_time - start_time
-            print('Time usage: ' +
-                  str(timedelta(seconds=int(round(time_dif)))))
+                    ' Training Accuracy: {1:>6.1%}, ' \
+                    ' Time usage: {3}'
+                print(m.format(
+                    i + 1, acc,
+                    timedelta(seconds=int(round(time_dif)))))
 
         # Safely queue coordinator and stop threads
         coord.request_stop()
@@ -247,7 +248,7 @@ def print_test_accuracy():
         while i < num_test:
             j = min(i + test_batch_size, num_test)
 
-            print('{} / {}'.format(i, j))
+            print('Testing on {} / {}'.format(i, j))
 
             try:
                 images, labels = sess.run([image, label])
@@ -336,7 +337,7 @@ def print_start_info():
 
 def main():
     print_start_info()
-    #optimize(100)
+    optimize(num_iterations=1000)
     print_test_accuracy()
 
 
