@@ -160,40 +160,57 @@ def optimize(num_iterations):
 
     start_time = time.time()
 
-    for i in range(total_iterations,
-                   total_iterations + num_iterations):
+    # Get a batch of training examples
+    # x_batch holds a batch of images
+    # y_true are the true labels of those images
+    image, label = im.input_pipeline(
+        partial_train_labels_fn, train_dir, train_batch_size,
+        im_shape, num_classes,
+        record_defaults=[[''], [0]],
+        min_after_dequeue=min_after_dequeue,
+        num_threads=num_threads)
 
-        # Get a batch of training examples
-        # x_batch holds a batch of images
-        # y_true are the true labels of those images
-        x_batch, y_true_batch = im.input_pipeline(partial_train_labels_fn,
-                                                  train_dir,
-                                                  batch_size,
-                                                  im_shape)
+    with tf.Session() as sess:
+        tf.global_variables_initializer().run()
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(coord=coord)
 
-        # Put the batch into a dict with the proper names
-        # for placeholder variables in the TensorFlow graph
-        feed_dict_train = {x: x_batch,
-                           y_true: y_true_batch}
+        for i in range(total_iterations,
+                       total_iterations + num_iterations):
+            try:
+                x_batch, y_true_batch = sess.run([image, label])
+            except tf.errors.OutOfRangeError:
+                break
 
-        # Run the optimizer using this batch of training data
-        session.run(optimizer, feed_dict=feed_dict_train)
+            # Put the batch into a dict with the proper names
+            # for placeholder variables in the TensorFlow graph
+            feed_dict_train = {x_image: x_batch,
+                               y_true: y_true_batch}
 
-        # Print status every 100 iterations
-        if i % 100 == 0:
-            # Calculate the accuracy on the training set
-            acc = session.run(accuracy, feed_dict=feed_dict_train)
+            # Run the optimizer using this batch of training data
+            sess.run(optimizer, feed_dict=feed_dict_train)
 
-            # Message for printing
-            m = 'Optimization Iteration: {0:>6}, Training Accuracy: {1:>6.1%}'
-            print(m.format(i + 1, acc))
+            # Print status every 100 iterations
+            if i % 100 == 0:
+                # Calculate the accuracy on the training set
+                acc = sess.run(accuracy, feed_dict=feed_dict_train)
 
-        # Update the total number of iterations performed
-        total_iterations += num_iterations
+                # Message for printing
+                m = 'Optimization Iteration: {0:>6},' \
+                    ' Training Accuracy: {1:>6.1%}'
+                print(m.format(i + 1, acc))
 
-        end_time = time.time()
-        time_dif = end_time - start_time
-        print('Time usage: ' + str(timedelta(seconds=int(round(time_dif)))))
+            # Update the total number of iterations performed
+            total_iterations += num_iterations
+
+            end_time = time.time()
+            time_dif = end_time - start_time
+            print('Time usage: ' +
+                  str(timedelta(seconds=int(round(time_dif)))))
+
+        # Safely queue coordinator and stop threads
+        coord.request_stop()
+        coord.join(threads)
 
 
 def cls_true_labels(label_csv_path):
@@ -216,8 +233,9 @@ def print_test_accuracy():
 
     # Get the images from the test set between i in j
     image, label = im.input_pipeline(
-        partial_test_labels_fn, test_dir, test_batch_size, im_shape,
-        record_defaults=[[''], ['0'], ['']],
+        partial_test_labels_fn, test_dir, test_batch_size,
+        im_shape, num_classes,
+        record_defaults=[[''], [0], ['']],
         min_after_dequeue=min_after_dequeue,
         num_threads=num_threads)
 
@@ -238,7 +256,7 @@ def print_test_accuracy():
 
             # Create a feed dictionary with these images and labels
             feed_dict = {x_image: images,
-                         y_true_cls: labels}
+                         y_true: labels}
 
             # Calculate the predicted class
             results = sess.run(y_pred_cls, feed_dict=feed_dict)
@@ -318,6 +336,7 @@ def print_start_info():
 
 def main():
     print_start_info()
+    #optimize(100)
     print_test_accuracy()
 
 

@@ -31,7 +31,7 @@ def test_labels():
 
 def read_images(labels_path, image_dir, im_size, record_defaults=None):
     if record_defaults is None:
-        record_defaults = [[''], ['0']]
+        record_defaults = [[''], [0]]
 
     # Reading and decoding labels in csv-format
     csv_reader = tf.TextLineReader(skip_header_lines=1)
@@ -89,7 +89,7 @@ def main():
 
     image_batch, label_batch = input_pipeline(
         partial_test_labels_fn, './data/test/', 1, (256, 256),
-        record_defaults=[[''], ['0'], ['']])
+        record_defaults=[[''], [0], ['']])
 
     with tf.Session() as sess:
         tf.global_variables_initializer().run()
