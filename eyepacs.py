@@ -226,9 +226,9 @@ def _read_images(test=False):
 
 def _load_data(test=False):
     """
-    Load a pickled data-file from the EyePacs data-set
+    Load a batch from the EyePacs data-set
     and return the converted images (see above) and the class-number
-    for each image.
+    for each image. Also return a one-hot encoded version of class-labels.
     """
     # Retrieve images and labels.
     images, labels = _read_images(test=test)
