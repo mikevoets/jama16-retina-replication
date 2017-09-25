@@ -79,7 +79,7 @@ _train_batch_size = 20
 _num_images_train = len(get_file_paths())
 
 # Total number of batches.
-_num_batches_train = _num_images_train / _train_batch_size
+_num_batches_train = _num_images_train/_train_batch_size
 
 ########################################################################
 # Private functions for downloading, unpacking and loading data-files.
@@ -221,7 +221,7 @@ def _load_data(batch_num=None, test=False):
         labels = np.array(cls)
         return images, labels
 
-    begin = batch_num
+    begin = batch_num*_train_batch_size
     end = min(begin + _train_batch_size, _num_images_train)
 
     # Retrieve the images for this current batch.
