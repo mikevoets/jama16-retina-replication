@@ -9,11 +9,10 @@
 # 1) Set the variable data_path with the desired storage path.
 # 2) Call maybe_extract() to extract the data-set
 #    if it is not already extracted in the given data_path.
-# 3) Call load_class_names() to get an array of the class-names.
-# 4) Call load_training_data() and load_test_data() to get
+# 3) Call load_training_data() and load_test_data() to get
 #    the images, class-numbers and one-hot encoded class-labels
 #    for the training-set and test-set.
-# 5) Use the returned data in your own program.
+# 4) Use the returned data in your own program.
 #
 # Format:
 # The images for the training- and test-sets are returned as 4-dim numpy
@@ -22,17 +21,14 @@
 #
 ########################################################################
 
-import numpy as np
-import pandas as pd
+import tensorflow as tf
 import os
 import download
-import glob
-import re
 import pdb  # TODO: Remove this line
-import pickle
-from PIL import Image
+import csv
+from re import split
+from glob import glob
 from fnmatch import fnmatch
-from dataset import one_hot_encoded
 
 ########################################################################
 
@@ -46,11 +42,29 @@ train_data_filename = "train.tar.gz"
 # File name for the labels of the training-set.
 train_labels_filename = "trainLabels.csv"
 
+# File name for the extracted labels of the training-set.
+train_labels_extracted = "trainLabels.part.csv"
+
 # File name for the test-set.
 test_data_filename = "test.tar.gz"
 
 # File name for the labels of the test-set.
 test_labels_filename = "testLabels.csv"
+
+# File name for the extracted labels of the training-set.
+test_labels_extracted = "testLabels.part.csv"
+
+########################################################################
+# Various constants used to allocate arrays of the correct size.
+
+# Batch size.
+_batch_size = 20
+
+# Total number of threads.
+_num_threads = 2
+
+# Minimal buffer size after dequeueing.
+_min_after_dequeue = 10
 
 ########################################################################
 # Various constants for the size of the images.
@@ -59,30 +73,103 @@ test_labels_filename = "testLabels.csv"
 # Width and height of each image.
 img_size = 256
 
+# Tuple with height and width of images used to reshape arrays.
+img_shape = (img_size, img_size)
+
 # Number of channels in each image, 3 channels: Red, Green, Blue.
 num_channels = 3
-
-# Length of an image when flattened to a 1-dim array.
-img_size_flat = img_size * img_size * num_channels
 
 # Number of classes.
 num_classes = 5
 
 ########################################################################
-# Various constants used to allocate arrays of the correct size.
-
-# Batch size.
-_train_batch_size = 20
-
-# Total number of images in the training-set.
-# This is used to pre-allocate arrays for efficiency.
-_num_images_train = len(get_file_paths())
-
-# Total number of batches.
-_num_batches_train = _num_images_train/_train_batch_size
-
-########################################################################
 # Private functions for downloading, unpacking and loading data-files.
+
+
+def _get_extract_path(test=False):
+    """
+    Returns the path for the directory the data-set has been extracted to.
+    """
+    extract_dir = "test" if test else "train"
+
+    return os.path.join(data_path, extract_dir)
+
+
+def _get_extract_file_paths(test=False):
+    """
+    Returns a list of file paths that match the match string.
+    """
+    match = test_data_filename if test else train_data_filename
+
+    return [f for f in os.listdir(data_path) if fnmatch(f, match + '.*')]
+
+
+def _get_file_paths(test=False):
+    """
+    Returns a list of sorted file names for a data-set.
+    """
+    extract_dir = _get_extract_path(test=test)
+
+    filename_match = os.path.join(extract_dir, '*.jpeg')
+    filename_list = glob(filename_match)
+    # Sort the filename list.
+    filename_list = sorted(
+        filename_list, key=lambda fn: int(split('[./_]', fn)[-3]))
+
+    return filename_list
+
+
+def _get_data_path(filename=""):
+    """
+    Returns the file path to a file relative from the data path.
+
+    If filename is blank, the data directory path is returned.
+    """
+    return data_path + "/" + filename
+
+
+def _maybe_extract_data():
+    """
+    Extracts a compressed or archived data-file from the EyePacs data-set.
+    """
+    # Helper function for extracting labels.
+    def maybe_extract_labels(test=False):
+        image_fns = _get_file_paths(test=test)
+        labels_src_fn = test_labels_filename if test else train_labels_filename
+        labels_dest_fn = test_labels_extracted if test else train_labels_extracted
+
+        # Retrieve the paths labels should be exported to.
+        labels_src_path = _get_data_path(labels_src_fn)
+        labels_dest_path = _get_data_path(labels_dest_fn)
+
+        if not os.path.exists(labels_dest_path):
+            with open(labels_dest_path, 'wt') as w:
+                with open(labels_src_path, 'rt') as r:
+                    reader = csv.reader(r, delimiter=",")
+                    for i, line in enumerate(reader):
+                        if line[0] in image_fns:
+                            w.write(delimiter.join(line) + "\n")
+            print("Done.")
+        else:
+            print("Labels already extracted.")
+
+    # Helper function for extracting labels and data-set package(s).
+    def maybe_extract(test=False):
+        filenames = _get_extract_file_paths(test=test)
+
+        for f in filenames:
+            print("Extracting %s..." % f)
+
+            file_path = os.path.join(data_path, f)
+
+            download.maybe_extract(file_path=file_path, extract_dir=data_path)
+
+        print("Extracting labels...")
+
+        maybe_extract_labels(test=test)
+
+    maybe_extract()
+    maybe_extract(test=True)
 
 
 def _convert_images(raw):
@@ -91,150 +178,73 @@ def _convert_images(raw):
     return a 4-dim array with shape: [image_number, height, width, channel]
     where the pixels are floats between 0.0 and 1.0.
     """
-
     # Convert the raw images from the data-files to floating-points.
-    raw_float = np.array(raw, dtype=float) / 255.0
+    raw_float = tf.cast(raw, tf.float32) / 255.0
 
-    # Reshape the array to 4-dimensions.
-    images = raw_float.reshape([-1, num_channels, img_size, img_size])
-
-    # Reorder the indices of the array.
-    images = images.transpose([0, 2, 3, 1])
+    # Explicitily set size of image.
+    images = tf.image.resize_images(raw_float, img_shape)
 
     return images
 
 
-def _get_extract_path(filename):
+def _get_images(file_path):
     """
-    Returns the path for the directory the data-set has been extracted to.
+    Reads an image, converts and returns tensor.
     """
-    return os.path.join(data_path, filename.split('.')[0])
+    raw = tf.read_file(file_path)
+    raw = tf.image.decode_jpeg(raw, channels=num_channels)
+
+    # Convert image.
+    images = _convert_images(raw)
+
+    return images
 
 
-def _get_extract_file_paths(match):
+def _read_images(test=False):
     """
-    Returns a list of file paths that match the match string.
+    Returns an image tensor and its corresponding label tensor.
     """
-    return [f for f in os.listdir(data_path) if fnmatch(f, match + '.*')]
+    record_defaults = [[''], [0], ['']]
+    record_defaults = record_defaults if test else [[''], [0]]
+    labels_fn = test_labels_extracted if test else train_labels_extracted
+
+    # Reading and decoding labels in csv-format.
+    csv_reader = tf.TextLineReader(skip_header_lines=1)
+    _, csv_row = csv_reader.read(tf.train.string_input_producer([labels_fn]))
+    row = tf.decode_csv(csv_row, record_defaults=record_defaults)
+
+    # Extract image identifier and class label from file.
+    image_names = row[0]
+    labels = row[1]
+
+    # Retrieve image
+    images_path = _get_data_path(image_names + '.jpeg')
+    images = _get_images(images_path)
+
+    return images, labels
 
 
-def _maybe_extract_data(filename_match):
-    """
-    Extracts a compressed or archived data-file from the EyePacs data-set.
-    """
-    filenames = _get_extract_file_matches(filename_match)
-
-    extract_path = _get_extract_path(filename_match)
-
-    for f in filenames:
-        print("Extracting %s..." % f)
-
-        file_path = os.path.join(data_path, f)
-
-        download.maybe_extract(file_path=file_path, extract_dir=data_path)
-
-
-def _get_file_paths(test=False):
-    """
-    Returns a list of sorted file names for a data-set.
-    """
-    data_dir = "test" if test else "train"
-
-    filename_match = os.path.join(data_dir, '*.jpeg')
-    filename_list = glob.glob(filename_match)
-    # Sort the filename list.
-    filename_list = sorted(
-        filename_list, key=lambda fn: int(re.split('[./_]', fn)[-3]))
-
-    return filename_list
-
-
-def _strip_base_filename(e):
-    """
-    Helper function for stripping base filename from path.
-    """
-    return re.split('[./]', e)[-2]
-
-
-def _base_filename(e):
-    """
-    Translates the list into values with base filename, without extension.
-    """
-    if isinstance(e, list):
-        base = [_strip_base_filename(x) for x in e]
-    else:
-        base = _strip_base_filename(x)
-
-    return base
-
-
-def _get_cls(test=False):
-    """
-    Returns a numpy array with class labels from the data-set.
-    """
-    labels_fn = test_labels_filename if test else train_labels_filename
-    labels_path = os.path.join(data_path, labels_fn)
-
-    labels = pd.read_csv(labels_path, delimiter=",")
-
-    return labels
-
-
-def _filter_cls(image_list, cls=None, test=False):
-    """
-    Returns a filtered list of class labels.
-    """
-    if cls is None:
-        cls = _get_cls(test=test)
-
-    images = _base_filename(image_list)
-
-    filtered = [y for y in cls.loc[cls['image'].isin(images)]['level']]
-
-    return filtered
-
-
-def _get_images(image_fn_list):
-    """
-    Returns a numpy array with images from the data-set.
-    """
-    x = np.array([np.asarray(Image.open(fn)) for fn in image_fn_list])
-
-    return x
-
-
-def _load_data(batch_num=None, test=False):
+def _load_data(test=False):
     """
     Load a pickled data-file from the EyePacs data-set
     and return the converted images (see above) and the class-number
     for each image.
     """
-    image_fn_list = _get_file_path(test=test)
-    cls = _get_cls(test=test)
+    # Retrieve images and labels.
+    images, labels = _read_images(test=test)
+    capacity = _min_after_dequeue + (_num_threads + 1)*_batch_size
 
-    if batch_num is None:
-        # Retrieve the images and convert them.
-        raw_images = _get_images(imags_fn_list)
-        images = _convert_images(raw_images)
+    # Retrieve batch from Tensorflow batch feeder.
+    image_batch, label_batch = tf.train.shuffle_batch(
+        [images, labels], batch_size=_batch_size, capacity=capacity,
+        min_after_dequeue=_min_after_dequeue, num_threads=_num_threads
+    )
 
-        # Retrieve the class labels.
-        labels = np.array(cls)
-        return images, labels
+    # Retrieve one-hot encoded class labels
+    label_one_hot = tf.one_hot(
+        indices=label_batch, depth=num_classes, dtype=tf.float32)
 
-    begin = batch_num*_train_batch_size
-    end = min(begin + _train_batch_size, _num_images_train)
-
-    # Retrieve the images for this current batch.
-    batch = image_fn_list[i:j]
-    raw_images = _get_images(batch)
-
-    # Convert the images.
-    images = _convert_images(raw_images)
-
-    # Retrieve the class labels for this current batch.
-    labels = np.array(_filter_cls(batch, cls=cls, test=test))
-
-    return images, labels
+    return image_batch, label_batch, label_one_hot
 
 
 ########################################################################
@@ -251,34 +261,9 @@ def load_training_data():
     Returns the images, class-numbers and one-hot encoded class-labels.
     """
 
-    # Pre-allocate the arrays for the images and class-numbers for efficiency.
-    images = np.zeros(shape=[_num_images_train, img_size, img_size, num_channels], dtype=float)
-    cls = np.zeros(shape=[_num_images_train], dtype=int)
+    images, cls, one_hot_cls = _load_data()
 
-    # Begin-index for the current batch.
-    begin = 0
-
-    # For each data-file.
-    for i in range(_num_files_train):
-        # Load the images and class-numbers from the data-file.
-        images_batch, cls_batch = _load_data(batch_num=i)
-
-        # Number of images in this batch.
-        num_images = len(images_batch)
-
-        # End-index for the current batch.
-        end = begin + num_images
-
-        # Store the images into the array.
-        images[begin:end, :] = images_batch
-
-        # Store the class-numbers into the array.
-        cls[begin:end] = cls_batch
-
-        # The begin-index for the next batch is the current end-index.
-        begin = end
-
-    return images, cls, one_hot_encoded(class_numbers=cls, num_classes=num_classes)
+    return images, cls, one_hot_cls
 
 
 def load_test_data():
@@ -290,6 +275,17 @@ def load_test_data():
 
     images, cls = _load_data(test=True)
 
-    return images, cls, one_hot_encoded(class_numbers=cls, num_classes=num_classes)
+    return images, cls, one_hot_cls
+
+
+def maybe_extract():
+    """
+    Extracts the training and test data-set if it hasn't been
+    extracted before.
+    """
+
+    # Extract training and test data-sets and labels.
+    _maybe_extract_data()
+
 
 ########################################################################
