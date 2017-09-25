@@ -104,7 +104,26 @@ def _get_extract_file_paths(test=False):
     return [f for f in os.listdir(data_path) if fnmatch(f, match + '.*')]
 
 
-def _get_file_paths(test=False):
+def _strip_base_filename(e):
+    """
+    Helper function for stripping base filename from path.
+    """
+    return split('[./]', e)[-2]
+
+
+def _base_filename(e):
+    """
+    Translates the list into values with base filename, without extension.
+    """
+    if isinstance(e, list):
+        base = [_strip_base_filename(x) for x in e]
+    else:
+        base = _strip_base_filename(x)
+
+    return base
+
+
+def _get_base_file_paths(test=False):
     """
     Returns a list of sorted file names for a data-set.
     """
@@ -112,20 +131,33 @@ def _get_file_paths(test=False):
 
     filename_match = os.path.join(extract_dir, '*.jpeg')
     filename_list = glob(filename_match)
+
+    # Get base filenames.
+    base_filenames = _base_filename(filename_list)
+
     # Sort the filename list.
-    filename_list = sorted(
-        filename_list, key=lambda fn: int(split('[./_]', fn)[-3]))
+    base_filenames = sorted(
+        base_filenames, key=lambda fn: int(split('_', fn)[-2]))
 
-    return filename_list
+    return base_filenames
 
 
-def _get_data_path(filename=""):
+def _get_data_path(filename="", test=None):
     """
     Returns the file path to a file relative from the data path.
 
     If filename is blank, the data directory path is returned.
+
+    If test is either false or true, the path is returned relative from
+    either the test or the training data directory, respectively.
     """
-    return data_path + "/" + filename
+    if test is not None:
+        if test:
+            return data_path + "/test/" + filename
+        else:
+            return data_path + "/train/" + filename
+    else:
+        return data_path + "/" + filename
 
 
 def _maybe_extract_data():
@@ -134,7 +166,7 @@ def _maybe_extract_data():
     """
     # Helper function for extracting labels.
     def maybe_extract_labels(test=False):
-        image_fns = _get_file_paths(test=test)
+        image_fns = _get_base_file_paths(test=test)
         labels_src_fn = test_labels_filename if test else train_labels_filename
         labels_dest_fn = test_labels_extracted if test else train_labels_extracted
 
@@ -148,7 +180,7 @@ def _maybe_extract_data():
                     reader = csv.reader(r, delimiter=",")
                     for i, line in enumerate(reader):
                         if line[0] in image_fns:
-                            w.write(delimiter.join(line) + "\n")
+                            w.write(",".join(line) + "\n")
             print("Done.")
         else:
             print("Labels already extracted.")
@@ -207,10 +239,11 @@ def _read_images(test=False):
     record_defaults = [[''], [0], ['']]
     record_defaults = record_defaults if test else [[''], [0]]
     labels_fn = test_labels_extracted if test else train_labels_extracted
+    labels_path = _get_data_path(labels_fn)
 
     # Reading and decoding labels in csv-format.
     csv_reader = tf.TextLineReader(skip_header_lines=1)
-    _, csv_row = csv_reader.read(tf.train.string_input_producer([labels_fn]))
+    _, csv_row = csv_reader.read(tf.train.string_input_producer([labels_path]))
     row = tf.decode_csv(csv_row, record_defaults=record_defaults)
 
     # Extract image identifier and class label from file.
@@ -218,7 +251,7 @@ def _read_images(test=False):
     labels = row[1]
 
     # Retrieve image
-    images_path = _get_data_path(image_names + '.jpeg')
+    images_path = _get_data_path(image_names + '.jpeg', test=test)
     images = _get_images(images_path)
 
     return images, labels
