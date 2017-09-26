@@ -29,6 +29,7 @@ import pandas as pd
 from re import split
 from glob import glob
 from fnmatch import fnmatch
+from dataset import one_hot_encoded
 
 ########################################################################
 
@@ -350,9 +351,12 @@ def _get_cls(test=False):
     """
     labels_path = _get_labels_path(test=test)
 
-    labels = pd.read_csv(labels_path, delimiter=",", names=["image", "level"])
+    labels = pd.read_csv(labels_path, delimiter=",",
+                         usecols=[1], names=["level"])
 
-    return labels['level']
+    cls = labels["level"]
+
+    return cls, one_hot_encoded(class_numbers=cls, num_classes=num_classes)
 
 
 ########################################################################

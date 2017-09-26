@@ -20,7 +20,7 @@ from eyepacs import num_classes
 # Use sklearn for analysis of transfer-values and confusion matrix
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from sklearn.metrix import confusion_matrix
+from sklearn.metrics import confusion_matrix
 
 # For debugging purposes.
 import pdb
@@ -31,6 +31,101 @@ import pdb
 batch_size = 64
 
 ########################################################################
+# Initializer functions
+
+# Define the location of the EyePacs data set.
+eyepacs.data_path = "data/eyepacs"
+
+# Extract if necessary.
+eyepacs.maybe_extract()
+
+# Define the download location of the Inception model.
+inception.data_dir = "data/inception/"
+
+# Download the Inception model if necessary.
+inception.maybe_download()
+
+# Load the Inception model.
+model = inception.Inception()
+
+# Load image tensor from the EyePacs training set.
+images_train, cls_train, labels_train = eyepacs.load_training_data()
+
+print("Processing Inception transfer-values for training-images...")
+
+file_path_cache_train = os.path.join(
+    eyepacs.data_path, 'inception_eyepacs_train.pkl')
+
+# If transfer-values have already been calculated then reload them,
+# otherwise calculate them and save them to a cache-file.
+transfer_values_train = transfer_values_cache(
+    cache_path=file_path_cache_train,
+    image_paths=eyepacs.get_training_image_paths(),
+    model=model
+)
+
+print("Processing Inception transfer-values for test-images...")
+
+file_path_cache_test = os.path.join(
+    eyepacs.data_path, 'inception_eyepacs_test.pkl')
+
+# If transfer-values have already been calculated then reload them,
+# otherwise calculate them and save them to a cache-file.
+transfer_values_test = transfer_values_cache(
+    cache_path=file_path_cache_test,
+    image_paths=eyepacs.get_test_image_paths(),
+    model=model
+)
+
+# Retrieve the class-labels from the training set.
+cls_training, labels_training = eyepacs.get_training_cls()
+
+# Retrieve the class-labels from the test-set.
+cls_test, labels_test = eyepacs.get_test_cls()
+
+# New classifier on top of Inception
+transfer_len = model.transfer_len
+
+# Create a placeholder for inputting the transfer-values
+# from the Inception model into the new network.
+x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
+
+# Create another for inputting the true class-label of each image.
+y_true = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_true')
+
+# Calculate the true class via argmax.
+y_true_cls = tf.argmax(y_true, axis=1)
+
+# Create the neural network for doing the classification
+# on top of Inception.
+# Wrap the transfer-values are a Pretty Tensor.
+x_pretty = pt.wrap(x)
+
+with pt.defaults_scope(activation_fn=tf.nn.relu):
+    y_pred, loss = x_pretty.\
+        fully_connected(size=1024, name='layer_fc1').\
+        softmax_classifier(num_classes=num_classes, labels=y_true)
+
+# Optimization method
+global_step = tf.Variable(
+    initial_value=0, name='global_step', trainable=False)
+
+# Use Adam Optimizer with inbuilt well-performing
+# stochastic gradient descent.
+optimizer = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(loss, global_step)
+
+# The output of the network is an array with 5 elements.
+# The predicted class number is the index of the largest element
+# in the array.
+y_pred_cls = tf.argmax(y_pred, axis=1)
+
+# Create an array of booleans whether the predicted class equals
+# the true class of each image.
+correct_prediction = tf.equal(y_pred_cls, y_true_cls)
+
+# Calculate the accuracy by taking the average of correct prediction
+# by type-casting to 1 and 0.
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 
 def plot_images(images, cls_true, cls_pred=None, smooth=True):
@@ -65,14 +160,14 @@ def plot_images(images, cls_true, cls_pred=None, smooth=True):
                       interpolation=interpolation)
 
             # Name of the true class.
-            cls_true_name = class_names[cls_true[i]]
+            cls_true_name = cls_true[i]
 
             # Show true and predicted classes.
             if cls_pred is None:
                 xlabel = "True: {0}".format(cls_true_name)
             else:
                 # Name of the predicted class.
-                cls_pred_name = class_names[cls_pred[i]]
+                cls_pred_name = cls_pred[i]
 
                 xlabel = "True: {0}\nPred: {1}".format(
                     cls_true_name, cls_pred_name)
@@ -166,12 +261,12 @@ def plot_transfer_values_analysis(values, cls):
     plot_scatter(transfer_values_reduced, cls)
 
 
-def random_batch(values):
+def random_batch():
     """
     Function to selecting a random batch of transfer-values from the data.
     """
     # Number of images (transfer-values) in the set.
-    num_images = len(values)
+    num_images = len(transfer_values_train)
 
     # Create a random index.
     idx = np.random.choice(num_images,
@@ -179,13 +274,13 @@ def random_batch(values):
                            replace=False)
 
     # Retrieve random x and y-values.
-    x_batch = values[idx]
-    y_batch = labels_train[idx]
+    x_batch = transfer_values_train[idx]
+    y_batch = labels_training[idx]
 
     return x_batch, y_batch
 
 
-def optimize(num_iterations, transfer_values, global_step, optimizer):
+def optimize(num_iterations):
     """
     Helper function to perform optimization.
     """
@@ -199,7 +294,7 @@ def optimize(num_iterations, transfer_values, global_step, optimizer):
         # For each iteration.
         for i in range(num_iterations):
             # Get a batch of training examples.
-            x_batch, y_true_batch = random_batch(values=transfer_values)
+            x_batch, y_true_batch = random_batch()
 
             # Put the batch into a dict for placeholder variables.
             feed_dict_train = {x: x_batch,
@@ -213,7 +308,7 @@ def optimize(num_iterations, transfer_values, global_step, optimizer):
             # Print status to screen every 100 iterations.
             if (i_global % 100 == 0) or (i == num_iterations - 1):
                 # Calculate the current accuracy on the training-batch.
-                batch_acc = session.run(accuracy, feed_dict=feed_dict_train)
+                batch_acc = sess.run(accuracy, feed_dict=feed_dict_train)
 
                 # Print status.
                 msg = "Global Step: {0:>6}, Training Batch Accuracy: {1:>6.1%}"
@@ -227,24 +322,43 @@ def optimize(num_iterations, transfer_values, global_step, optimizer):
         print("Time usage: " + str(timedelta(seconds=int(round(time_dif)))))
 
 
-def plot_example_errors(cls_pred, cls_true, correct):
+def plot_example_errors(cls_pred, correct):
     """
     Helper function to plot example errors.
     """
     # Negate the boolean array.
-    incorrect = (correct == False)
-
-    pdb.set_trace()
+    incorrect_idx = np.where(correct == False)[0]
 
     # Get up to 9 example images that have been misclassified.
-    n = min(9, len(incorrect))
+    n = min(9, len(incorrect_idx))
+
+    # Get at least first 9 incorrect.
+    examples_incorrect = incorrect_idx[0:n]
+
+    # Get predicted classes for corresponding images.
+    cls_pred = cls_pred[examples_incorrect]
+
+    # Get true classes for corresponding images.
+    cls_true = cls_test[examples_incorrect]
+
+    # Initialize numpy array for images.
+    images = np.zeros(shape=[n, *eyepacs.img_shape, eyepacs.num_channels],
+                      dtype=float)
+
+    # Retrieve images.
+    for i, idx in enumerate(examples_incorrect):
+        image, _, _ = eyepacs.load_test_data(idx)
+        images[i] = eyepacs.session_run(image)[0]
+
+    # Plot n images.
+    plot_images(images=images, cls_true=cls_true, cls_pred=cls_pred)
 
 
-def plot_confustion_matrix(cls_pred, cls_true):
+def plot_confusion_matrix(cls_pred):
     """
-    Helper function toe plot confusion matrix.
+    Helper function to plot confusion matrix.
     """
-    cm = confusion_matrix(y_true=cls_true, y_pred=cls_pred)
+    cm = confusion_matrix(y_true=cls_test, y_pred=cls_pred)
 
     # Print the confusion matrix.
     for i in range(num_classes):
@@ -300,15 +414,14 @@ def classification_accuracy(correct):
     return correct.mean(), correct.sum()
 
 
-def print_test_accuracy(transfer_values, labels, cls_true,
-                        show_example_errors=False,
+def print_test_accuracy(show_example_errors=False,
                         show_confusion_matrix=False):
     """
     Helper function for printing the classification accuracy on test-set."
     """
     # Calculate the predicted classes for the test-set.
-    correct, cls_pred = predict_cls(transfer_values=transfer_values,
-                                    labels=labels, cls_true=cls_true)
+    correct, cls_pred = predict_cls(transfer_values=transfer_values_test,
+                                    labels=labels_test, cls_true=cls_test)
 
     # Classification accuracy.
     acc, num_correct = classification_accuracy(correct)
@@ -332,100 +445,14 @@ def print_test_accuracy(transfer_values, labels, cls_true,
 
 
 def main():
-    # Define the location of the EyePacs data set.
-    eyepacs.data_path = "data/eyepacs"
-
-    # Extract if necessary.
-    eyepacs.maybe_extract()
-
-    # Define the download location of the Inception model.
-    inception.data_dir = "data/inception/"
-
-    # Download the Inception model if necessary.
-    inception.maybe_download()
-
-    # Load the Inception model.
-    model = inception.Inception()
-
-    # Load image tensor from the EyePacs training set.
-    images_train, cls_train, labels_train = eyepacs.load_training_data()
-
-    print("Processing Inception transfer-values for training-images...")
-
-    file_path_cache_train = os.path.join(
-        eyepacs.data_path, 'inception_eyepacs_train.pkl')
-
-    # If transfer-values have already been calculated then reload them,
-    # otherwise calculate them and save them to a cache-file.
-    transfer_values_train = transfer_values_cache(
-        cache_path=file_path_cache_train,
-        image_paths=eyepacs.get_training_image_paths(),
-        model=model
-    )
-
-    print("Processing Inception transfer-values for test-images...")
-
-    file_path_cache_test = os.path.join(
-        eyepacs.data_path, 'inception_eyepacs_test.pkl')
-
-    # If transfer-values have already been calculated then reload them,
-    # otherwise calculate them and save them to a cache-file.
-    transfer_values_test = transfer_values_cache(
-        cache_path=file_path_cache_test,
-        image_paths=eyepacs.get_test_image_paths(),
-        model=model
-    )
-
-    # Retrieve the class-labels from the training set.
-    training_cls = eyepacs.get_training_cls()
-
     # Plot analysis of transfer-values using PCA and t-SNE.
     # plot_transfer_values_analysis(
-    #    values=transfer_values_train, cls=training_cls)
+    #    values=transfer_values_train, cls=cls_training)
 
-    # New classifier on top of Inception
-    transfer_len = model.transfer_len
+    optimize(num_iterations=100)
 
-    # Create a placeholder for inputting the transfer-values
-    # from the Inception model into the new network.
-    x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
-
-    # Create another for inputting the true class-label of each image.
-    y_true = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_true')
-
-    # Calculate the true class via argmax.
-    y_true_cls = tf.argmax(y_true, axis=1)
-
-    # Create the neural network for doing the classification
-    # on top of Inception.
-    # Wrap the transfer-values are a Pretty Tensor.
-    x_pretty = pt.wrap(x)
-
-    with pt.defaults_scope(activation_fn=tf.nn.relu):
-        y_pred, loss = x.pretty.\
-            fully_connected(size=1024, name='layer_fc1').\
-            softmax_classifier(num_classes=num_classes, labels=y_true)
-
-    # Optimization method
-    global_step = tf.Variable(
-        initial_value=0, name='global_step', trainable=False)
-
-    # Use Adam Optimizer with inbuilt well-performing
-    # stochastic gradient descent.
-    optimizer = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(loss, global_step)
-
-    # The output of the network is an array with 5 elements.
-    # The predicted class number is the index of the largest element
-    # in the array.
-    y_pred_cls = tf.argmax(y_pred, axis=1)
-
-    # Create an array of booleans whether the predicted class equals
-    # the true class of each image.
-    correct_prediction = tf.equal(y_pred_cls, y_true_cls)
-
-    # Calculate the accuracy by taking the average of correct prediction
-    # by type-casting to 1 and 0.
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    print_test_accuracy(show_example_errors=True,
+                        show_confusion_matrix=True)
 
 
 if __name__ == '__main__':
