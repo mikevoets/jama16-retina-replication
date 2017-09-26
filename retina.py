@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import tensorflow as tf
+import numpy as np
 import time
 import os
 from datetime import timedelta
@@ -14,6 +16,10 @@ import prettytensor as pt
 # Use the EyePacs dataset.
 import eyepacs
 from eyepacs import num_classes
+
+# Use sklearn for analysis of transfer-values
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 # For debugging purposes.
 import pdb
@@ -74,6 +80,78 @@ def plot_images(images, cls_true, cls_pred=None, smooth=True):
     plt.show()
 
 
+def plot_transfer_values(i, transfer_values, test=False):
+    """
+    Function to plot an example image and its corresponding transfer-values.
+    """
+    print("Input image:")
+
+    if test:
+        image_ex, label_ex, _ = eyepacs.load_test_data(i)
+    else:
+        image_ex, label_ex, _ = eyepacs.load_training_data(i)
+
+    image, label = eyepacs.session_run(image_ex, label_ex)
+
+    # Plot the i'th image from the data-set.
+    plt.imshow(image, interpolation='nearest')
+    plt.show()
+
+    print("Transfer-values for the image using Inception model:")
+
+    # Transform the transfer-values into an image.
+    img = transfer_values[i]
+    img = img.reshape((32, 64))
+
+    # Plot the image for the transfer-values.
+    plt.imshow(img, interpolation='nearest', cmap='Reds')
+    plt.show()
+
+
+def plot_scatter(values, cls):
+    """
+    Function to plot a color-map with different colors for each class.
+    """
+    cmap = cm.rainbow(np.linspace(0.0, 1.0, num_classes))
+
+    # Get the color for each sample.
+    colors = cmap[cls]
+
+    # Extract the x- and y-values.
+    x = values[:, 0]
+    y = values[:, 1]
+
+    # Plot it.
+    plt.scatter(x, y, color=colors)
+    plt.show()
+
+
+def plot_transfer_values_analysis(values, cls):
+    # New PCA-object with target array-length to 2.
+    pca = PCA(n_components=2)
+
+    # Use PCA to reduce the transfer-value arrays from 2048 to 2 elements.
+    transfer_values_reduced = pca.fit_transform(values)
+
+    # Plot the transfer-values that have been reduced using PCA.
+    plot_scatter(transfer_values_reduced, cls)
+
+    # Do dimensionality reduction using t-SNE.
+    # Unfortunately t-SNE is very slow, so we use PCA to reduce the
+    # transfer-values from 2048 to 50 elements.
+    pca = PCA(n_components=50)
+    transfer_values_50d = pca.fit_transform(values)
+
+    # Create a new t-SNE object for final dimensionality reduction.
+    tsne = TSNE(n_components=2)
+
+    # Perform the final reduction using t-SNE.
+    transfer_values_reduced = tsne.fit_transform(transfer_values_50d)
+
+    # Plot the transfer-values.
+    plot_scatter(transfer_values_reduced, cls)
+
+
 def main():
     # Define the location of the EyePacs data set.
     eyepacs.data_path = "data/eyepacs"
@@ -93,10 +171,6 @@ def main():
     # Load image tensor from the EyePacs training set.
     images_train, cls_train, labels_train = eyepacs.load_training_data()
 
-    # Scale images because Inception needs pixels to be between 0 and 255,
-    # while the EyePacs functions return pixels between 0.0 and 1.0
-    images_scaled = images_train * 255.0
-
     print("Processing Inception transfer-values for training-images...")
 
     file_path_cache_train = os.path.join(
@@ -109,6 +183,26 @@ def main():
         image_paths=eyepacs.get_training_image_paths(),
         model=model
     )
+
+    print("Processing Inception transfer-values for test-images...")
+
+    file_path_cache_test = os.path.join(
+        eyepacs.data_path, 'inception_eyepacs_test.pkl')
+
+    # If transfer-values have already been calculated then reload them,
+    # otherwise calculate them and save them to a cache-file.
+    transfer_values_test = transfer_values_cache(
+        cache_path=file_path_cache_test,
+        image_paths=eyepacs.get_test_image_paths(),
+        model=model
+    )
+
+    # Retrieve the class-labels from the training set.
+    training_cls = eyepacs.get_training_cls()
+
+    # Plot analysis of transfer-values using PCA and t-SNE.
+    # plot_transfer_values_analysis(
+    #    values=transfer_values_train, cls=training_cls)
 
 
 if __name__ == '__main__':

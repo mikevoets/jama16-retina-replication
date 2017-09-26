@@ -24,8 +24,8 @@
 import tensorflow as tf
 import os
 import download
-import pdb  # TODO: Remove this line
 import csv
+import pandas as pd
 from re import split
 from glob import glob
 from fnmatch import fnmatch
@@ -243,19 +243,73 @@ def _get_images(file_path):
     return images
 
 
-def _read_images(test=False):
+def _get_labels_path(test=False):
     """
-    Returns an image tensor and its corresponding label tensor.
+    Helper function for retrieving path of labels.
+    """
+    filename = test_labels_extracted if test else train_labels_extracted
+    file_path = _get_data_path(filename)
+
+    return file_path
+
+
+def _read_labels(test=False):
+    """
+    Returns a tensor for a label.
     """
     record_defaults = [[''], [0], ['']]
     record_defaults = record_defaults if test else [[''], [0]]
-    labels_fn = test_labels_extracted if test else train_labels_extracted
-    labels_path = _get_data_path(labels_fn)
+    labels_path = _get_labels_path(test=test)
 
     # Reading and decoding labels in csv-format.
     csv_reader = tf.TextLineReader(skip_header_lines=1)
     _, csv_row = csv_reader.read(tf.train.string_input_producer([labels_path]))
     row = tf.decode_csv(csv_row, record_defaults=record_defaults)
+
+    return row
+
+
+def _get_label(i, test=False):
+    """
+    Returns tensor for i-th label.
+    """
+    labels_path = _get_labels_path(test=test)
+
+    with open(labels_path, 'rt') as r:
+        reader = csv.reader(r, delimiter=",")
+        for num, line in enumerate(reader):
+            # Skip the header line (hence - 1).
+            if i == num - 1:
+                return line[0], int(line[1])
+
+
+def _read_image(i, test=False):
+    """
+    Returns an image and label tensor representing the i-th image
+    in the dataset.
+    """
+    image_name, cls = _get_label(i, test=test)
+
+    if image_name is None:
+        raise ValueError("Out of bound index!")
+
+    label = tf.constant(cls, shape=(1,), dtype=tf.int32)
+
+    images_path = _get_data_path(image_name + '.jpeg', test=test)
+    image = _get_images(images_path)
+
+    # Retrieve one-hot encoded class labels
+    label_one_hot = tf.one_hot(
+        indices=label, depth=num_classes, dtype=tf.float32)
+
+    return image, label, label_one_hot
+
+
+def _read_images(test=False):
+    """
+    Returns an image tensor and its corresponding label tensor.
+    """
+    row = _read_labels()
 
     # Extract image identifier and class label from file.
     image_names = row[0]
@@ -291,9 +345,46 @@ def _load_data(test=False):
     return image_batch, label_batch, label_one_hot
 
 
+def _get_cls(test=False):
+    """
+    Returns a numpy array with class labels from the data-set.
+    """
+    labels_path = _get_labels_path(test=test)
+
+    labels = pd.read_csv(labels_path, delimiter=",", names=["image", "level"])
+
+    return labels['level']
+
+
 ########################################################################
 # Public functions that you may call to download the data-set from
 # the internet and load the data into memory.
+
+
+def get_training_cls():
+    """
+    Returns a numpy array with class labels from the training-set.
+    """
+    return _get_cls()
+
+
+def get_test_cls():
+    """
+    Returns a numpy array with class labels from the test-set.
+    """
+    return _get_cls(test=True)
+
+
+def session_run(*args):
+    """
+    Wrapper function for running a session once.
+    """
+    with tf.Session() as sess:
+        tf.global_variables_initializer().run()
+
+        result = sess.run(args)
+
+    return result
 
 
 def session_iterate(*args):
@@ -305,17 +396,17 @@ def session_iterate(*args):
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord)
 
-        while True:
-            try:
-                res = sess.run(args)
-            except tf.errors.OutOfRangeError:
-                break
+        try:
+            while not coord.should_stop():
+                yield sess.run(args)
 
-            # Yield the result of the session.
-            yield res
+        except tf.errors.OutOfRangeError:
+            print("Done training.")
 
-        # Safely queue coordinator and stop threads.
-        coord.request_stop()
+        finally:
+            # Safely queue coordinator and stop threads.
+            coord.request_stop()
+
         coord.join(threads)
 
 
@@ -335,26 +426,34 @@ def get_test_image_paths():
     return _get_image_paths(test=True)
 
 
-def load_training_data():
+def load_training_data(i=None):
     """
     Load all the training-data for the EyePacs data-set.
 
     The data-set is split into 5 data-files which are merged here.
 
     Returns the images, class-numbers and one-hot encoded class-labels.
+
+    If i is defined, load the i-th image from the dataset.
     """
+    if i is None:
+        return _load_data()
 
-    return _load_data()
+    return _read_image(i)
 
 
-def load_test_data():
+def load_test_data(i=None):
     """
     Load all the test-data for the EyePacs data-set.
 
     Returns the images, class-numbers and one-hot encoded class-labels.
-    """
 
-    return _load_data(test=True)
+    If i is defined, load the i-th image from the dataset.
+    """
+    if i is None:
+        return _load_data(test=True)
+
+    return _read_image(i, test=True)
 
 
 def maybe_extract():
