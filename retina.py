@@ -17,12 +17,20 @@ import prettytensor as pt
 import eyepacs
 from eyepacs import num_classes
 
-# Use sklearn for analysis of transfer-values
+# Use sklearn for analysis of transfer-values and confusion matrix
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+from sklearn.metrix import confusion_matrix
 
 # For debugging purposes.
 import pdb
+
+########################################################################
+# Various constants.
+
+batch_size = 64
+
+########################################################################
 
 
 def plot_images(images, cls_true, cls_pred=None, smooth=True):
@@ -127,6 +135,12 @@ def plot_scatter(values, cls):
 
 
 def plot_transfer_values_analysis(values, cls):
+    """
+    Function to plot analysis of transfer values.
+
+    Plots a PCA (reduction to 2), and a t-SNE by first reducing to 50
+    with PCA, and then reducing from 50 to 2 to t-SNE.
+    """
     # New PCA-object with target array-length to 2.
     pca = PCA(n_components=2)
 
@@ -150,6 +164,171 @@ def plot_transfer_values_analysis(values, cls):
 
     # Plot the transfer-values.
     plot_scatter(transfer_values_reduced, cls)
+
+
+def random_batch(values):
+    """
+    Function to selecting a random batch of transfer-values from the data.
+    """
+    # Number of images (transfer-values) in the set.
+    num_images = len(values)
+
+    # Create a random index.
+    idx = np.random.choice(num_images,
+                           size=batch_size,
+                           replace=False)
+
+    # Retrieve random x and y-values.
+    x_batch = values[idx]
+    y_batch = labels_train[idx]
+
+    return x_batch, y_batch
+
+
+def optimize(num_iterations, transfer_values, global_step, optimizer):
+    """
+    Helper function to perform optimization.
+    """
+
+    with tf.Session() as sess:
+        tf.global_variables_initializer().run()
+
+        # Start time for printing time-usage.
+        start_time = time.time()
+
+        # For each iteration.
+        for i in range(num_iterations):
+            # Get a batch of training examples.
+            x_batch, y_true_batch = random_batch(values=transfer_values)
+
+            # Put the batch into a dict for placeholder variables.
+            feed_dict_train = {x: x_batch,
+                               y_true: y_true_batch}
+
+            # Run the optimizer.
+            # We want to retrieve the global_step counter.
+            i_global, _ = sess.run([global_step, optimizer],
+                                   feed_dict=feed_dict_train)
+
+            # Print status to screen every 100 iterations.
+            if (i_global % 100 == 0) or (i == num_iterations - 1):
+                # Calculate the current accuracy on the training-batch.
+                batch_acc = session.run(accuracy, feed_dict=feed_dict_train)
+
+                # Print status.
+                msg = "Global Step: {0:>6}, Training Batch Accuracy: {1:>6.1%}"
+                print(msg.format(i_global, batch_acc))
+
+        # End.
+        end_time = time.time()
+
+        # Print time difference between start and end-times.
+        time_dif = end_time = start_time
+        print("Time usage: " + str(timedelta(seconds=int(round(time_dif)))))
+
+
+def plot_example_errors(cls_pred, cls_true, correct):
+    """
+    Helper function to plot example errors.
+    """
+    # Negate the boolean array.
+    incorrect = (correct == False)
+
+    pdb.set_trace()
+
+    # Get up to 9 example images that have been misclassified.
+    n = min(9, len(incorrect))
+
+
+def plot_confustion_matrix(cls_pred, cls_true):
+    """
+    Helper function toe plot confusion matrix.
+    """
+    cm = confusion_matrix(y_true=cls_true, y_pred=cls_pred)
+
+    # Print the confusion matrix.
+    for i in range(num_classes):
+        class_name = "({}) {}".format(i, i)
+        print(cm[i, :], class_name)
+
+    # Print the class-numbers for easy reference.
+    class_numbers = [" ({0})".format(i) for i in range(num_classes)]
+    print("".join(class_numbers))
+
+
+def predict_cls(transfer_values, labels, cls_true):
+    """
+    Helper function for calculating classifications.
+    """
+    # Number of images.
+    num_images = len(transfer_values)
+
+    # Preallocate array for predicted classes.
+    cls_pred = np.zeros(shape=num_images, dtype=np.int)
+
+    # Calculate the predicted class.
+    with tf.Session() as sess:
+        tf.global_variables_initializer().run()
+
+        # Calculate the predicted classes for the batches.
+        i = 0
+
+        # For each image.
+        while i < num_images:
+            j = min(i + batch_size, num_images)
+
+            # Create a feed dictionary with images and labels.
+            feed_dict = {x: transfer_values[i:j],
+                         y_true: labels[i:j]}
+
+            # Calculate the predicted class.
+            cls_pred[i:j] = sess.run(y_pred_cls, feed_dict=feed_dict)
+
+            # Reset i.
+            i = j
+
+    # Create an array whether each image is correctly classified.
+    correct = (cls_true == cls_pred)
+
+    return correct, cls_pred
+
+
+def classification_accuracy(correct):
+    """
+    Helper function for calculcating the classification accuracy.
+    """
+    return correct.mean(), correct.sum()
+
+
+def print_test_accuracy(transfer_values, labels, cls_true,
+                        show_example_errors=False,
+                        show_confusion_matrix=False):
+    """
+    Helper function for printing the classification accuracy on test-set."
+    """
+    # Calculate the predicted classes for the test-set.
+    correct, cls_pred = predict_cls(transfer_values=transfer_values,
+                                    labels=labels, cls_true=cls_true)
+
+    # Classification accuracy.
+    acc, num_correct = classification_accuracy(correct)
+
+    # Number of correctly classified images.
+    num_images = len(correct)
+
+    # Print accuracy.
+    msg = "Accuracy on test-set: {0:.1%} ({1} / {2})"
+    print(msg.format(acc, num_correct, num_images))
+
+    # Plot some examples if necessary.
+    if show_example_errors:
+        print("Example errors:")
+        plot_example_errors(cls_pred=cls_pred, correct=correct)
+
+    # Plot confusion matrix if necessary.
+    if show_confusion_matrix:
+        print("Confusion matrix:")
+        plot_confustion_matrix(cls_pred=cls_pred)
 
 
 def main():
@@ -203,6 +382,50 @@ def main():
     # Plot analysis of transfer-values using PCA and t-SNE.
     # plot_transfer_values_analysis(
     #    values=transfer_values_train, cls=training_cls)
+
+    # New classifier on top of Inception
+    transfer_len = model.transfer_len
+
+    # Create a placeholder for inputting the transfer-values
+    # from the Inception model into the new network.
+    x = tf.placeholder(tf.float32, shape=[None, transfer_len], name='x')
+
+    # Create another for inputting the true class-label of each image.
+    y_true = tf.placeholder(tf.float32, shape=[None, num_classes], name='y_true')
+
+    # Calculate the true class via argmax.
+    y_true_cls = tf.argmax(y_true, axis=1)
+
+    # Create the neural network for doing the classification
+    # on top of Inception.
+    # Wrap the transfer-values are a Pretty Tensor.
+    x_pretty = pt.wrap(x)
+
+    with pt.defaults_scope(activation_fn=tf.nn.relu):
+        y_pred, loss = x.pretty.\
+            fully_connected(size=1024, name='layer_fc1').\
+            softmax_classifier(num_classes=num_classes, labels=y_true)
+
+    # Optimization method
+    global_step = tf.Variable(
+        initial_value=0, name='global_step', trainable=False)
+
+    # Use Adam Optimizer with inbuilt well-performing
+    # stochastic gradient descent.
+    optimizer = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(loss, global_step)
+
+    # The output of the network is an array with 5 elements.
+    # The predicted class number is the index of the largest element
+    # in the array.
+    y_pred_cls = tf.argmax(y_pred, axis=1)
+
+    # Create an array of booleans whether the predicted class equals
+    # the true class of each image.
+    correct_prediction = tf.equal(y_pred_cls, y_true_cls)
+
+    # Calculate the accuracy by taking the average of correct prediction
+    # by type-casting to 1 and 0.
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 
 if __name__ == '__main__':

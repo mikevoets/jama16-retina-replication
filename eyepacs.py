@@ -68,7 +68,6 @@ _min_after_dequeue = 10
 
 ########################################################################
 # Various constants for the size of the images.
-# Use these constants in your own program.
 
 # Width and height of each image.
 img_size = 256
