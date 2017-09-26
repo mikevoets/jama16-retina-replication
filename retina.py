@@ -74,7 +74,6 @@ def plot_images(images, cls_true, cls_pred=None, smooth=True):
     plt.show()
 
 
-
 def main():
     # Define the location of the EyePacs data set.
     eyepacs.data_path = "data/eyepacs"
@@ -91,43 +90,25 @@ def main():
     # Load the Inception model.
     model = inception.Inception()
 
-    # Load images from the EyePacs training set.
+    # Load image tensor from the EyePacs training set.
     images_train, cls_train, labels_train = eyepacs.load_training_data()
 
-    # Load images from the EyePacs test set.
-    images_test, cls_test, labels_test = eyepacs.load_training_data()
-
-    # Set the file-paths for the caches of the training and test-set.
-    file_path_cache_train = os.path.join(
-        eyepacs.data_path, 'inception_eyepacs_train.pkl')
-    file_path_cache_test = os.path.join(
-        eyepacs.data_path, 'inception_eyepacs_test.pkl')
+    # Scale images because Inception needs pixels to be between 0 and 255,
+    # while the EyePacs functions return pixels between 0.0 and 1.0
+    images_scaled = images_train * 255.0
 
     print("Processing Inception transfer-values for training-images...")
 
-    # Scale images because Inception needs pixels to be between 0 and 255,
-    # while the CIFAR-10 functions return pixels between 0.0 and 1.0
-    images_scaled = images_train * 255.0
+    file_path_cache_train = os.path.join(
+        eyepacs.data_path, 'inception_eyepacs_train.pkl')
 
-    with tf.Session() as sess:
-        tf.global_variables_initializer().run()
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord)
-
-        while True:
-            try:
-                images, labels = sess.run([images_scaled, labels_train])
-            except tf.errors.OutOfRangeError:
-                break
-
-            # If transfer-values have already been calculated then reload them,
-            # otherwise calculate them and save them to a cache-file.
-            transfer_values_train = transfer_values_cache(
-                cache_path=file_path_cache_train, images=images, model=model)
-
-        # Safely queue coordinator and stop threads
-        coord.request_stop()
-        coord.join(threads)
+    # If transfer-values have already been calculated then reload them,
+    # otherwise calculate them and save them to a cache-file.
+    transfer_values_train = transfer_values_cache(
+        cache_path=file_path_cache_train,
+        image_paths=eyepacs.get_training_image_paths(),
+        model=model
+    )
 
 
 if __name__ == '__main__':

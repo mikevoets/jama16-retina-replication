@@ -123,17 +123,28 @@ def _base_filename(e):
     return base
 
 
+def _get_image_paths(test=False, extension=None):
+    if extension is None:
+        extension = ".jpeg"
+
+    # Get the directory where the data-set resides.
+    extract_dir = _get_extract_path(test=test)
+
+    # The file paths should match the following regexp.
+    filename_match = os.path.join(extract_dir, "*" + extension)
+
+    return glob(filename_match)
+
+
 def _get_base_file_paths(test=False):
     """
     Returns a list of sorted file names for a data-set.
     """
-    extract_dir = _get_extract_path(test=test)
-
-    filename_match = os.path.join(extract_dir, '*.jpeg')
-    filename_list = glob(filename_match)
+    # Get file paths.
+    file_paths = _get_image_paths(test=test, extension=".jpeg")
 
     # Get base filenames.
-    base_filenames = _base_filename(filename_list)
+    base_filenames = _base_filename(file_paths)
 
     # Sort the filename list.
     base_filenames = sorted(
@@ -285,6 +296,45 @@ def _load_data(test=False):
 # the internet and load the data into memory.
 
 
+def session_iterate(*args):
+    """
+    Wrapper function for starting up a session and iterating over the data-set.
+    """
+    with tf.Session() as sess:
+        tf.global_variables_initializer().run()
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(coord=coord)
+
+        while True:
+            try:
+                res = sess.run(args)
+            except tf.errors.OutOfRangeError:
+                break
+
+            # Yield the result of the session.
+            yield res
+
+        # Safely queue coordinator and stop threads.
+        coord.request_stop()
+        coord.join(threads)
+
+
+def get_training_image_paths():
+    """
+    Returns a list with all the image paths for the training-set.
+    """
+
+    return _get_image_paths()
+
+
+def get_test_image_paths():
+    """
+    Returns a list with all the image paths for the test-set.
+    """
+
+    return _get_image_paths(test=True)
+
+
 def load_training_data():
     """
     Load all the training-data for the EyePacs data-set.
@@ -294,9 +344,7 @@ def load_training_data():
     Returns the images, class-numbers and one-hot encoded class-labels.
     """
 
-    images, cls, one_hot_cls = _load_data()
-
-    return images, cls, one_hot_cls
+    return _load_data()
 
 
 def load_test_data():
@@ -306,9 +354,7 @@ def load_test_data():
     Returns the images, class-numbers and one-hot encoded class-labels.
     """
 
-    images, cls = _load_data(test=True)
-
-    return images, cls, one_hot_cls
+    return _load_data(test=True)
 
 
 def maybe_extract():
@@ -317,7 +363,6 @@ def maybe_extract():
     extracted before.
     """
 
-    # Extract training and test data-sets and labels.
     _maybe_extract_data()
 
 
