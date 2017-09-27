@@ -8,7 +8,6 @@
 
 import sys
 import os
-# import libarchive.public
 import urllib.request
 import tarfile
 import zipfile
@@ -23,14 +22,6 @@ def _extract(file_path, extract_dir):
     if ".zip" in file_path:
         # Unpack the zip-file.
         zipfile.ZipFile(file=file_path, mode="r").extractall(extract_dir)
-    elif ".7z" in file_path:
-        # Unpack the 7z-archive.
-        with libarchive.public.file_reader(file_path) as e:
-            for entry in e:
-                extract_path = os.path.join(extract_dir, entry)
-                with open(extract_path, 'wb') as f:
-                    for block in entry.get_blocks():
-                        f.write(block)
     elif ".tar.gz" in file_path or ".tgz" in file_path:
         # Unpack the tar-ball.
         tarfile.open(name=file_path, mode="r:gz").extractall(extract_dir)

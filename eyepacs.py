@@ -38,7 +38,7 @@ from dataset import one_hot_encoded
 data_path = "data/eyepacs/"
 
 # File name for the training-set.
-train_data_filename = "train.tar.gz"
+train_data_filename = "train.7z"
 
 # File name for the labels of the training-set.
 train_labels_filename = "trainLabels.csv"
@@ -47,7 +47,7 @@ train_labels_filename = "trainLabels.csv"
 train_labels_extracted = "trainLabels.part.csv"
 
 # File name for the test-set.
-test_data_filename = "test.tar.gz"
+test_data_filename = "test.7z"
 
 # File name for the labels of the test-set.
 test_labels_filename = "testLabels.csv"
