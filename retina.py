@@ -28,7 +28,7 @@ import pdb
 ########################################################################
 # Various constants.
 
-batch_size = 64
+batch_size = 128
 
 ########################################################################
 # Initializer functions
@@ -318,7 +318,7 @@ def optimize(num_iterations):
         end_time = time.time()
 
         # Print time difference between start and end-times.
-        time_dif = end_time = start_time
+        time_dif = end_time - start_time
         print("Time usage: " + str(timedelta(seconds=int(round(time_dif)))))
 
 
@@ -441,7 +441,7 @@ def print_test_accuracy(show_example_errors=False,
     # Plot confusion matrix if necessary.
     if show_confusion_matrix:
         print("Confusion matrix:")
-        plot_confustion_matrix(cls_pred=cls_pred)
+        plot_confusion_matrix(cls_pred=cls_pred)
 
 
 def main():
@@ -449,7 +449,7 @@ def main():
     # plot_transfer_values_analysis(
     #    values=transfer_values_train, cls=cls_training)
 
-    optimize(num_iterations=100)
+    optimize(num_iterations=1000)
 
     print_test_accuracy(show_example_errors=True,
                         show_confusion_matrix=True)
