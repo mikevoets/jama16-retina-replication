@@ -2,8 +2,6 @@
 #
 # Class for creating a data-set consisting of all files in a directory.
 #
-# Example usage is shown in the file knifey.py and Tutorial #09.
-#
 # Implemented in Python 3.5
 #
 ########################################################################

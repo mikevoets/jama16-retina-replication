@@ -37,7 +37,13 @@ batch_size = 128
 eyepacs.data_path = "data/eyepacs"
 
 # Extract if necessary.
-eyepacs.maybe_extract()
+eyepacs.maybe_extract_images()
+
+# Preprocess if necessary.
+eyepacs.maybe_preprocess()
+
+# Extract labels if necessary.
+eyepacs.maybe_extract_labels()
 
 # Define the download location of the Inception model.
 inception.data_dir = "data/inception/"

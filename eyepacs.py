@@ -30,12 +30,22 @@ from re import split
 from glob import glob
 from fnmatch import fnmatch
 from dataset import one_hot_encoded
+from preprocess import scale_normalize
 
 ########################################################################
 
 # Directory where you want to extract and save the data-set.
 # Set this before you start calling any of the functions below.
 data_path = "data/eyepacs/"
+
+# Directory to training and test-set relative from the data path.
+train_subpath = "train/"
+test_subpath = "test/"
+
+# Directory to where preprocessed training and test-sets should
+# be uploaded to.
+train_pre_subpath = "preprocessed/train/"
+test_pre_subpath = "preprocessed/test/"
 
 # File name for the training-set.
 train_data_filename = "train.7z"
@@ -86,11 +96,26 @@ num_classes = 5
 # Private functions for downloading, unpacking and loading data-files.
 
 
+def _get_images_path(test=False):
+    """
+    Returns the path for the directory the processed data-set.
+    """
+    if test:
+        images_dir = test_pre_subpath
+    else:
+        images_dir = train_pre_subpath
+
+    return os.path.join(data_path, images_dir)
+
+
 def _get_extract_path(test=False):
     """
     Returns the path for the directory the data-set has been extracted to.
     """
-    extract_dir = "test" if test else "train"
+    if test:
+        extract_dir = test_subpath
+    else:
+        extract_dir = train_subpath
 
     return os.path.join(data_path, extract_dir)
 
@@ -128,10 +153,10 @@ def _get_image_paths(test=False, extension=None):
         extension = ".jpeg"
 
     # Get the directory where the data-set resides.
-    extract_dir = _get_extract_path(test=test)
+    images_dir = _get_images_path(test=test)
 
     # The file paths should match the following regexp.
-    filename_match = os.path.join(extract_dir, "*" + extension)
+    filename_match = os.path.join(images_dir, "*" + extension)
 
     return glob(filename_match)
 
@@ -164,55 +189,56 @@ def _get_data_path(filename="", test=None):
     """
     if test is not None:
         if test:
-            return data_path + "/test/" + filename
+            return data_path + test_pre_subpath + filename
         else:
-            return data_path + "/train/" + filename
+            return data_path + train_pre_subpath + filename
     else:
         return data_path + "/" + filename
 
 
-def _maybe_extract_data():
+def maybe_extract_labels(test=False):
+    """
+    Helper function for extracting labels.
+    """
+    print("Extracting labels...")
+
+    image_fns = _get_base_file_paths(test=test)
+
+    if test:
+        labels_src_fn = test_labels_filename
+        labels_dest_fn = test_labels_extracted
+    else:
+        labels_src_fn = train_labels_filename
+        labels_dest_fn = train_labels_extracted
+
+    # Retrieve the paths labels should be exported to.
+    labels_src_path = _get_data_path(labels_src_fn)
+    labels_dest_path = _get_data_path(labels_dest_fn)
+
+    if not os.path.exists(labels_dest_path):
+        with open(labels_dest_path, 'wt') as w:
+            with open(labels_src_path, 'rt') as r:
+                reader = csv.reader(r, delimiter=",")
+                for i, line in enumerate(reader):
+                    if line[0] in image_fns:
+                        w.write(",".join(line) + "\n")
+        print("Done.")
+    else:
+        print("Labels already extracted.")
+
+
+def _maybe_extract_images(test=False):
     """
     Extracts a compressed or archived data-file from the EyePacs data-set.
     """
-    # Helper function for extracting labels.
-    def maybe_extract_labels(test=False):
-        image_fns = _get_base_file_paths(test=test)
-        labels_src_fn = test_labels_filename if test else train_labels_filename
-        labels_dest_fn = test_labels_extracted if test else train_labels_extracted
+    filenames = _get_extract_file_paths(test=test)
 
-        # Retrieve the paths labels should be exported to.
-        labels_src_path = _get_data_path(labels_src_fn)
-        labels_dest_path = _get_data_path(labels_dest_fn)
+    for f in filenames:
+        print("Extracting %s..." % f)
 
-        if not os.path.exists(labels_dest_path):
-            with open(labels_dest_path, 'wt') as w:
-                with open(labels_src_path, 'rt') as r:
-                    reader = csv.reader(r, delimiter=",")
-                    for i, line in enumerate(reader):
-                        if line[0] in image_fns:
-                            w.write(",".join(line) + "\n")
-            print("Done.")
-        else:
-            print("Labels already extracted.")
+        file_path = os.path.join(data_path, f)
 
-    # Helper function for extracting labels and data-set package(s).
-    def maybe_extract(test=False):
-        filenames = _get_extract_file_paths(test=test)
-
-        for f in filenames:
-            print("Extracting %s..." % f)
-
-            file_path = os.path.join(data_path, f)
-
-            download.maybe_extract(file_path=file_path, extract_dir=data_path)
-
-        print("Extracting labels...")
-
-        maybe_extract_labels(test=test)
-
-    maybe_extract()
-    maybe_extract(test=True)
+        download.maybe_extract(file_path=file_path, extract_dir=data_path)
 
 
 def _convert_images(raw):
@@ -247,7 +273,11 @@ def _get_labels_path(test=False):
     """
     Helper function for retrieving path of labels.
     """
-    filename = test_labels_extracted if test else train_labels_extracted
+    if test:
+        filename = test_labels_extracted
+    else:
+        filename = train_labels_extracted
+
     file_path = _get_data_path(filename)
 
     return file_path
@@ -359,6 +389,52 @@ def _get_cls(test=False):
     return cls, one_hot_encoded(class_numbers=cls, num_classes=num_classes)
 
 
+def _maybe_preprocess(test=False):
+    """
+    Helper function for preprocessing of images.
+    """
+    # Find the path where processed images should be uploaded to.
+    save_path = _get_images_path(test=test)
+
+    # Get image path.
+    images_dir = _get_extract_path(test=test)
+
+    # Only continue unless the directory does not exist.
+    if not os.path.exists(save_path):
+        print("Preprocessing images...")
+
+        # Create directory for preprocessed images.
+        os.makedirs(save_path)
+
+        # Preprocess images.
+        scale_normalize(images_path=images_dir, save_path=save_path)
+    else:
+        print("Images seem already processed.")
+
+
+def _session_iterate(*args):
+    """
+    Helper function for iterating over data-set.
+    """
+    with tf.Session() as sess:
+        tf.global_variables_initializer().run()
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(coord=coord)
+
+        try:
+            while not coord.should_stop():
+                yield sess.run(args)
+
+        except tf.errors.OutOfRangeError:
+            pass
+
+        finally:
+            # Safely queue coordinator and stop threads.
+            coord.request_stop()
+
+        coord.join(threads)
+
+
 ########################################################################
 # Public functions that you may call to download the data-set from
 # the internet and load the data into memory.
@@ -368,6 +444,7 @@ def get_training_cls():
     """
     Returns a numpy array with class labels from the training-set.
     """
+
     return _get_cls()
 
 
@@ -375,6 +452,7 @@ def get_test_cls():
     """
     Returns a numpy array with class labels from the test-set.
     """
+
     return _get_cls(test=True)
 
 
@@ -382,6 +460,7 @@ def session_run(*args):
     """
     Wrapper function for running a session once.
     """
+
     with tf.Session() as sess:
         tf.global_variables_initializer().run()
 
@@ -394,23 +473,8 @@ def session_iterate(*args):
     """
     Wrapper function for starting up a session and iterating over the data-set.
     """
-    with tf.Session() as sess:
-        tf.global_variables_initializer().run()
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord)
 
-        try:
-            while not coord.should_stop():
-                yield sess.run(args)
-
-        except tf.errors.OutOfRangeError:
-            print("Done training.")
-
-        finally:
-            # Safely queue coordinator and stop threads.
-            coord.request_stop()
-
-        coord.join(threads)
+    yield _session_iterate(args)
 
 
 def get_training_image_paths():
@@ -439,6 +503,7 @@ def load_training_data(i=None):
 
     If i is defined, load the i-th image from the dataset.
     """
+
     if i is None:
         return _load_data()
 
@@ -453,19 +518,44 @@ def load_test_data(i=None):
 
     If i is defined, load the i-th image from the dataset.
     """
+
     if i is None:
         return _load_data(test=True)
 
     return _read_image(i, test=True)
 
 
-def maybe_extract():
+def maybe_preprocess():
+    """
+    Preprocesses the training and test data-set if it hasn't been
+    preprocessed before.
+
+    Scale normalizes each image by finding the circle mask of the fundus
+    and scaling it to 299px in diameter.
+    """
+
+    _maybe_preprocess()
+    _maybe_preprocess(test=True)
+
+
+def maybe_extract_images():
     """
     Extracts the training and test data-set if it hasn't been
     extracted before.
     """
 
-    _maybe_extract_data()
+    _maybe_extract_images()
+    _maybe_extract_images(test=True)
+
+
+def maybe_extract_labels():
+    """
+    Extracts the training and test data-set labels if they haven't
+    been extracted before.
+    """
+
+    _maybe_extract_labels()
+    _maybe_extract_labels(test=True)
 
 
 ########################################################################
