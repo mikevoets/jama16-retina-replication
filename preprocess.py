@@ -97,12 +97,30 @@ def _scale_normalize(image):
     copy = copy[y_min:y_max, x_min:x_max]
 
     # Scale the image.
-    fx = fy = 149.5 / radius
+    fx = fy = 149.5/radius
     copy = cv2.resize(copy, (0, 0), fx=fx, fy=fy)
 
-    # TODO: Add padding to image to make it 299x299.
-    raise "Todo!"
+    # Add padding to image to make it 299x299.
+    shape = copy.shape
 
+    # Get the border shape size.
+    top = bottom = int((299 - shape[0])/2)
+    left = right = int((299 - shape[1])/2)
+
+    # Add 1 pixel if necessary.
+    if shape[0] + top + bottom == 298:
+        top += 1
+
+    if shape[1] + left + right == 298:
+        left += 1
+
+    # Define border of the image.
+    border = [top, bottom, left, right]
+
+    # Add border.
+    copy = cv2.copyMakeBorder(copy, *border,
+                              borderType=cv2.BORDER_CONSTANT,
+                              value=[0, 0, 0])
     # Return the image.
     return copy
 
@@ -163,19 +181,22 @@ def scale_normalize(save_path=None, images_path=None, image=None):
             sys.stdout.write(msg)
             sys.stdout.flush()
 
-            # Load the image and clone it for output.
-            image = cv2.imread(image_path)
+            try:
+                # Load the image and clone it for output.
+                image = cv2.imread(image_path)
 
-            # Scale normalize the image.
-            processed = _scale_normalize(image)
+                # Scale normalize the image.
+                processed = _scale_normalize(image)
 
-            if processed is None:
+                if processed is None:
+                    print("Could not preprocess {}...".format(image_path))
+                else:
+                    # Get the save path for the processed image.
+                    image_filename = _get_filename(image_path)
+                    output_path = os.path.join(save_path, image_filename)
+
+                    # Save the image.
+                    cv2.imwrite(output_path, processed,
+                                [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+            except AttributeError:
                 print("Could not preprocess {}...".format(image_path))
-            else:
-                # Get the save path for the processed image.
-                image_filename = _get_filename(image_path)
-                output_path = os.path.join(save_path, image_filename)
-
-                # Save the image.
-                cv2.imwrite(output_path, processed,
-                            [int(cv2.IMWRITE_JPEG_QUALITY), 100])

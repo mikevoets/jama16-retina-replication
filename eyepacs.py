@@ -409,7 +409,7 @@ def _maybe_preprocess(test=False):
         # Preprocess images.
         scale_normalize(images_path=images_dir, save_path=save_path)
     else:
-        print("Images seem already processed.")
+        print("Images seem already preprocessed.")
 
 
 def _session_iterate(*args):
