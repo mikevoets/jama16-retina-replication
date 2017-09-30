@@ -25,6 +25,9 @@ from sklearn.metrics import confusion_matrix
 # For debugging purposes.
 import pdb
 
+# Ignore Tensorflow logs.
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 ########################################################################
 # Various constants.
 
@@ -471,7 +474,7 @@ def main():
 
     optimize(num_iterations=1000)
 
-    print_test_accuracy(show_example_errors=True,
+    print_test_accuracy(show_example_errors=False,
                         show_confusion_matrix=True)
 
 
