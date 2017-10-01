@@ -319,13 +319,10 @@ def optimize(num_iterations):
                 # Calculate the current accuracy on the training-batch.
                 batch_acc = sess.run(accuracy, feed_dict=feed_dict_train)
 
-                # Classification accuracy on test-set.
-                _, test_acc, num_correct = get_test_accuracy()
-
                 # Print status.
                 msg = ("Global Step: {0:>6}, Training Batch Accuracy: "
-                       "{1:>6.1%}, Test Batch Accuracy: {2:>6.1%}")
-                print(msg.format(i_global, batch_acc, test_acc))
+                       "{1:>6.1%}")
+                print(msg.format(i_global, batch_acc))
 
         # End.
         end_time = time.time()
@@ -427,9 +424,10 @@ def classification_accuracy(correct):
     return correct.mean(), correct.sum()
 
 
-def get_test_accuracy():
+def print_test_accuracy(show_example_errors=False,
+                        show_confusion_matrix=False):
     """
-    Helper function for getting accuracy on test-set.
+    Helper function for printing the classification accuracy on test-set."
     """
     # Calculate the predicted classes for the test-set.
     correct, cls_pred = predict_cls(transfer_values=transfer_values_test,
@@ -437,17 +435,6 @@ def get_test_accuracy():
 
     # Classification accuracy.
     acc, num_correct = classification_accuracy(correct)
-
-    return correct, acc, num_correct
-
-
-def print_test_accuracy(show_example_errors=False,
-                        show_confusion_matrix=False):
-    """
-    Helper function for printing the classification accuracy on test-set."
-    """
-    # Classification accuracy.
-    correct, acc, num_correct = get_test_accuracy()
 
     # Number of correctly classified images.
     num_images = len(correct)
