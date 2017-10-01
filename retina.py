@@ -320,7 +320,7 @@ def optimize(num_iterations):
                 batch_acc = sess.run(accuracy, feed_dict=feed_dict_train)
 
                 # Classification accuracy on test-set.
-                test_acc, num_correct = get_test_accuracy()
+                _, test_acc, num_correct = get_test_accuracy()
 
                 # Print status.
                 msg = ("Global Step: {0:>6}, Training Batch Accuracy: "
@@ -438,7 +438,7 @@ def get_test_accuracy():
     # Classification accuracy.
     acc, num_correct = classification_accuracy(correct)
 
-    return acc, num_correct
+    return correct, acc, num_correct
 
 
 def print_test_accuracy(show_example_errors=False,
@@ -447,7 +447,7 @@ def print_test_accuracy(show_example_errors=False,
     Helper function for printing the classification accuracy on test-set."
     """
     # Classification accuracy.
-    acc, num_correct = get_test_accuracy()
+    correct, acc, num_correct = get_test_accuracy()
 
     # Number of correctly classified images.
     num_images = len(correct)
