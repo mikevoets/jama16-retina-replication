@@ -60,10 +60,13 @@ def _find_contours(image):
         # Find the largest contour in the mask.
         c = max(cnts, key=cv2.contourArea)
         ((x, y), radius) = cv2.minEnclosingCircle(c)
-        M = cv2.moments(c)
-        center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
-        return (center, radius)
+        # Assume the radius is of a certain size.
+        if radius > 100:
+            M = cv2.moments(c)
+            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+
+            return (center, radius)
 
 
 def _get_filename(file_path):
@@ -80,11 +83,13 @@ def _scale_normalize(image):
     copy = image.copy()
 
     # Find largest contour in image.
-    center, radius = _find_contours(image)
+    contours = _find_contours(image)
 
     # Return unless we have gotten some result contours.
-    if center is None:
+    if contours is None:
         return None
+
+    center, radius = contours
 
     # Calculate the min and max-boundaries for cropping the image.
     x_min = max(0, int(center[0] - radius))

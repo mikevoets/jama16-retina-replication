@@ -196,7 +196,7 @@ def _get_data_path(filename="", test=None):
         return data_path + "/" + filename
 
 
-def maybe_extract_labels(test=False):
+def _maybe_extract_labels(test=False):
     """
     Helper function for extracting labels.
     """
