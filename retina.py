@@ -371,7 +371,7 @@ def plot_confusion_matrix(cls_pred):
     """
     Helper function to plot confusion matrix.
     """
-    cm = confusion_matrix(y_true=cls_true, y_pred=cls_pred)
+    cm = confusion_matrix(y_true=cls_test, y_pred=cls_pred)
 
     # Print the confusion matrix.
     for i in range(num_classes):
