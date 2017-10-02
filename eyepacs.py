@@ -292,7 +292,7 @@ def _read_labels(test=False):
     labels_path = _get_labels_path(test=test)
 
     # Reading and decoding labels in csv-format.
-    csv_reader = tf.TextLineReader(skip_header_lines=1)
+    csv_reader = tf.TextLineReader()
     _, csv_row = csv_reader.read(tf.train.string_input_producer([labels_path]))
     row = tf.decode_csv(csv_row, record_defaults=record_defaults)
 
@@ -308,8 +308,7 @@ def _get_label(i, test=False):
     with open(labels_path, 'rt') as r:
         reader = csv.reader(r, delimiter=",")
         for num, line in enumerate(reader):
-            # Skip the header line (hence - 1).
-            if i == num - 1:
+            if i == num:
                 return line[0], int(line[1])
 
 
@@ -412,18 +411,17 @@ def _maybe_preprocess(test=False):
         print("Images seem already preprocessed.")
 
 
-def _session_iterate(*args):
+def _session_iterate(args, session=None):
     """
     Helper function for iterating over data-set.
     """
-    with tf.Session() as sess:
-        tf.global_variables_initializer().run()
+    def iterate(args, session):
         coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord)
+        threads = tf.train.start_queue_runners(coord=coord, sess=session)
 
         try:
             while not coord.should_stop():
-                yield sess.run(args)
+                yield session.run(args)
 
         except tf.errors.OutOfRangeError:
             pass
@@ -433,6 +431,13 @@ def _session_iterate(*args):
             coord.request_stop()
 
         coord.join(threads)
+
+    if session is not None:
+        iterate(args=args, session=session)
+    else:
+        with tf.Session() as sess:
+            tf.global_variables_initializer().run()
+            iterate(args=args, session=sess)
 
 
 ########################################################################
@@ -456,25 +461,26 @@ def get_test_cls():
     return _get_cls(test=True)
 
 
-def session_run(*args):
+def session_run(args, session=None):
     """
     Wrapper function for running a session once.
     """
-
-    with tf.Session() as sess:
-        tf.global_variables_initializer().run()
-
-        result = sess.run(args)
+    if session is not None:
+        result = session.run(args)
+    else:
+        with tf.Session() as sess:
+            tf.global_variables_initializer().run()
+            result = sess.run(args)
 
     return result
 
 
-def session_iterate(*args):
+def session_iterate(args, session=None):
     """
     Wrapper function for starting up a session and iterating over the data-set.
     """
 
-    yield _session_iterate(args)
+    yield _session_iterate(args=args, session=session)
 
 
 def get_training_image_paths():

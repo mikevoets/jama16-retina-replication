@@ -37,7 +37,7 @@ batch_size = 128
 # Initializer functions
 
 # Define the location of the EyePacs data set.
-eyepacs.data_path = "data/eyepacs"
+eyepacs.data_path = "data/eyepacs/"
 
 # Extract if necessary.
 eyepacs.maybe_extract_images()
@@ -136,6 +136,12 @@ correct_prediction = tf.equal(y_pred_cls, y_true_cls)
 # by type-casting to 1 and 0.
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
+# Start a TensorFlow session.
+session = tf.Session()
+
+# Initialize the global variables.
+session.run(tf.global_variables_initializer())
+
 
 def plot_images(images, cls_true, cls_pred=None, smooth=True):
     """
@@ -203,7 +209,8 @@ def plot_transfer_values(i, transfer_values, test=False):
     else:
         image_ex, label_ex, _ = eyepacs.load_training_data(i)
 
-    image, label = eyepacs.session_run(image_ex, label_ex)
+    image, label = eyepacs.session_run(args=[image_ex, label_ex],
+                                       session=session)
 
     # Plot the i'th image from the data-set.
     plt.imshow(image, interpolation='nearest')
@@ -293,43 +300,39 @@ def optimize(num_iterations):
     """
     Helper function to perform optimization.
     """
+    # Start time for printing time-usage.
+    start_time = time.time()
 
-    with tf.Session() as sess:
-        tf.global_variables_initializer().run()
+    # For each iteration.
+    for i in range(num_iterations):
+        # Get a batch of training examples.
+        x_batch, y_true_batch = random_batch()
 
-        # Start time for printing time-usage.
-        start_time = time.time()
+        # Put the batch into a dict for placeholder variables.
+        feed_dict_train = {x: x_batch,
+                           y_true: y_true_batch}
 
-        # For each iteration.
-        for i in range(num_iterations):
-            # Get a batch of training examples.
-            x_batch, y_true_batch = random_batch()
+        # Run the optimizer.
+        # We want to retrieve the global_step counter.
+        i_global, _ = session.run([global_step, optimizer],
+                               feed_dict=feed_dict_train)
 
-            # Put the batch into a dict for placeholder variables.
-            feed_dict_train = {x: x_batch,
-                               y_true: y_true_batch}
+        # Print status to screen every 100 iterations.
+        if (i_global % 100 == 0) or (i == num_iterations - 1):
+            # Calculate the current accuracy on the training-batch.
+            batch_acc = session.run(accuracy, feed_dict=feed_dict_train)
 
-            # Run the optimizer.
-            # We want to retrieve the global_step counter.
-            i_global, _ = sess.run([global_step, optimizer],
-                                   feed_dict=feed_dict_train)
+            # Print status.
+            msg = ("Global Step: {0:>6}, Training Batch Accuracy: "
+                   "{1:>6.1%}")
+            print(msg.format(i_global, batch_acc))
 
-            # Print status to screen every 100 iterations.
-            if (i_global % 100 == 0) or (i == num_iterations - 1):
-                # Calculate the current accuracy on the training-batch.
-                batch_acc = sess.run(accuracy, feed_dict=feed_dict_train)
+    # End.
+    end_time = time.time()
 
-                # Print status.
-                msg = ("Global Step: {0:>6}, Training Batch Accuracy: "
-                       "{1:>6.1%}")
-                print(msg.format(i_global, batch_acc))
-
-        # End.
-        end_time = time.time()
-
-        # Print time difference between start and end-times.
-        time_dif = end_time - start_time
-        print("Time usage: " + str(timedelta(seconds=int(round(time_dif)))))
+    # Print time difference between start and end-times.
+    time_dif = end_time - start_time
+    print("Time usage: " + str(timedelta(seconds=int(round(time_dif)))))
 
 
 def plot_example_errors(cls_pred, correct):
@@ -358,7 +361,7 @@ def plot_example_errors(cls_pred, correct):
     # Retrieve images.
     for i, idx in enumerate(examples_incorrect):
         image, _, _ = eyepacs.load_test_data(idx)
-        images[i] = eyepacs.session_run(image)[0]
+        images[i] = eyepacs.session_run(args=[image], session=session)[0]
 
     # Plot n images.
     plot_images(images=images, cls_true=cls_true, cls_pred=cls_pred)
@@ -368,7 +371,7 @@ def plot_confusion_matrix(cls_pred):
     """
     Helper function to plot confusion matrix.
     """
-    cm = confusion_matrix(y_true=cls_test, y_pred=cls_pred)
+    cm = confusion_matrix(y_true=cls_true, y_pred=cls_pred)
 
     # Print the confusion matrix.
     for i in range(num_classes):
@@ -390,26 +393,22 @@ def predict_cls(transfer_values, labels, cls_true):
     # Preallocate array for predicted classes.
     cls_pred = np.zeros(shape=num_images, dtype=np.int)
 
-    # Calculate the predicted class.
-    with tf.Session() as sess:
-        tf.global_variables_initializer().run()
+    # Calculate the predicted classes for the batches.
+    i = 0
 
-        # Calculate the predicted classes for the batches.
-        i = 0
+    # For each image.
+    while i < num_images:
+        j = min(i + batch_size, num_images)
 
-        # For each image.
-        while i < num_images:
-            j = min(i + batch_size, num_images)
+        # Create a feed dictionary with images and labels.
+        feed_dict = {x: transfer_values[i:j],
+                     y_true: labels[i:j]}
 
-            # Create a feed dictionary with images and labels.
-            feed_dict = {x: transfer_values[i:j],
-                         y_true: labels[i:j]}
+        # Calculate the predicted class.
+        cls_pred[i:j] = session.run(y_pred_cls, feed_dict=feed_dict)
 
-            # Calculate the predicted class.
-            cls_pred[i:j] = sess.run(y_pred_cls, feed_dict=feed_dict)
-
-            # Reset i.
-            i = j
+        # Reset i.
+        i = j
 
     # Create an array whether each image is correctly classified.
     correct = (cls_true == cls_pred)
