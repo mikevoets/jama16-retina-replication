@@ -43,6 +43,9 @@ learning_rate = 1e-4
 # Report a status message for every n steps under training.
 report_per_n_steps = 1000
 
+# Max number of iterations before stopping.
+num_iterations = 10e6
+
 ########################################################################
 # Initializer functions
 
@@ -125,6 +128,11 @@ x_pretty = pt.wrap(x)
 
 with pt.defaults_scope(activation_fn=tf.nn.relu):
     y_pred, loss = x_pretty.\
+        conv2d(kernel=5, depth=16, name='layer_conv1').\
+        max_pool(kernel=2, stride=2).\
+        conv2d(kernel=5, depth=16, name='layer_conv2').\
+        max_pool(kernel=2, stride=2).\
+        flatten().\
         fully_connected(size=1024, name='layer_fc1').\
         softmax_classifier(num_classes=num_classes, labels=y_true)
 
@@ -294,7 +302,7 @@ def plot_transfer_values_analysis(values, cls):
     plot_scatter(transfer_values_reduced, cls)
 
 
-def optimize(num_iterations):
+def optimize():
     """
     Helper function to perform optimization.
     """
@@ -471,7 +479,7 @@ def main():
     # plot_transfer_values_analysis(
     #    values=transfer_values_train, cls=cls_training)
 
-    optimize(num_iterations=1000)
+    optimize()
 
     print_test_accuracy(show_example_errors=False,
                         show_confusion_matrix=True)
