@@ -35,16 +35,16 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 batch_size = 128
 
 # Split training set for validation.
-validation_split = 0.2
+validation_split = 0.1
 
 # Learning rate for optimization.
-learning_rate = 1e-4
+learning_rate = 1e-3
 
 # Report a status message for every n steps under training.
 report_per_n_steps = 1000
 
 # Max number of iterations before stopping.
-num_iterations = 10e6
+num_iterations = 100000
 
 ########################################################################
 # Initializer functions
@@ -128,12 +128,7 @@ x_pretty = pt.wrap(x)
 
 with pt.defaults_scope(activation_fn=tf.nn.relu):
     y_pred, loss = x_pretty.\
-        conv2d(kernel=5, depth=16, name='layer_conv1').\
-        max_pool(kernel=2, stride=2).\
-        conv2d(kernel=5, depth=16, name='layer_conv2').\
-        max_pool(kernel=2, stride=2).\
-        flatten().\
-        fully_connected(size=1024, name='layer_fc1').\
+        fully_connected(size=10, name='layer_fc1').\
         softmax_classifier(num_classes=num_classes, labels=y_true)
 
 # Optimization method
