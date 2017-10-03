@@ -96,8 +96,6 @@ training_labels, validation_labels = eyepacs.get_training_cls(
 cls_training, labels_training = training_labels
 cls_validation, labels_validation = validation_labels
 
-import pdb; pdb.set_trace()
-
 # Retrieve the class-labels from the test-set.
 cls_test, labels_test = eyepacs.get_test_cls()
 
@@ -304,12 +302,18 @@ def optimize(num_iterations):
         # Get a batch of training examples.
         x_batch, y_true_batch, current_epoch = batcher.next_batch(batch_size)
 
-        # Validate the current classifier against validation set on
-        # new epoch.
+        # Validate the current classifier against validation set.
         if epoch < current_epoch:
             assert epoch == current_epoch - 1
 
+            feed_dict_validation = {x: transfer_values_validation,
+                                    y_true: labels_validation}
 
+            validation_loss = session.run(loss, feed_dict=feed_dict_validation)
+
+            print("Validation Loss: {0:>6.4}".format(validation_loss))
+
+            epoch = current_epoch
 
         # Put the batch into a dict for placeholder variables.
         feed_dict_train = {x: x_batch,
