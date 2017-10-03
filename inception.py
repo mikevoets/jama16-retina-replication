@@ -514,7 +514,10 @@ def process_images(fn, images=None, image_paths=None):
 ########################################################################
 
 
-def transfer_values_cache(cache_path, model, images=None, image_paths=None):
+def transfer_values_cache(cache_path, model,
+                          images=None,
+                          image_paths=None,
+                          split=None):
     """
     This function either loads the transfer-values if they have
     already been calculated, otherwise it calculates the values
@@ -538,6 +541,9 @@ def transfer_values_cache(cache_path, model, images=None, image_paths=None):
     :param image_paths:
         Array of file-paths for images (must be jpeg-format).
 
+    :param split:
+        Optional float value. Split the data set and return a tuple.
+
     :return:
         The transfer-values from the Inception model for those images.
     """
@@ -551,7 +557,14 @@ def transfer_values_cache(cache_path, model, images=None, image_paths=None):
     # Read the transfer-values from a cache-file, or calculate them if the file does not exist.
     transfer_values = cache(cache_path=cache_path, fn=fn)
 
-    return transfer_values
+    # Split the transfer values into two sets if necessary.
+    if split is not None:
+        num_values = transfer_values.shape[0]
+        split_at = int(num_values*(1.0 - split))
+
+        return (transfer_values[:split_at], transfer_values[split_at:])
+    else:
+        return transfer_values
 
 
 ########################################################################

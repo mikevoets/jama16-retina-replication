@@ -31,7 +31,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 ########################################################################
 # Various constants.
 
+# Batch size for training.
 batch_size = 128
+
+# Split training set for validation.
+validation_split = 0.2
 
 ########################################################################
 # Initializer functions
@@ -57,9 +61,6 @@ inception.maybe_download()
 # Load the Inception model.
 model = inception.Inception()
 
-# Load image tensor from the EyePacs training set.
-images_train, cls_train, labels_train = eyepacs.load_training_data()
-
 print("Processing Inception transfer-values for training-images...")
 
 file_path_cache_train = os.path.join(
@@ -67,10 +68,11 @@ file_path_cache_train = os.path.join(
 
 # If transfer-values have already been calculated then reload them,
 # otherwise calculate them and save them to a cache-file.
-transfer_values_train = transfer_values_cache(
+transfer_values_train, transfer_values_validation = transfer_values_cache(
     cache_path=file_path_cache_train,
     image_paths=eyepacs.get_training_image_paths(),
-    model=model
+    model=model,
+    split=validation_split
 )
 
 print("Processing Inception transfer-values for test-images...")
@@ -86,8 +88,15 @@ transfer_values_test = transfer_values_cache(
     model=model
 )
 
-# Retrieve the class-labels from the training set.
-cls_training, labels_training = eyepacs.get_training_cls()
+# Retrieve the training and validation set labels.
+training_labels, validation_labels = eyepacs.get_training_cls(
+    split=validation_split)
+
+# Retrieve the class-numbers and one-hot-encoded labels for each set.
+cls_training, labels_training = training_labels
+cls_validation, labels_validation = validation_labels
+
+import pdb; pdb.set_trace()
 
 # Retrieve the class-labels from the test-set.
 cls_test, labels_test = eyepacs.get_test_cls()
@@ -135,6 +144,9 @@ correct_prediction = tf.equal(y_pred_cls, y_true_cls)
 # Calculate the accuracy by taking the average of correct prediction
 # by type-casting to 1 and 0.
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+# Create a batcher instance to provide the data in mini-batches.
+batcher = eyepacs.TrainBatcher(transfer_values_train, labels_training)
 
 # Start a TensorFlow session.
 session = tf.Session()
@@ -277,25 +289,6 @@ def plot_transfer_values_analysis(values, cls):
     plot_scatter(transfer_values_reduced, cls)
 
 
-def random_batch():
-    """
-    Function to selecting a random batch of transfer-values from the data.
-    """
-    # Number of images (transfer-values) in the set.
-    num_images = len(transfer_values_train)
-
-    # Create a random index.
-    idx = np.random.choice(num_images,
-                           size=batch_size,
-                           replace=False)
-
-    # Retrieve random x and y-values.
-    x_batch = transfer_values_train[idx]
-    y_batch = labels_training[idx]
-
-    return x_batch, y_batch
-
-
 def optimize(num_iterations):
     """
     Helper function to perform optimization.
@@ -303,10 +296,20 @@ def optimize(num_iterations):
     # Start time for printing time-usage.
     start_time = time.time()
 
+    # Keep track of epoch number.
+    epoch = 0
+
     # For each iteration.
     for i in range(num_iterations):
         # Get a batch of training examples.
-        x_batch, y_true_batch = random_batch()
+        x_batch, y_true_batch, current_epoch = batcher.next_batch(batch_size)
+
+        # Validate the current classifier against validation set on
+        # new epoch.
+        if epoch < current_epoch:
+            assert epoch == current_epoch - 1
+
+
 
         # Put the batch into a dict for placeholder variables.
         feed_dict_train = {x: x_batch,
@@ -315,7 +318,7 @@ def optimize(num_iterations):
         # Run the optimizer.
         # We want to retrieve the global_step counter.
         i_global, _ = session.run([global_step, optimizer],
-                               feed_dict=feed_dict_train)
+                                  feed_dict=feed_dict_train)
 
         # Print status to screen every 100 iterations.
         if (i_global % 100 == 0) or (i == num_iterations - 1):
@@ -323,9 +326,9 @@ def optimize(num_iterations):
             batch_acc = session.run(accuracy, feed_dict=feed_dict_train)
 
             # Print status.
-            msg = ("Global Step: {0:>6}, Training Batch Accuracy: "
-                   "{1:>6.1%}")
-            print(msg.format(i_global, batch_acc))
+            msg = ("Epoch: {0:>3}, Global Step: {1:>6}, "
+                   "Training Batch Accuracy: {2:>6.1%}")
+            print(msg.format(epoch, i_global, batch_acc))
 
     # End.
     end_time = time.time()

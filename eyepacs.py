@@ -26,6 +26,7 @@ import os
 import download
 import csv
 import pandas as pd
+import numpy as np
 from re import split
 from glob import glob
 from fnmatch import fnmatch
@@ -444,13 +445,58 @@ def _session_iterate(args, session=None):
 # Public functions that you may call to download the data-set from
 # the internet and load the data into memory.
 
+# Class to create the mini-batches for the training.
+class TrainBatcher(object):
+    # Class constructor.
+    def __init__(self, images, labels):
+        self.images = images
+        self.labels = labels
+        self.index_in_epoch = 0
+        self.num_images = images.shape[0]
+        self.epoch = 0
 
-def get_training_cls():
+    # Mini-batching method.
+    def next_batch(self, batch_size):
+        start = self.index_in_epoch
+        self.index_in_epoch += batch_size
+
+        # When all the training data is ran, shuffle it.
+        if self.index_in_epoch > self.num_images:
+            # Find a new order.
+            new_order = np.arange(self.num_images)
+            np.random.shuffle(new_order)
+
+            # Apply the new order to images and labels.
+            self.images = self.images[new_order]
+            self.labels = self.labels[new_order]
+
+            # Start new epoch.
+            self.epoch += 1
+            start = 0
+            self.index_in_epoch = batch_size
+            assert batch_size <= self.num_images
+
+        end = self.index_in_epoch
+        return self.images[start:end], self.labels[start:end], self.epoch
+
+
+def get_training_cls(split=None):
     """
     Returns a numpy array with class labels from the training-set.
-    """
 
-    return _get_cls()
+    If split is defined, split the set into two according to this float value.
+    """
+    cls = _get_cls()
+
+    # Split the class-numbers into two (training and validation).
+    if split is not None:
+        num_cls = cls[0].size
+        split_at = int(num_cls*(1.0 - split))
+
+        return (cls[0][:split_at], cls[1][:split_at]), \
+               (cls[0][split_at:], cls[1][split_at:])
+    else:
+        return cls
 
 
 def get_test_cls():
