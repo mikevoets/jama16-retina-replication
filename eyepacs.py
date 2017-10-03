@@ -82,7 +82,7 @@ _min_after_dequeue = 10
 # Various constants for the size of the images.
 
 # Width and height of each image.
-img_size = 256
+img_size = 299
 
 # Tuple with height and width of images used to reshape arrays.
 img_shape = (img_size, img_size)
