@@ -309,9 +309,11 @@ def optimize(num_iterations):
             feed_dict_validation = {x: transfer_values_validation,
                                     y_true: labels_validation}
 
-            validation_loss = session.run(loss, feed_dict=feed_dict_validation)
+            validation_acc, validation_loss = session.\
+                run([accuracy, loss], feed_dict=feed_dict_validation)
 
-            print("Validation Loss: {0:>6.4}".format(validation_loss))
+            print("Validation Loss: {0:>6.4}, "
+                  "Training Batch Accuracy: {2:>6.1%}".format(validation_loss))
 
             epoch = current_epoch
 
