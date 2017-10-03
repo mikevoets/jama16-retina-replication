@@ -37,6 +37,12 @@ batch_size = 128
 # Split training set for validation.
 validation_split = 0.2
 
+# Learning rate for optimization.
+learning_rate = 1e-4
+
+# Report a status message for every n steps under training.
+report_per_n_steps = 1000
+
 ########################################################################
 # Initializer functions
 
@@ -128,7 +134,8 @@ global_step = tf.Variable(
 
 # Use Adam Optimizer with inbuilt well-performing
 # stochastic gradient descent.
-optimizer = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(loss, global_step)
+optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)\
+                    .minimize(loss, global_step)
 
 # The output of the network is an array with 5 elements.
 # The predicted class number is the index of the largest element
@@ -300,23 +307,7 @@ def optimize(num_iterations):
     # For each iteration.
     for i in range(num_iterations):
         # Get a batch of training examples.
-        x_batch, y_true_batch, current_epoch = batcher.next_batch(batch_size)
-
-        # Validate the current classifier against validation set.
-        if epoch < current_epoch:
-            assert epoch == current_epoch - 1
-
-            feed_dict_validation = {x: transfer_values_validation,
-                                    y_true: labels_validation}
-
-            validation_acc, validation_loss = session.\
-                run([accuracy, loss], feed_dict=feed_dict_validation)
-
-            msg = ("Validation Loss: {0:>6.4}, "
-                   "Training Batch Accuracy: {1:>6.1%}")
-            print(msg.format(validation_loss, validation_acc))
-
-            epoch = current_epoch
+        x_batch, y_true_batch, epoch = batcher.next_batch(batch_size)
 
         # Put the batch into a dict for placeholder variables.
         feed_dict_train = {x: x_batch,
@@ -328,14 +319,26 @@ def optimize(num_iterations):
                                   feed_dict=feed_dict_train)
 
         # Print status to screen every 100 iterations.
-        if (i_global % 100 == 0) or (i == num_iterations - 1):
+        if (i_global % report_per_n_steps == 0) or (i == num_iterations - 1):
             # Calculate the current accuracy on the training-batch.
             batch_acc = session.run(accuracy, feed_dict=feed_dict_train)
 
+            # Validate the current classifier against validation set.
+            feed_dict_validation = {x: transfer_values_validation,
+                                    y_true: labels_validation}
+
+            # Retrieve the accuracy and loss on the validation set.
+            validation_acc, validation_loss = session.\
+                run([accuracy, loss], feed_dict=feed_dict_validation)
+
             # Print status.
             msg = ("Epoch: {0:>3}, Global Step: {1:>6}, "
-                   "Training Batch Accuracy: {2:>6.1%}")
-            print(msg.format(epoch, i_global, batch_acc))
+                   "Training Batch Accuracy: {2:>6.1%}, "
+                   "Validation Loss: {3:>6.4}, "
+                   "Validation Batch Accuracy: {4:>6.1%}")
+
+            print(msg.format(
+                epoch, i_global, batch_acc, validation_loss, validation_acc))
 
     # End.
     end_time = time.time()
