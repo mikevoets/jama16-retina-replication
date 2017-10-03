@@ -170,13 +170,13 @@ def train(args):
         steps_per_epoch=num_training_samples,
         class_weight='auto')
 
-    # fine-tuning
+    # Fine-tuning.
     setup_to_finetune(model)
 
     history_ft = model.fit_generator(
         train_generator(),
-        steps_per_epoch=nb_train_samples,
         epochs=num_epochs,
+        steps_per_epoch=num_training_samples,
         class_weight='auto')
 
     model.save(args.output_model_file)
@@ -187,18 +187,18 @@ def train(args):
 
 def plot_training(history):
     acc = history.history['acc']
-    val_acc = history.history['val_acc']
+    #val_acc = history.history['val_acc']
     loss = history.history['loss']
-    val_loss = history.history['val_loss']
+    #val_loss = history.history['val_loss']
     epochs = range(len(acc))
 
     plt.plot(epochs, acc, 'r.')
-    plt.plot(epochs, val_acc, 'r')
+    #plt.plot(epochs, val_acc, 'r')
     plt.title('Training and validation accuracy')
 
     plt.figure()
     plt.plot(epochs, loss, 'r.')
-    plt.plot(epochs, val_loss, 'r-')
+    #plt.plot(epochs, val_loss, 'r-')
     plt.title('Training and validation loss')
     plt.show()
 
