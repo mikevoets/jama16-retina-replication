@@ -15,8 +15,8 @@ from tensorflow.contrib.keras.api.keras.optimizers import SGD
 from dataset import one_hot_encoded
 
 # Use the EyePacs dataset.
-import eyepacs
-from eyepacs import num_classes
+import eyepacs.v2
+from eyepacs.v2 import num_classes
 
 # For debugging purposes.
 import pdb
@@ -43,29 +43,32 @@ fully_connected_size = 1024
 num_iv3_layers_freeze = 172
 
 # Define the ratio of training-validation data.
-validation_split = 0.2
+validation_split = 0.1
 
 ########################################################################
 # Initializer functions
 
 # Extract if necessary.
-eyepacs.maybe_extract_images()
+eyepacs.v2.maybe_extract_images()
 
 # Preprocess if necessary.
-eyepacs.maybe_preprocess()
+eyepacs.v2.maybe_preprocess()
 
 # Extract labels if necessary.
-eyepacs.maybe_extract_labels()
+eyepacs.v2.maybe_extract_labels()
+
+# Create labels-grouped subdirectories if necessary.
+eyepacs.v2.maybe_create_subdirs_group_by_labels()
 
 # Split training and validation set.
-eyepacs.split_training_and_validation(split=validation_split)
+eyepacs.v2.split_training_and_validation(split=validation_split)
 
 ########################################################################
 
 
 def get_num_files(test=False):
     """Get number of files by searching directory recursively"""
-    return len(eyepacs._get_image_paths(test=test, extension=".jpeg"))
+    return len(eyepacs.v2._get_image_paths(test=test, extension=".jpeg"))
 
 
 def add_new_last_layer(base_model, nb_classes):
@@ -128,17 +131,22 @@ def train(args):
         zoom_range=0.2,
         horizontal_flip=True)
 
+    print()
+    print("Find images...")
+
     test_datagen = ImageDataGenerator(rescale=1./255)
 
     train_generator = train_datagen.flow_from_directory(
-            os.path.join(eyepacs.data_path, eyepacs.train_pre_subpath),
+            os.path.join(eyepacs.v2.data_path, eyepacs.v2.train_pre_subpath),
             target_size=(299, 299),
             batch_size=32)
 
     validation_generator = test_datagen.flow_from_directory(
-            os.path.join(eyepacs.data_path, eyepacs.val_pre_subpath),
+            os.path.join(eyepacs.v2.data_path, eyepacs.v2.val_pre_subpath),
             target_size=(299, 299),
             batch_size=32)
+
+    print("Start training...")
 
     model.fit_generator(
             train_generator,
