@@ -95,9 +95,9 @@ def add_new_last_layer(base_model, nb_classes):
 
 
 def setup_to_finetune(model):
-    """Freeze the bottom NB_IV3_LAYERS and retrain the remaining top layers.
+    """Freeze the bottom num_iv3_layers_freeze and retrain the remaining top layers.
 
-    note: NB_IV3_LAYERS corresponds to the top 2 inception blocks
+    note: num_iv3_layers_freeze corresponds to the top 2 inception blocks
           in the inception v3 architecture
 
     Args:
@@ -111,10 +111,19 @@ def setup_to_finetune(model):
                   loss='categorical_crossentropy', metrics=['accuracy'])
 
 
+def find_num_train_images():
+    """Helper function for finding amount of training images."""
+    train_images_dir = os.path.join(
+        eyepacs.v2.data_path, eyepacs.v2.train_pre_subpath)
+
+    return len(eyepacs.v2._get_image_paths(images_dir=train_images_dir))
+
+
 def train(args):
     """
     Use transfer learning and fine-tuning to train a network on a new dataset
     """
+    num_images = find_num_train_images()
     num_epochs = int(args.num_epochs)
     batch_size = int(args.batch_size)
 
@@ -138,20 +147,20 @@ def train(args):
 
     train_generator = train_datagen.flow_from_directory(
             os.path.join(eyepacs.v2.data_path, eyepacs.v2.train_pre_subpath),
-            target_size=(299, 299),
-            batch_size=32)
+            target_size=image_shape,
+            batch_size=batch_size)
 
     validation_generator = test_datagen.flow_from_directory(
             os.path.join(eyepacs.v2.data_path, eyepacs.v2.val_pre_subpath),
-            target_size=(299, 299),
-            batch_size=32)
+            target_size=image_shape,
+            batch_size=batch_size)
 
     print("Start training...")
 
     model.fit_generator(
             train_generator,
-            steps_per_epoch=2000,
-            epochs=50,
+            steps_per_epoch=int(num_images/batch_size),
+            epochs=num_epochs,
             validation_data=validation_generator,
             validation_steps=800)
 
