@@ -164,7 +164,7 @@ def train(args):
             validation_data=validation_generator,
             validation_steps=800)
 
-    model.save(args.output_model_file)
+    history_ft = model.save(args.output_model_file)
 
     if args.plot:
         plot_training(history_ft)
