@@ -27,6 +27,7 @@ import download
 import csv
 import pandas as pd
 import numpy as np
+from PIL import Image
 from re import split
 from glob import glob
 from fnmatch import fnmatch
@@ -677,37 +678,92 @@ def split_training_and_validation(split=0.0):
                  labels_path=val_labels_path)
 
 
-# Class for retrieving images from the EyePacs data-set.
-class EyepacsBatcher(object):
-    # Class constructor.
-    def __init__(self, training=True, validation=False, test=False):
-        self.index = 0
-        self.num_images = images.shape[0]
-        self.epoch = 0
+def create_labelgroup_subdirs():
+    def create(images_dir, labels_path):
+        with open(labels_path, 'rt') as r:
+            reader = csv.reader(r, delimiter=",")
+            for i, line in enumerate(reader):
+                im_name = line[0] + '.jpeg'
+                label = line[1]
 
-    # Mini-batching method.
-    def next_batch(self, batch_size):
-        start = self.index_in_epoch
-        self.index_in_epoch += batch_size
+                im_path = os.path.join(images_dir, im_name)
+                group_path = os.path.join(images_dir, label)
+                if not os.path.exists(group_path):
+                    os.makedirs(group_path)
 
-        # When all the training data is ran, shuffle it.
-        if self.index_in_epoch > self.num_images:
-            # Find a new order.
-            new_order = np.arange(self.num_images)
-            np.random.shuffle(new_order)
+                new_im_path = os.path.join(group_path, im_name)
+                os.rename(im_path, new_im_path)
 
-            # Apply the new order to images and labels.
-            self.images = self.images[new_order]
-            self.labels = self.labels[new_order]
+    train_images_path = os.path.join(data_path, train_pre_subpath)
+    val_images_path = os.path.join(data_path, val_pre_subpath)
+    test_images_path = os.path.join(data_path, test_pre_subpath)
 
-            # Start new epoch.
-            self.epoch += 1
-            start = 0
-            self.index_in_epoch = batch_size
-            assert batch_size <= self.num_images
+    train_labels_path = os.path.join(data_path, train_labels_extracted)
+    val_labels_path = os.path.join(data_path, val_labels_extracted)
+    test_labels_path = os.path.join(data_path, test_labels_extracted)
 
-        end = self.index_in_epoch
-        return self.images[start:end], self.labels[start:end], self.epoch
+    create(train_images_path, train_labels_path)
+    create(val_images_path, val_labels_path)
+    create(test_images_path, test_labels_path)
+
+
+def _batcher(images_dir, labels_path, stop_at=None, batch_size=128):
+    images_path = os.path.join(data_path, images_dir)
+    image_paths = _get_image_paths(images_path)
+    labels_path = _get_data_path(labels_path)
+
+    labels = pd.read_csv(labels_path, delimiter=",",
+                         usecols=[1], names=["level"])
+    cls = labels["level"]
+    one_hot = one_hot_encoded(class_numbers=cls, num_classes=num_classes)
+
+    if stop_at is not None:
+        num_images = min(stop_at, len(image_paths))
+    else:
+        num_images = len(image_paths)
+
+    start = 0
+
+    while True:
+        images = np.zeros(shape=[batch_size, *img_shape, num_channels],
+                          dtype=float)
+        labels = np.zeros(shape=[batch_size, num_classes])
+
+        end = min(start + batch_size, num_images)
+
+        for i, num in enumerate(range(start, end)):
+            # Retrieve image.
+            image = Image.open(image_paths[num])
+            image = np.array(image.getdata())
+            image = image.reshape(*img_shape, 3).astype(np.float32)/255.0
+
+            # Retrieve one-hot-encoded label.
+            cls_one_hot = one_hot[num]
+
+            print(i, num)
+            images[i] = image
+            labels[i] = cls_one_hot
+
+        if end == num_images:
+            return (images, labels)
+        else:
+            yield (images, labels)
+
+        start = end
+
+
+def LoadTraining(stop_at=None, batch_size=128):
+    return _batcher(images_dir=train_pre_subpath,
+                    labels_path=train_labels_extracted,
+                    stop_at=stop_at,
+                    batch_size=batch_size)
+
+
+def LoadValidation(stop_at=None, batch_size=128):
+    return _batcher(images_dir=train_pre_subpath,
+                    labels_path=val_labels_extracted,
+                    stop_at=stop_at,
+                    batch_size=batch_size)
 
 
 ########################################################################

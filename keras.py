@@ -58,7 +58,8 @@ eyepacs.maybe_preprocess()
 eyepacs.maybe_extract_labels()
 
 # Split training and validation set.
-eyepacs.split_training_and_validation(split=validation_split)
+# eyepacs.split_training_and_validation(split=validation_split)
+# eyepacs.create_labelgroup_subdirs()
 
 ########################################################################
 
@@ -176,25 +177,33 @@ def train(args):
     base_model = InceptionV3(weights='imagenet', include_top=False)
     model = add_new_last_layer(base_model, num_classes)
 
-    # Transfer learning.
-    #setup_to_transfer_learn(model, base_model)
-
-    #history_tl = model.fit_generator(
-    #    train_generator(),
-    #    epochs=num_epochs,
-    #    steps_per_epoch=num_training_samples,
-    #    class_weight='auto')
-
     # Fine-tuning.
     setup_to_finetune(model)
 
-    history_ft = model.fit_generator(
-        train_generator(),
-        epochs=num_epochs,
-        steps_per_epoch=num_training_samples,
-        validation_data=val_generator(),
-        validation_steps=800,
-        class_weight='auto')
+    train_datagen = ImageDataGenerator(
+        rescale=1./255,
+        shear_range=0.2,
+        zoom_range=0.2,
+        horizontal_flip=True)
+
+    test_datagen = ImageDataGenerator(rescale=1./255)
+
+    train_generator = train_datagen.flow_from_directory(
+            os.path.join(eyepacs.data_path, eyepacs.train_pre_subpath),
+            target_size=(299, 299),
+            batch_size=32)
+
+    validation_generator = test_datagen.flow_from_directory(
+            os.path.join(eyepacs.data_path, eyepacs.val_pre_subpath),
+            target_size=(299, 299),
+            batch_size=32)
+
+    model.fit_generator(
+            train_generator,
+            steps_per_epoch=2000,
+            epochs=50,
+            validation_data=validation_generator,
+            validation_steps=800)
 
     model.save(args.output_model_file)
 
