@@ -49,6 +49,42 @@ num_iterations = 100000
 ########################################################################
 # Initializer functions
 
+
+# Class to create the mini-batches for the training.
+class TrainBatcher(object):
+    # Class constructor.
+    def __init__(self, images, labels):
+        self.images = images
+        self.labels = labels
+        self.index_in_epoch = 0
+        self.num_images = images.shape[0]
+        self.epoch = 0
+
+    # Mini-batching method.
+    def next_batch(self, batch_size):
+        start = self.index_in_epoch
+        self.index_in_epoch += batch_size
+
+        # When all the training data is ran, shuffle it.
+        if self.index_in_epoch > self.num_images:
+            # Find a new order.
+            new_order = np.arange(self.num_images)
+            np.random.shuffle(new_order)
+
+            # Apply the new order to images and labels.
+            self.images = self.images[new_order]
+            self.labels = self.labels[new_order]
+
+            # Start new epoch.
+            self.epoch += 1
+            start = 0
+            self.index_in_epoch = batch_size
+            assert batch_size <= self.num_images
+
+        end = self.index_in_epoch
+        return self.images[start:end], self.labels[start:end], self.epoch
+
+
 # Define the location of the EyePacs data set.
 eyepacs.data_path = "data/eyepacs/"
 
@@ -154,7 +190,7 @@ correct_prediction = tf.equal(y_pred_cls, y_true_cls)
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 # Create a batcher instance to provide the data in mini-batches.
-batcher = eyepacs.TrainBatcher(transfer_values_train, labels_training)
+batcher = TrainBatcher(transfer_values_train, labels_training)
 
 # Start a TensorFlow session.
 session = tf.Session()

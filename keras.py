@@ -42,11 +42,11 @@ fully_connected_size = 1024
 # Amount of Inception V3 layers to freeze.
 num_iv3_layers_freeze = 172
 
+# Define the ratio of training-validation data.
+validation_split = 0.2
+
 ########################################################################
 # Initializer functions
-
-# Define the location of the EyePacs data set.
-eyepacs.data_path = "data/eyepacs/"
 
 # Extract if necessary.
 eyepacs.maybe_extract_images()
@@ -56,6 +56,9 @@ eyepacs.maybe_preprocess()
 
 # Extract labels if necessary.
 eyepacs.maybe_extract_labels()
+
+# Split training and validation set.
+eyepacs.split_training_and_validation(split=validation_split)
 
 ########################################################################
 
@@ -114,13 +117,11 @@ def setup_to_finetune(model):
                   loss='categorical_crossentropy', metrics=['accuracy'])
 
 
-def train_generator():
+def image_generator(labels_path, images_path):
     """
     Helper method for generating training samples.
     """
     while 1:
-        labels_path = eyepacs._get_labels_path()
-
         # Open label file.
         with open(labels_path, 'rt') as r:
             reader = csv.reader(r, delimiter=",")
@@ -128,8 +129,7 @@ def train_generator():
             # Read csv label file.
             for num, line in enumerate(reader):
                 # Retrieve image path.
-                image_path = eyepacs._get_data_path(
-                    line[0] + '.jpeg', test=False)
+                image_path = os.path.join(images_path, line[0] + '.jpeg')
 
                 # Retrieve image.
                 image = Image.open(image_path)
@@ -149,6 +149,21 @@ def train_generator():
                 yield (image, cls_one_hot)
 
 
+def train_generator():
+    labels_path = os.path.join(
+        eyepacs.data_path, eyepacs.train_labels_extracted)
+    images_path = os.path.join(eyepacs.data_path, eyepacs.train_pre_subpath)
+
+    return image_generator(labels_path=labels_path, images_path=images_path)
+
+
+def val_generator():
+    labels_path = os.path.join(eyepacs.data_path, eyepacs.val_labels_extracted)
+    images_path = os.path.join(eyepacs.data_path, eyepacs.val_pre_subpath)
+
+    return image_generator(labels_path=labels_path, images_path=images_path)
+
+
 def train(args):
     """
     Use transfer learning and fine-tuning to train a network on a new dataset
@@ -162,13 +177,13 @@ def train(args):
     model = add_new_last_layer(base_model, num_classes)
 
     # Transfer learning.
-    setup_to_transfer_learn(model, base_model)
+    #setup_to_transfer_learn(model, base_model)
 
-    history_tl = model.fit_generator(
-        train_generator(),
-        epochs=num_epochs,
-        steps_per_epoch=num_training_samples,
-        class_weight='auto')
+    #history_tl = model.fit_generator(
+    #    train_generator(),
+    #    epochs=num_epochs,
+    #    steps_per_epoch=num_training_samples,
+    #    class_weight='auto')
 
     # Fine-tuning.
     setup_to_finetune(model)
@@ -177,6 +192,8 @@ def train(args):
         train_generator(),
         epochs=num_epochs,
         steps_per_epoch=num_training_samples,
+        validation_data=val_generator(),
+        validation_steps=800,
         class_weight='auto')
 
     model.save(args.output_model_file)
@@ -187,18 +204,18 @@ def train(args):
 
 def plot_training(history):
     acc = history.history['acc']
-    #val_acc = history.history['val_acc']
+    val_acc = history.history['val_acc']
     loss = history.history['loss']
-    #val_loss = history.history['val_loss']
+    val_loss = history.history['val_loss']
     epochs = range(len(acc))
 
     plt.plot(epochs, acc, 'r.')
-    #plt.plot(epochs, val_acc, 'r')
+    plt.plot(epochs, val_acc, 'r')
     plt.title('Training and validation accuracy')
 
     plt.figure()
     plt.plot(epochs, loss, 'r.')
-    #plt.plot(epochs, val_loss, 'r-')
+    plt.plot(epochs, val_loss, 'r-')
     plt.title('Training and validation loss')
     plt.show()
 

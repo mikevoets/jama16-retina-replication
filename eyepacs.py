@@ -46,6 +46,7 @@ test_subpath = "test/"
 # Directory to where preprocessed training and test-sets should
 # be uploaded to.
 train_pre_subpath = "preprocessed/train/"
+val_pre_subpath = "preprocessed/val/"
 test_pre_subpath = "preprocessed/test/"
 
 # File name for the training-set.
@@ -56,6 +57,9 @@ train_labels_filename = "trainLabels.csv"
 
 # File name for the extracted labels of the training-set.
 train_labels_extracted = "trainLabels.part.csv"
+
+# File name for the extracted labels of the validation-set.
+val_labels_extracted = "valLabels.part.csv"
 
 # File name for the test-set.
 test_data_filename = "test.7z"
@@ -149,12 +153,13 @@ def _base_filename(e):
     return base
 
 
-def _get_image_paths(test=False, extension=None):
+def _get_image_paths(test=False, extension=None, images_dir=None):
     if extension is None:
         extension = ".jpeg"
 
     # Get the directory where the data-set resides.
-    images_dir = _get_images_path(test=test)
+    if images_dir is None:
+        images_dir = _get_images_path(test=test)
 
     # The file paths should match the following regexp.
     filename_match = os.path.join(images_dir, "*" + extension)
@@ -445,39 +450,8 @@ def _session_iterate(args, session=None):
 # Public functions that you may call to download the data-set from
 # the internet and load the data into memory.
 
-# Class to create the mini-batches for the training.
-class TrainBatcher(object):
-    # Class constructor.
-    def __init__(self, images, labels):
-        self.images = images
-        self.labels = labels
-        self.index_in_epoch = 0
-        self.num_images = images.shape[0]
-        self.epoch = 0
+# Class for getting batches of the EyePacs data set.
 
-    # Mini-batching method.
-    def next_batch(self, batch_size):
-        start = self.index_in_epoch
-        self.index_in_epoch += batch_size
-
-        # When all the training data is ran, shuffle it.
-        if self.index_in_epoch > self.num_images:
-            # Find a new order.
-            new_order = np.arange(self.num_images)
-            np.random.shuffle(new_order)
-
-            # Apply the new order to images and labels.
-            self.images = self.images[new_order]
-            self.labels = self.labels[new_order]
-
-            # Start new epoch.
-            self.epoch += 1
-            start = 0
-            self.index_in_epoch = batch_size
-            assert batch_size <= self.num_images
-
-        end = self.index_in_epoch
-        return self.images[start:end], self.labels[start:end], self.epoch
 
 
 def get_training_cls(split=None):
@@ -589,6 +563,12 @@ def maybe_preprocess():
     _maybe_preprocess()
     _maybe_preprocess(test=True)
 
+    # Also create the validation preprocess directory.
+    val_dir = os.path.join(data_path, val_pre_subpath)
+
+    if not os.path.exists(val_dir):
+        os.makedirs(val_dir)
+
 
 def maybe_extract_images():
     """
@@ -608,6 +588,126 @@ def maybe_extract_labels():
 
     _maybe_extract_labels()
     _maybe_extract_labels(test=True)
+
+
+def split_training_and_validation(split=0.0):
+    """
+    Rearranges training and validation regarding to the split parameter.
+    Assumes the images have been preprocessed and placed in the
+    directory of the preprocessed images defined.
+
+    Split = 0.0 means only training data, split = 1.0 means only validation.
+    """
+
+    def maybe_move(images, to_directory):
+        # Helper function for splitting training and validation images.
+        # tbm stands for "to be moved"
+        tbm = [x for x in images if x.find(to_directory) == -1]
+
+        if len(tbm) == 0:
+            return False
+
+        # Move the images to other set if necessary.
+        for x in tbm:
+            # Find the new destination of the image.
+            image_fn = x.split("/")[-1]
+            new_dest = os.path.join(to_directory, image_fn)
+
+            # Move the image to the validation set.
+            os.rename(x, new_dest)
+
+        return True
+
+    def reset_labels(images, orig_labels_path, labels_path):
+        # Helper function for resetting labels.
+        base_fns = _base_filename(images)
+
+        with open(labels_path, 'wt') as w:
+            with open(orig_labels_path, 'rt') as r:
+                reader = csv.reader(r, delimiter=",")
+                for i, line in enumerate(reader):
+                    if line[0] in base_fns:
+                        w.write(",".join(line) + "\n")
+
+    if not (split >= 0.0 and split <= 1.0):
+        # Raise an error if split is not between 0.0 and 1.0.
+        raise ValueError("Split should be between 0.0 and 1.0.")
+
+    train_images_path = os.path.join(data_path, train_pre_subpath)
+    val_images_path = os.path.join(data_path, val_pre_subpath)
+
+    train_labels_orig = os.path.join(data_path, train_labels_filename)
+    train_labels_path = os.path.join(data_path, train_labels_extracted)
+    val_labels_path = os.path.join(data_path, val_labels_extracted)
+
+    if not (os.path.exists(train_images_path) or
+            os.path.exists(val_images_path)):
+        # Raise an error if none of the preprocessed directories exists.
+        raise TypeError("Preprocess images first.")
+
+    # Retrieve all files from both previous training-set and validation-set.
+    image_paths = []
+    image_paths += _get_image_paths(images_dir=train_images_path)
+    image_paths += _get_image_paths(images_dir=val_images_path)
+
+    # Total number of images.
+    num_images = len(image_paths)
+
+    # Define the split.
+    split_at = int(num_images*(1.0 - split))
+
+    # Get all the paths to images belonging to either set.
+    train_images = image_paths[:split_at]
+    val_images = image_paths[split_at:]
+
+    # Find the images that are in the wrong directory.
+    res1 = maybe_move(images=train_images, to_directory=train_images_path)
+    res2 = maybe_move(images=val_images, to_directory=val_images_path)
+
+    # Return early if here hasn't been any movements.
+    if res1 is False and res2 is False:
+        return
+
+    # Reset labels for each set.
+    reset_labels(images=train_images,
+                 orig_labels_path=train_labels_orig,
+                 labels_path=train_labels_path)
+    reset_labels(images=val_images,
+                 orig_labels_path=train_labels_orig,
+                 labels_path=val_labels_path)
+
+
+# Class for retrieving images from the EyePacs data-set.
+class EyepacsBatcher(object):
+    # Class constructor.
+    def __init__(self, training=True, validation=False, test=False):
+        self.index = 0
+        self.num_images = images.shape[0]
+        self.epoch = 0
+
+    # Mini-batching method.
+    def next_batch(self, batch_size):
+        start = self.index_in_epoch
+        self.index_in_epoch += batch_size
+
+        # When all the training data is ran, shuffle it.
+        if self.index_in_epoch > self.num_images:
+            # Find a new order.
+            new_order = np.arange(self.num_images)
+            np.random.shuffle(new_order)
+
+            # Apply the new order to images and labels.
+            self.images = self.images[new_order]
+            self.labels = self.labels[new_order]
+
+            # Start new epoch.
+            self.epoch += 1
+            start = 0
+            self.index_in_epoch = batch_size
+            assert batch_size <= self.num_images
+
+        end = self.index_in_epoch
+        return self.images[start:end], self.labels[start:end], self.epoch
 
 
 ########################################################################
