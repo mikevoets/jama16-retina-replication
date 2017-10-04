@@ -58,8 +58,7 @@ eyepacs.maybe_preprocess()
 eyepacs.maybe_extract_labels()
 
 # Split training and validation set.
-# eyepacs.split_training_and_validation(split=validation_split)
-# eyepacs.create_labelgroup_subdirs()
+eyepacs.split_training_and_validation(split=validation_split)
 
 ########################################################################
 
@@ -67,15 +66,6 @@ eyepacs.maybe_extract_labels()
 def get_num_files(test=False):
     """Get number of files by searching directory recursively"""
     return len(eyepacs._get_image_paths(test=test, extension=".jpeg"))
-
-
-def setup_to_transfer_learn(model, base_model):
-    """Freeze all layers and compile the model"""
-    for layer in base_model.layers:
-        layer.trainable = False
-        model.compile(optimizer='rmsprop',
-                      loss='categorical_crossentropy',
-                      metrics=['accuracy'])
 
 
 def add_new_last_layer(base_model, nb_classes):
@@ -118,58 +108,10 @@ def setup_to_finetune(model):
                   loss='categorical_crossentropy', metrics=['accuracy'])
 
 
-def image_generator(labels_path, images_path):
-    """
-    Helper method for generating training samples.
-    """
-    while 1:
-        # Open label file.
-        with open(labels_path, 'rt') as r:
-            reader = csv.reader(r, delimiter=",")
-
-            # Read csv label file.
-            for num, line in enumerate(reader):
-                # Retrieve image path.
-                image_path = os.path.join(images_path, line[0] + '.jpeg')
-
-                # Retrieve image.
-                image = Image.open(image_path)
-                image = np.array(image.getdata())
-                image = 2*(image.reshape((-1, image_shape[0], image_shape[1], 3))
-                           .astype(np.float32)/255) - 1
-
-                # Retrieve label.
-                label = int(line[1])
-
-                # Convert to one-hot-encoding.
-                cls_one_hot = one_hot_encoded(
-                    class_numbers=label, num_classes=num_classes)
-
-                cls_one_hot = cls_one_hot.reshape((-1, num_classes))
-
-                yield (image, cls_one_hot)
-
-
-def train_generator():
-    labels_path = os.path.join(
-        eyepacs.data_path, eyepacs.train_labels_extracted)
-    images_path = os.path.join(eyepacs.data_path, eyepacs.train_pre_subpath)
-
-    return image_generator(labels_path=labels_path, images_path=images_path)
-
-
-def val_generator():
-    labels_path = os.path.join(eyepacs.data_path, eyepacs.val_labels_extracted)
-    images_path = os.path.join(eyepacs.data_path, eyepacs.val_pre_subpath)
-
-    return image_generator(labels_path=labels_path, images_path=images_path)
-
-
 def train(args):
     """
     Use transfer learning and fine-tuning to train a network on a new dataset
     """
-    num_training_samples = get_num_files()
     num_epochs = int(args.num_epochs)
     batch_size = int(args.batch_size)
 
