@@ -155,7 +155,7 @@ def train(args):
 
     # First train only the top layers.
     # I.e. freeze all convolutional InceptionV3 layers.
-    for layer in model.layers:
+    for layer in base_model.layers:
         layer.trainable = False
 
     # Compile the model.
