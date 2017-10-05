@@ -84,10 +84,10 @@ def add_new_last_layer(base_model, nb_classes):
     x = base_model.output
     x = GlobalAveragePooling2D()(x)
 
-    # New fully-connected layer, with random initializers
+    # New fully-connected layer, with random initializers.
     x = Dense(fully_connected_size, activation='relu')(x)
 
-    # New softmax classifier
+    # New softmax classifier.
     predictions = Dense(num_classes, activation='softmax')(x)
 
     model = Model(inputs=base_model.input, outputs=predictions)
@@ -127,21 +127,14 @@ def train(args):
     num_epochs = int(args.num_epochs)
     batch_size = int(args.batch_size)
 
-    # setup model
-    base_model = InceptionV3(weights='imagenet', include_top=False)
-    model = add_new_last_layer(base_model, num_classes)
-
-    # Fine-tuning.
-    setup_to_finetune(model)
+    print()
+    print("Find images...")
 
     train_datagen = ImageDataGenerator(
         rescale=1./255,
         shear_range=0.2,
         zoom_range=0.2,
         horizontal_flip=True)
-
-    print()
-    print("Find images...")
 
     test_datagen = ImageDataGenerator(rescale=1./255)
 
@@ -155,7 +148,33 @@ def train(args):
             target_size=image_shape,
             batch_size=batch_size)
 
-    print("Start training...")
+    print("Setup model...")
+
+    base_model = InceptionV3(weights='imagenet', include_top=False)
+    model = add_new_last_layer(base_model, num_classes)
+
+    # First train only the top layers.
+    # I.e. freeze all convolutional InceptionV3 layers.
+    for layer in base_model.layers:
+        layer.trainable = False
+
+    # Compile the model.
+    model.compile(optimizer='rsmprop', loss='categorical_crossentropy')
+
+    print("Train the model on the new retina data for a few epochs...")
+
+    model.fit_generator(
+            train_generator,
+            steps_per_epoch=int(num_images/batch_size),
+            epochs=num_epochs,
+            validation_data=validation_generator,
+            validation_steps=800)
+
+    print("Fine-tuning model...")
+
+    setup_to_finetune(model)
+
+    print("Start training again...")
 
     model.fit_generator(
             train_generator,
