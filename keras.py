@@ -168,7 +168,9 @@ def train(args):
             steps_per_epoch=int(num_images/batch_size),
             epochs=num_epochs,
             validation_data=validation_generator,
-            validation_steps=800)
+            validation_steps=50,
+            use_multiprocessing=True,
+            workers=4)
 
     print("Fine-tuning model...")
 
@@ -181,7 +183,9 @@ def train(args):
             steps_per_epoch=int(num_images/batch_size),
             epochs=num_epochs,
             validation_data=validation_generator,
-            validation_steps=800)
+            validation_steps=50,
+            use_multiprocessing=True,
+            workers=4)
 
     history_ft = model.save(args.output_model_file)
 
