@@ -159,7 +159,7 @@ def train(args):
         layer.trainable = False
 
     # Compile the model.
-    model.compile(optimizer='rsmprop', loss='categorical_crossentropy')
+    model.compile(optimizer='rmsprop', loss='categorical_crossentropy')
 
     print("Train the model on the new retina data for a few epochs...")
 
