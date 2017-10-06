@@ -4,7 +4,7 @@ import argparse
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
-from hyperopt import Trials, STATUS_OK, Activation
+from hyperopt import Trials, STATUS_OK, tpe
 
 from sklearn.metrics import roc_auc_score
 from PIL import Image
