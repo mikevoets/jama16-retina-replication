@@ -4,13 +4,10 @@ import argparse
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
-from hyperopt import Trials, STATUS_OK, tpe
+from hyperopt import fmin, hp, Trials, STATUS_OK, tpe
 
 from sklearn.metrics import roc_auc_score
 from PIL import Image
-
-from hyperas import optim
-from hyperas.distributions import choice, uniform, conditional
 
 from tensorflow.contrib.keras.api.keras.applications.inception_v3 import InceptionV3, preprocess_input
 from tensorflow.contrib.keras.api.keras.models import Model, load_model
@@ -116,22 +113,22 @@ def find_num_train_images():
     return len(eyepacs.v2._get_image_paths(images_dir=train_images_dir))
 
 
-def model():
+def model(params):
     """
     Use transfer learning and fine-tuning to train a network on a new dataset
     """
     num_images = find_num_train_images()
-    num_epochs = {{uniform(1, 25)}}
-    batch_size = {{choice([64, 128])}}
+    num_epochs = params['num_epochs']
+    batch_size = params['batch_size']
 
     print()
     print("Find images...")
 
     train_datagen = ImageDataGenerator(
         rescale=1./255,
-        shear_range={{uniform(0, 1)}},
-        zoom_range={{uniform(0, 1)}},
-        horizontal_flip={{choice([True, False])}})
+        shear_range=params['shear_range'],
+        zoom_range=params['zoom_range'],
+        horizontal_flip=params['horizontal_flip'])
 
     test_datagen = ImageDataGenerator(rescale=1./255)
 
@@ -156,7 +153,7 @@ def model():
         layer.trainable = False
 
     # Compile the model.
-    model.compile(optimizer={{choice(['rmsprop', 'adam', 'sgd'])}},
+    model.compile(optimizer=params['optimizer'],
                   loss='categorical_crossentropy')
 
     print("Train the model on the new retina data for a few epochs...")
@@ -171,7 +168,7 @@ def model():
 
     print("Fine-tuning model...")
 
-    setup_to_finetune(model, {{choice([173, 240])}})
+    setup_to_finetune(model, params['num_layers_freeze'])
 
     print("Start training again...")
 
@@ -209,15 +206,22 @@ def plot_training(history):
     plt.show()
 
 
-def data():
-    return None
+space = {'num_epochs': hp.uniform('num_epochs', 1, 25),
+         'batch_size': hp.uniform('batch_size', 28, 128),
+
+         'optimizer': hp.choice('optimizer', ['rmsprop', 'adam', 'sgd']),
+         'num_layers_freeze': hp.uniform('num_layers_freeze', 170, 240),
+
+         'shear_range': hp.uniform('shear_range', 0, 1),
+         'zoom_range': hp.uniform('zoom_range', 0, 1),
+         'horizontal_flip': hp.choice('horizontal_flip', [True, False])}
 
 
 if __name__ == "__main__":
-    best_run, best_model = optim.minimize(model=model,
-                                          data=data,
-                                          algo=tpe.suggest,
-                                          max_evals=5,
-                                          trials=Trials())
+    best = fmin(model,
+                space,
+                algo=tpe.suggest,
+                max_evals=5,
+                trials=Trials())
     print("Best performing model chosen hyper-parameters:")
-    print(best_run)
+    print(best)
