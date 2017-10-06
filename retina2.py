@@ -122,6 +122,8 @@ def model(params):
     batch_size = params['batch_size']
 
     print()
+    print("Settings: Num Epochs: {}, Batch Size: {}"
+          .format(num_epochs, batch_size))
     print("Find images...")
 
     train_datagen = ImageDataGenerator(
