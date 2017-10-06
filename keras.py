@@ -9,7 +9,7 @@ from sklearn.metrics import roc_auc_score
 from PIL import Image
 
 from tensorflow.contrib.keras.api.keras.applications.inception_v3 import InceptionV3, preprocess_input
-from tensorflow.contrib.keras.api.keras.models import Model
+from tensorflow.contrib.keras.api.keras.models import Model, load_model
 from tensorflow.contrib.keras.api.keras.layers import Dense, GlobalAveragePooling2D
 from tensorflow.contrib.keras.api.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.contrib.keras.api.keras.optimizers import SGD
@@ -126,6 +126,7 @@ def train(args):
     Use transfer learning and fine-tuning to train a network on a new dataset
     """
     num_images = find_num_train_images()
+    num_test_images = find_num_train_images(test=True)
     num_epochs = int(args.num_epochs)
     batch_size = int(args.batch_size)
 
@@ -145,7 +146,7 @@ def train(args):
             target_size=image_shape,
             batch_size=batch_size)
 
-    validation_generator = test_datagen.flow_from_directory(
+    validation_generator = test_generator = test_datagen.flow_from_directory(
             os.path.join(eyepacs.v2.data_path, eyepacs.v2.val_pre_subpath),
             target_size=image_shape,
             batch_size=batch_size)
@@ -166,11 +167,11 @@ def train(args):
     print("Train the model on the new retina data for a few epochs...")
 
     model.fit_generator(
-            train_generator,
-            steps_per_epoch=int(num_images/batch_size),
-            epochs=num_epochs,
-            validation_data=validation_generator,
-            validation_steps=50)
+        train_generator,
+        steps_per_epoch=int(num_images/batch_size),
+        epochs=num_epochs,
+        validation_data=validation_generator,
+        validation_steps=50)
 
     print("Fine-tuning model...")
 
@@ -179,15 +180,19 @@ def train(args):
     print("Start training again...")
 
     model.fit_generator(
-            train_generator,
-            steps_per_epoch=int(num_images/batch_size),
-            epochs=num_epochs,
-            validation_data=validation_generator,
-            validation_steps=50)
+        train_generator,
+        steps_per_epoch=int(num_images/batch_size),
+        epochs=num_epochs,
+        validation_data=validation_generator,
+        validation_steps=50)
 
-    history_ft = model.save(args.output_model_file)
-    auc = roc_auc_score(history_ft)
+    score, acc = model.evaluate_generator(
+        test_generator,
+        steps=int(num_test_images/batch_size)
+    )
+
     import pdb; pdb.set_trace()
+    auc = roc_auc_score(history_ft)
 
     if args.plot:
         plot_training(history_ft)
