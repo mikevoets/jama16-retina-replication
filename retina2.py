@@ -116,10 +116,6 @@ def find_num_train_images():
     return len(eyepacs.v2._get_image_paths(images_dir=train_images_dir))
 
 
-def data():
-    return None
-
-
 def model():
     """
     Use transfer learning and fine-tuning to train a network on a new dataset
@@ -192,7 +188,8 @@ def model():
         steps=100,
         verbose=0)
 
-    return {'loss': score, 'status': STATUS_OK, 'model': model}
+    return {'loss': -acc, 'status': STATUS_OK, 'model': model}
+
 
 def plot_training(history):
     acc = history.history['acc']
@@ -210,6 +207,10 @@ def plot_training(history):
     plt.plot(epochs, val_loss, 'r-')
     plt.title('Training and validation loss')
     plt.show()
+
+
+def data():
+    return None
 
 
 if __name__ == "__main__":
