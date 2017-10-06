@@ -5,7 +5,9 @@ import csv
 import numpy as np
 import matplotlib.pyplot as plt
 
+from sklearn.metrics import roc_auc_score
 from PIL import Image
+
 from tensorflow.contrib.keras.api.keras.applications.inception_v3 import InceptionV3, preprocess_input
 from tensorflow.contrib.keras.api.keras.models import Model
 from tensorflow.contrib.keras.api.keras.layers import Dense, GlobalAveragePooling2D
@@ -184,6 +186,8 @@ def train(args):
             validation_steps=50)
 
     history_ft = model.save(args.output_model_file)
+    auc = roc_auc_score(history_ft)
+    import pdb; pdb.set_trace()
 
     if args.plot:
         plot_training(history_ft)
