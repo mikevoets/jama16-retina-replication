@@ -116,6 +116,10 @@ def find_num_train_images():
     return len(eyepacs.v2._get_image_paths(images_dir=train_images_dir))
 
 
+def data():
+    return None
+
+
 def model():
     """
     Use transfer learning and fine-tuning to train a network on a new dataset
@@ -210,6 +214,7 @@ def plot_training(history):
 
 if __name__ == "__main__":
     best_run, best_model = optim.minimize(model=model,
+                                          data=data,
                                           algo=tpe.suggest,
                                           max_evals=5,
                                           trials=Trials())
