@@ -208,11 +208,11 @@ def plot_training(history):
     plt.show()
 
 
-space = {'num_epochs': hp.uniform('num_epochs', 1, 25),
-         'batch_size': hp.uniform('batch_size', 28, 128),
+space = {'num_epochs': hp.quniform('num_epochs', 1, 25),
+         'batch_size': hp.quniform('batch_size', 28, 128),
 
          'optimizer': hp.choice('optimizer', ['rmsprop', 'adam', 'sgd']),
-         'num_layers_freeze': hp.uniform('num_layers_freeze', 170, 240),
+         'num_layers_freeze': hp.quniform('num_layers_freeze', 170, 240),
 
          'shear_range': hp.uniform('shear_range', 0, 1),
          'zoom_range': hp.uniform('zoom_range', 0, 1),
