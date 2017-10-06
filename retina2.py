@@ -118,12 +118,13 @@ def model(params):
     Use transfer learning and fine-tuning to train a network on a new dataset
     """
     num_images = find_num_train_images()
-    num_epochs = params['num_epochs']
-    batch_size = params['batch_size']
+    num_epochs = int(params['num_epochs'])
+    batch_size = int(params['batch_size'])
+    num_layers_freeze = int(params['num_layers_freeze'])
 
     print()
-    print("Settings: Num Epochs: {}, Batch Size: {}"
-          .format(num_epochs, batch_size))
+    print("Settings: Num Epochs: {}, Batch Size: {}, Freeze Layers: {}"
+          .format(num_epochs, batch_size, num_layers_freeze))
     print("Find images...")
 
     train_datagen = ImageDataGenerator(
@@ -170,7 +171,7 @@ def model(params):
 
     print("Fine-tuning model...")
 
-    setup_to_finetune(model, params['num_layers_freeze'])
+    setup_to_finetune(model, num_layers_freeze)
 
     print("Start training again...")
 
