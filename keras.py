@@ -4,9 +4,13 @@ import argparse
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
+from hyperopt import Trials, STATUS_OK, Activation
 
 from sklearn.metrics import roc_auc_score
 from PIL import Image
+
+from hyperas import optim
+from hyperas.distributions import choice, uniform, conditional
 
 from tensorflow.contrib.keras.api.keras.applications.inception_v3 import InceptionV3, preprocess_input
 from tensorflow.contrib.keras.api.keras.models import Model, load_model
@@ -32,17 +36,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 # Shape of a preprocessed image.
 image_shape = (299, 299)
 
-# Number of epochs.
-num_epochs = 3
-
-# Batch size.
-batch_size = 32
-
 # Fully-connected layer size.
 fully_connected_size = 1024
-
-# Amount of Inception V3 layers to freeze.
-num_iv3_layers_freeze = 172
 
 # Define the ratio of training-validation data.
 validation_split = 0.1
@@ -96,7 +91,7 @@ def add_new_last_layer(base_model, nb_classes):
     return model
 
 
-def setup_to_finetune(model):
+def setup_to_finetune(model, num_layers_freeze):
     """Freeze the bottom num_iv3_layers_freeze and retrain the remaining top layers.
 
     note: num_iv3_layers_freeze corresponds to the top 2 inception blocks
@@ -105,9 +100,9 @@ def setup_to_finetune(model):
     Args:
     model: keras model
     """
-    for layer in model.layers[:num_iv3_layers_freeze]:
+    for layer in model.layers[:num_layers_freeze]:
         layer.trainable = False
-    for layer in model.layers[num_iv3_layers_freeze:]:
+    for layer in model.layers[num_layers_freeze:]:
         layer.trainable = True
     model.compile(optimizer=SGD(lr=0.0001, momentum=0.9),
                   loss='categorical_crossentropy', metrics=['accuracy'])
@@ -121,23 +116,22 @@ def find_num_train_images():
     return len(eyepacs.v2._get_image_paths(images_dir=train_images_dir))
 
 
-def train(args):
+def model():
     """
     Use transfer learning and fine-tuning to train a network on a new dataset
     """
     num_images = find_num_train_images()
-    num_test_images = find_num_train_images(test=True)
-    num_epochs = int(args.num_epochs)
-    batch_size = int(args.batch_size)
+    num_epochs = {{uniform(1, 25)}}
+    batch_size = {{choice([64, 128])}}
 
     print()
     print("Find images...")
 
     train_datagen = ImageDataGenerator(
         rescale=1./255,
-        shear_range=0.2,
-        zoom_range=0.2,
-        horizontal_flip=True)
+        shear_range={{uniform(0, 1)}},
+        zoom_range={{uniform(0, 1)}},
+        horizontal_flip={{choice([True, False])}})
 
     test_datagen = ImageDataGenerator(rescale=1./255)
 
@@ -146,7 +140,7 @@ def train(args):
             target_size=image_shape,
             batch_size=batch_size)
 
-    validation_generator = test_generator = test_datagen.flow_from_directory(
+    validation_generator = test_datagen.flow_from_directory(
             os.path.join(eyepacs.v2.data_path, eyepacs.v2.val_pre_subpath),
             target_size=image_shape,
             batch_size=batch_size)
@@ -162,7 +156,8 @@ def train(args):
         layer.trainable = False
 
     # Compile the model.
-    model.compile(optimizer='rmsprop', loss='categorical_crossentropy')
+    model.compile(optimizer={{choice(['rmsprop', 'adam', 'sgd'])}},
+                  loss='categorical_crossentropy')
 
     print("Train the model on the new retina data for a few epochs...")
 
@@ -171,11 +166,12 @@ def train(args):
         steps_per_epoch=int(num_images/batch_size),
         epochs=num_epochs,
         validation_data=validation_generator,
-        validation_steps=50)
+        validation_steps=100,
+        verbose=2)
 
     print("Fine-tuning model...")
 
-    setup_to_finetune(model)
+    setup_to_finetune(model, {{choice([173, 240])}})
 
     print("Start training again...")
 
@@ -184,19 +180,15 @@ def train(args):
         steps_per_epoch=int(num_images/batch_size),
         epochs=num_epochs,
         validation_data=validation_generator,
-        validation_steps=50)
+        validation_steps=100,
+        verbose=2)
 
     score, acc = model.evaluate_generator(
-        test_generator,
-        steps=int(num_test_images/batch_size)
-    )
+        validation_generator,
+        steps=100,
+        verbose=0)
 
-    import pdb; pdb.set_trace()
-    auc = roc_auc_score(history_ft)
-
-    if args.plot:
-        plot_training(history_ft)
-
+    return {'loss': score, 'status': STATUS_OK, 'model': model}
 
 def plot_training(history):
     acc = history.history['acc']
@@ -217,12 +209,9 @@ def plot_training(history):
 
 
 if __name__ == "__main__":
-    a = argparse.ArgumentParser()
-    a.add_argument("--num_epochs", default=num_epochs)
-    a.add_argument("--batch_size", default=batch_size)
-    a.add_argument("--output_model_file", default="inceptionv3-ft.model")
-    a.add_argument("--plot", action="store_true")
-
-    args = a.parse_args()
-
-    train(args)
+    best_run, best_model = optim.minimize(model=model,
+                                          algo=tpe.suggest,
+                                          max_evals=5,
+                                          trials=Trials())
+    print("Best performing model chosen hyper-parameters:")
+    print(best_run)
