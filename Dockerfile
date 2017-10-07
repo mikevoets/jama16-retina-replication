@@ -9,37 +9,25 @@ WORKDIR /tmp
 SHELL ["bash", "-c"]
 
 RUN apt-get update && apt-get install -y \
-      build-essential \
       ca-certificates \
       curl \
-      python \
       software-properties-common \
       && \
     rm -rf /var/lib/apt/lists/*
 
-RUN add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && apt-get install -y \
-      python3.6 \
-      python3.6-dev \
-      && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y python3 && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl https://bootstrap.pypa.io/get-pip.py | python3
 
-RUN curl https://bootstrap.pypa.io/get-pip.py | python3.6
-
-RUN echo "deb http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
-    tee /etc/apt/sources.list.d/bazel.list && \
-    curl https://bazel.build/bazel-release.pub.gpg | apt-key add - && \
-    apt-get update && apt-get install -y \
-      bazel \
-      openjdk-8-jdk \
-      && \
-    rm -rf /var/lib/apt/lists/*
-
+# Build dependencies for protobuf.
 RUN apt-get update && apt-get install -y \
       autoconf \
       automake \
+      build-essential \
       libtool \
+      python3-dev \
       unzip \
+      libgtk2.0-dev \
       && \
     rm -rf /var/lib/apt/lists/*
 
@@ -49,27 +37,33 @@ RUN curl -L https://github.com/google/protobuf/archive/v3.4.0.tar.gz | tar -xz &
     ./configure && \
     make install -j$(nproc) && \
     cd python && \
-    python3.6 setup.py install --cpp_implementation
+    python3 setup.py install --cpp_implementation
 
-RUN pip3.6 install --no-cache-dir \
-      numpy
+# Build dependencies for TensorFlow.
+RUN echo "deb http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
+    tee /etc/apt/sources.list.d/bazel.list && \
+    curl https://bazel.build/bazel-release.pub.gpg | apt-key add - && \
+    apt-get update && apt-get install -y \
+      bazel \
+      openjdk-8-jdk \
+      python \
+      && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN curl -L https://github.com/tensorflow/tensorflow/archive/v1.3.0.tar.gz | tar -xz && \
     cd tensorflow* && \
     # HACK: Temporarily remove SHA256 checksums because reasons.
     # ¯\_(ツ)_/¯ https://github.com/tensorflow/tensorflow/issues/12979
     sed -ri "/^\W+sha256 = \"[^\"]+\"\W+$/d" tensorflow/workspace.bzl && \
+    pip3 install --no-cache-dir numpy && \
     source /tmp/build/tensorflow-env && ./configure && \
     bazel build \
       --config=opt \
       # Build with CUDA support when using a CUDA base image.
       ${CUDA_VERSION:+--config=cuda} \
-      tensorflow/tools/pip_package/build_pip_package
-
-RUN cd tensorflow* && \
+      tensorflow/tools/pip_package/build_pip_package && \
     bazel-bin/tensorflow/tools/pip_package/build_pip_package $PWD && \
-    ls -1 && \
-    pip3.6 install "$(ls -1 tensorflow*.whl | head -n 1)"
+    pip3 install "$(ls -1 tensorflow*.whl | head -n 1)"
 
 
 RUN pip3.6 install --no-cache-dir \
@@ -110,5 +104,3 @@ RUN rm -rf /tmp/*
 WORKDIR /
 
 CMD ["/bin/bash"]
-
-RUN apt-get update && apt-get install -y libgtk2.0-dev
