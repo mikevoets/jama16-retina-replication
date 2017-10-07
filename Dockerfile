@@ -84,10 +84,12 @@ RUN apt-get purge --autoremove -y \
       autoconf \
       automake \
       bazel \
+      ca-certificates \
       curl \
       libtool \
       openjdk-8-jdk \
       python \
+      python3-dev \
       software-properties-common \
       unzip \
       && \
