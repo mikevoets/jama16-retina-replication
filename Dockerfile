@@ -52,11 +52,9 @@ RUN echo "deb http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
 
 RUN curl -L https://github.com/tensorflow/tensorflow/archive/v1.3.0.tar.gz | tar -xz && \
     cd tensorflow* && \
-    # HACK: Temporarily remove SHA256 checksums because reasons.
-    # ¯\_(ツ)_/¯ https://github.com/tensorflow/tensorflow/issues/12979
-    sed -ri "/^\W+sha256 = \"[^\"]+\"\W+$/d" tensorflow/workspace.bzl && \
+    source /tmp/build/tensorflow-env && \
     pip3 install --no-cache-dir numpy && \
-    source /tmp/build/tensorflow-env && ./configure && \
+    ./configure && \
     bazel build \
       --config=opt \
       # Build with CUDA support when using a CUDA base image.
@@ -66,7 +64,7 @@ RUN curl -L https://github.com/tensorflow/tensorflow/archive/v1.3.0.tar.gz | tar
     pip3 install "$(ls -1 tensorflow*.whl | head -n 1)"
 
 
-RUN pip3.6 install --no-cache-dir \
+RUN pip3 install --no-cache-dir \
       bleach>=2.0 \
       html5lib>=0.99999999 \
       keras>=2.0.7 \
