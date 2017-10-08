@@ -151,7 +151,7 @@ def _base_filename(e):
     if isinstance(e, list):
         base = [_strip_base_filename(x) for x in e]
     else:
-        base = _strip_base_filename(x)
+        base = _strip_base_filename(e)
 
     return base
 
@@ -260,15 +260,30 @@ def _maybe_preprocess(test=False):
     # Get image path.
     images_dir = _get_extract_path(test=test)
 
+    # Get paths of images that are to be preprocessed.
+    image_paths = _get_image_paths(images_dir=images_dir)
+
+    # Get paths of images that already are preprocessed.
+    preprocessed_paths = _get_image_paths(images_dir=save_path)
+
+    # Get paths of images that yet have to be preprocessed.
+    images_to_preprocess = set(_base_filename(image_paths)) \
+        - set(_base_filename(preprocessed_paths))
+
     # Only continue unless the directory does not exist.
-    if not os.path.exists(save_path):
+    if len(images_to_preprocess) > 0:
         print_status("Preprocessing images...")
 
-        # Create directory for preprocessed images.
-        os.makedirs(save_path)
+        # Get the full paths of images.
+        preprocess_fns = [os.path.join(images_dir, im + '.jpeg')
+                          for im in images_to_preprocess]
+
+        # Create directory for preprocessed images if necessary.
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
 
         # Preprocess images.
-        scale_normalize(images_path=images_dir, save_path=save_path)
+        scale_normalize(image_paths=preprocess_fns, save_path=save_path)
     else:
         print_status("Images already preprocessed.")
 
@@ -337,6 +352,11 @@ def maybe_create_subdirs_group_by_labels():
     def _maybe_create(images_dir, labels_path):
         # Helper function for creating subdirectories.
         print_status("Creating subdirectories...")
+
+        # Skipping if there are no labels.
+        if not os.path.exists(labels_path):
+            print_status("Skipping {}".format(labels_path))
+            return
 
         # Skip if subdirectories already have been created.
         if len(os.listdir(images_dir)) == num_classes:
@@ -415,7 +435,14 @@ def split_training_and_validation(split=0.0):
             image_fn = partitioned_fn[-1]
 
             if subdir is not None:
-                new_dest = os.path.join(to_directory, str(subdir), image_fn)
+                group_path = os.path.join(to_directory, str(subdir))
+
+                # Check if group subdirectory has been made before.
+                # If not, make it.
+                if not os.path.exists(group_path):
+                    os.makedirs(group_path)
+
+                new_dest = os.path.join(group_path, image_fn)
             else:
                 new_dest = os.path.join(to_directory, image_fn)
 

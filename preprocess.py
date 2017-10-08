@@ -137,10 +137,44 @@ def _get_image_paths(images_path):
     return [os.path.join(images_path, fn) for fn in os.listdir(images_path)]
 
 
+def _scale_normalize_all(image_paths, save_path):
+    # Get the total amount of images.
+    num_images = len(image_paths)
+
+    # For each image in the specified directory.
+    for i, image_path in enumerate(image_paths):
+        # Status-message.
+        msg = "\r- Preprocessing image: {0:>6} / {1}".format(i + 1, num_images)
+
+        # Print the status message.
+        sys.stdout.write(msg)
+        sys.stdout.flush()
+
+        try:
+            # Load the image and clone it for output.
+            image = cv2.imread(image_path)
+
+            # Scale normalize the image.
+            processed = _scale_normalize(image)
+
+            if processed is None:
+                print("Could not preprocess {}...".format(image_path))
+            else:
+                # Get the save path for the processed image.
+                image_filename = _get_filename(image_path)
+                output_path = os.path.join(save_path, image_filename)
+
+                # Save the image.
+                cv2.imwrite(output_path, processed,
+                            [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        except AttributeError:
+            print("Could not preprocess {}...".format(image_path))
+
+
 ########################################################################
 
 
-def scale_normalize(save_path=None, images_path=None, image=None):
+def scale_normalize(save_path=None, images_path=None, image_paths=None):
     """
     Function for normalizing scale of images.
 
@@ -159,49 +193,11 @@ def scale_normalize(save_path=None, images_path=None, image=None):
     if save_path is None:
         raise ValueError("Save path not specified!")
 
-    if image is not None:
-        # Scale normalize the image.
-        processed = _scale_normalize(image)
-
-        if processed is None:
-            print("Could not preprocess image for {}...".format(save_path))
-        else:
-            # Save the image.
-            cv2.imwrite(save_path, processed,
-                        [int(cv2.IMWRITE_JPEG_QUALITY, 100)])
+    if image_paths is not None:
+        _scale_normalize_all(image_paths=image_paths, save_path=save_path)
 
     elif images_path is not None:
         # Get the paths to all images.
         image_paths = _get_image_paths(images_path)
-
-        # Get the total amount of images.
-        num_images = len(image_paths)
-
-        # For each image in the specified directory.
-        for i, image_path in enumerate(image_paths):
-            # Status-message.
-            msg = "\r- Preprocessing image: {0:>6} / {1}".format(i + 1, num_images)
-
-            # Print the status message.
-            sys.stdout.write(msg)
-            sys.stdout.flush()
-
-            try:
-                # Load the image and clone it for output.
-                image = cv2.imread(image_path)
-
-                # Scale normalize the image.
-                processed = _scale_normalize(image)
-
-                if processed is None:
-                    print("Could not preprocess {}...".format(image_path))
-                else:
-                    # Get the save path for the processed image.
-                    image_filename = _get_filename(image_path)
-                    output_path = os.path.join(save_path, image_filename)
-
-                    # Save the image.
-                    cv2.imwrite(output_path, processed,
-                                [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-            except AttributeError:
-                print("Could not preprocess {}...".format(image_path))
+        # Scale all images.
+        _scale_normalize_all(image_paths=image_paths, save_path=save_path)
