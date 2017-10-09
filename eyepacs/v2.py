@@ -532,7 +532,7 @@ def wait_until_available():
         if os.path.exists(ready_file):
             break
 
-        print("{:>4} : Waiting until I find .ready in {1} folder".
+        print("{0:>4} : Waiting until I find .ready in {1} folder".
               format(counter, data_path))
 
         sleep(5)
