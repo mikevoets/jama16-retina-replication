@@ -26,6 +26,7 @@ import download
 import csv
 import numpy as np
 import sys
+from time import sleep
 from PIL import Image
 from re import split
 from glob import glob
@@ -516,6 +517,25 @@ def split_training_and_validation(split=0.0):
                   labels_path=val_labels_path)
 
     print_status("Resetted all labels!")
+
+
+def wait_until_available():
+    """
+    Sleeps until data has been found.
+
+    Gives opportunity for end user to upload data to container.
+    """
+    counter = 0
+
+    while True:
+        if os.path.exists(data_path, '.ready'):
+            break
+
+        print("{:>4} : Waiting until I find .ready in {1} folder".
+              format(counter, data_path))
+
+        sleep(5)
+        counter += 1
 
 
 ########################################################################
