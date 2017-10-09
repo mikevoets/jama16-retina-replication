@@ -526,7 +526,7 @@ def wait_until_available():
     Gives opportunity for end user to upload data to container.
     """
     counter = 0
-    ready_file = os.path.joins(data_path, '.ready')
+    ready_file = os.path.join(data_path, '.ready')
 
     while True:
         if os.path.exists(ready_file):
