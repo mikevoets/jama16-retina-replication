@@ -1,0 +1,38 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: retinalearn
+  namespace: uit-bdps
+  labels:
+    app: retinalearn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: retinalearn
+  template:
+    metadata:
+      labels:
+        app: retinalearn
+        driver: nvidia-gpu
+    spec:
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: 4945448c-57c5-49f4-bfcb-126ed478db43
+      containers:
+        - name: retinalearn
+          image: maikovich/retinalearn:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              alpha.kubernetes.io/nvidia-gpu: 1
+              cpu: 1024m
+              memory: 2Gi
+            limits:
+              alpha.kubernetes.io/nvidia-gpu: 1
+              cpu: 2048m
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data:rslave
