@@ -44,15 +44,20 @@ RUN echo "deb http://storage.googleapis.com/bazel-apt stable jdk1.8" | \
     tee /etc/apt/sources.list.d/bazel.list && \
     curl https://bazel.build/bazel-release.pub.gpg | apt-key add - && \
     apt-get update && apt-get install -y \
-      bazel \
       openjdk-8-jdk \
       python \
       && \
+    curl -O -L https://github.com/bazelbuild/bazel/releases/download/0.5.2/bazel-0.5.2-without-jdk-installer-linux-x86_64.sh && \
+    chmod +x bazel-0.5.2-without-jdk-installer-linux-x86_64.sh && \
+    ./bazel-0.5.2-without-jdk-installer-linux-x86_64.sh && \
+    rm bazel-0.5.2-without-jdk-installer-linux-x86_64.sh && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -L https://github.com/tensorflow/tensorflow/archive/v1.3.0.tar.gz | tar -xz && \
     cd tensorflow* && \
     source /tmp/build/tensorflow-env && \
+    # Nifty hack!
+    sed -ri "/^\W+sha256 = \"[^\"]+\"\W+$/d" tensorflow/workspace.bzl && \
     pip3 install --no-cache-dir numpy && \
     ./configure && \
     bazel build \
@@ -69,7 +74,6 @@ RUN pip3 install --no-cache-dir \
       html5lib>=0.99999999 \
       keras>=2.0.7 \
       opencv-python>=3.3.0 \
-      jupyter \
       numpy \
       scipy \
       Pillow \
@@ -81,7 +85,6 @@ RUN pip3 install --no-cache-dir \
 RUN apt-get purge --autoremove -y \
       autoconf \
       automake \
-      bazel \
       ca-certificates \
       curl \
       libtool \
@@ -93,14 +96,14 @@ RUN apt-get purge --autoremove -y \
       && \
     rm -rf /etc/apt/sources.list.d/*
 
-COPY jupyter_notebook_config.py /root/.jupyter/
-
-COPY run_jupyter.sh /root/
-
-EXPOSE 6006 8888
+EXPOSE 6006
 
 RUN rm -rf /tmp/*
 
-WORKDIR /
+RUN mkdir -p /retinalearn
+
+COPY . /retinalearn
+
+WORKDIR /retinalearn
 
 CMD ["/bin/bash"]
