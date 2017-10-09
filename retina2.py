@@ -42,6 +42,9 @@ validation_split = 0.1
 ########################################################################
 # Initializer functions
 
+# Set locations of dataset.
+eyepacs.v2.data_path = "/data/eyepacs"
+
 # Extract if necessary.
 eyepacs.v2.maybe_extract_images()
 

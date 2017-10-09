@@ -1,0 +1,12 @@
+version: '3'
+services:
+  app:
+    image: retinalearn
+    volumes: 
+      - eyepacs:/data
+  data:
+    image: retinalearn
+    volumes: 
+      - eyepacs:/data
+volumes:
+  eyepacs:

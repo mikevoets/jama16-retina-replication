@@ -27,7 +27,6 @@ RUN apt-get update && apt-get install -y \
       libtool \
       python3-dev \
       unzip \
-      libgtk2.0-dev \
       && \
     rm -rf /var/lib/apt/lists/*
 
@@ -68,19 +67,27 @@ RUN curl -L https://github.com/tensorflow/tensorflow/archive/v1.3.0.tar.gz | tar
     bazel-bin/tensorflow/tools/pip_package/build_pip_package $PWD && \
     pip3 install "$(ls -1 tensorflow*.whl | head -n 1)"
 
+RUN ln -s /usr/local/cuda-8.0/targets/x86_64-linux/lib/stubs/libcuda.so /usr/local/cuda-8.0/lib64/libcuda.so.1
+
+RUN apt-get update && apt-get install -y \
+      libglib2.0-0 \
+      libgtk2.0-dev \
+      python3-tk \
+      libsm6 \
+      && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --no-cache-dir \
-      bleach>=2.0 \
-      html5lib>=0.99999999 \
-      keras>=2.0.7 \
+      keras \
       opencv-python>=3.3.0 \
       numpy \
       scipy \
-      Pillow \
+      hyperopt \
       matplotlib \
       sklearn \
       pandas \
-      h5py
+      h5py \
+      Pillow
 
 RUN apt-get purge --autoremove -y \
       autoconf \
@@ -106,4 +113,4 @@ COPY . /retinalearn
 
 WORKDIR /retinalearn
 
-CMD ["/bin/bash"]
+CMD ["python3", "retina2.py"]
