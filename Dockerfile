@@ -113,4 +113,4 @@ COPY . /retinalearn
 
 WORKDIR /retinalearn
 
-CMD ["python3", "retina2.py"]
+CMD ["python3", "-u", "retina2.py"]

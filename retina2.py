@@ -25,7 +25,7 @@ from eyepacs.v2 import num_classes
 import pdb
 
 # Ignore Tensorflow logs.
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 ########################################################################
 # Various constants.
