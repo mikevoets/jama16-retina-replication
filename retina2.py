@@ -39,6 +39,9 @@ fully_connected_size = 1024
 # Define the ratio of training-validation data.
 validation_split = 0.1
 
+# Seed for shuffling training-validation data.
+seed = 448
+
 ########################################################################
 # Initializer functions
 
@@ -61,7 +64,7 @@ eyepacs.v2.maybe_extract_labels()
 eyepacs.v2.maybe_create_subdirs_group_by_labels()
 
 # Split training and validation set.
-eyepacs.v2.split_training_and_validation(split=validation_split)
+eyepacs.v2.split_training_and_validation(split=validation_split, seed=seed)
 
 ########################################################################
 

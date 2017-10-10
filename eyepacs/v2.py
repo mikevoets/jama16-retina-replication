@@ -26,10 +26,11 @@ import download
 import csv
 import numpy as np
 import sys
-from time import sleep
-from PIL import Image
+import random
 from re import split
+from PIL import Image
 from glob import glob
+from time import sleep
 from fnmatch import fnmatch
 from dataset import one_hot_encoded
 from preprocess import scale_normalize
@@ -360,7 +361,8 @@ def maybe_create_subdirs_group_by_labels():
             return
 
         # Skip if subdirectories already have been created.
-        if len(os.listdir(images_dir)) == num_classes:
+        num_directories = len(os.listdir(images_dir))
+        if num_directories > 0 and num_directories <= num_classes:
             print_status("Subdirectories already created!")
             return
 
@@ -400,7 +402,7 @@ def maybe_create_subdirs_group_by_labels():
     _maybe_create(test_images_path, test_labels_path)
 
 
-def split_training_and_validation(split=0.0):
+def split_training_and_validation(split=0.0, seed=None):
     """
     Rearranges training and validation regarding to the split parameter.
     Assumes the images have been preprocessed and placed in the
@@ -423,7 +425,7 @@ def split_training_and_validation(split=0.0):
             partitioned_fn = x.split("/")
 
             subdir = None
-            # Consider if the images partioned in subfolders.
+            # Consider if the images are partioned in subfolders.
             try:
                 subdir = int(partitioned_fn[-2])
 
@@ -483,6 +485,12 @@ def split_training_and_validation(split=0.0):
     image_paths = []
     image_paths += _get_image_paths(images_dir=train_images_path)
     image_paths += _get_image_paths(images_dir=val_images_path)
+
+    # Randomize image paths.
+    if seed is not None:
+        random.seed(seed)
+
+    random.shuffle(image_paths)
 
     # Total number of images.
     num_images = len(image_paths)
