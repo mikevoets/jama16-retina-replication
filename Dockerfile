@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y \
       ca-certificates \
       curl \
       software-properties-common \
+      openssl \
+      libssl-dev \
       && \
     rm -rf /var/lib/apt/lists/*
 
@@ -79,6 +81,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip3 install --no-cache-dir \
       keras \
+      networkx==1.11 \
       opencv-python>=3.3.0 \
       numpy \
       scipy \
@@ -92,7 +95,6 @@ RUN pip3 install --no-cache-dir \
 RUN apt-get purge --autoremove -y \
       autoconf \
       automake \
-      ca-certificates \
       curl \
       libtool \
       openjdk-8-jdk \
