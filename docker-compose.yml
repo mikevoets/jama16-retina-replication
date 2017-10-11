@@ -3,10 +3,4 @@ services:
   app:
     image: retinalearn
     volumes: 
-      - eyepacs:/data
-  data:
-    image: retinalearn
-    volumes: 
-      - eyepacs:/data
-volumes:
-  eyepacs:
+      - ./data:/data

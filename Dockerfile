@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip3 install --no-cache-dir \
       keras \
+      networkx==1.11 \
       opencv-python>=3.3.0 \
       numpy \
       scipy \
