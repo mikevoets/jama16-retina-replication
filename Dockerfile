@@ -19,6 +19,10 @@ RUN apt-get update && apt-get install -y \
       && \
     rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update && apt-get install -y python3 && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl https://bootstrap.pypa.io/get-pip.py | python3
+
 RUN pip3 install --no-cache-dir \
       keras \
       networkx==1.11 \
