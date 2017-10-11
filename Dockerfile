@@ -1,4 +1,4 @@
-ARG   BASE_IMAGE="gcr.io/tensorflow/tensorflow:latest-gpu"
+ARG   BASE_IMAGE="gcr.io/tensorflow/tensorflow:latest-gpu-py3"
 FROM $BASE_IMAGE
 
 LABEL maintainer="Mike Voets <mwhg.voets@gmail.com>"
@@ -8,6 +8,7 @@ WORKDIR /tmp
 
 SHELL ["bash", "-c"]
 
+# Install dependencies.
 RUN apt-get update && apt-get install -y \
       ca-certificates \
       curl \
@@ -19,10 +20,10 @@ RUN apt-get update && apt-get install -y \
       && \
     rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y python3 && \
-    rm -rf /var/lib/apt/lists/* && \
-    curl https://bootstrap.pypa.io/get-pip.py | python3
+# Get pip3.
+RUN curl https://bootstrap.pypa.io/get-pip.py | python3
 
+# Install runtime (pip3) dependencies.
 RUN pip3 install --no-cache-dir \
       keras \
       networkx==1.11 \
