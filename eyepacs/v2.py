@@ -39,7 +39,7 @@ from preprocess import scale_normalize
 
 # Directory where you want to extract and save the data-set.
 # Set this before you start calling any of the functions below.
-data_path = "data/eyepacs/"
+data_path = "/data/eyepacs/"
 
 # Directory to training and test-set relative from the data path.
 train_subpath = "train/"

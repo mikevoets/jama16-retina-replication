@@ -46,7 +46,7 @@ seed = 448
 # Initializer functions
 
 # Set locations of dataset.
-eyepacs.v2.data_path = "data/eyepacs"
+eyepacs.v2.data_path = "/data/eyepacs"
 
 # Block and wait until data is available.
 eyepacs.v2.wait_until_available()
