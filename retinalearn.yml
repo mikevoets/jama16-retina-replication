@@ -22,7 +22,7 @@ spec:
             claimName: 4945448c-57c5-49f4-bfcb-126ed478db43
       containers:
         - name: retinalearn
-          image: maikovich/retinalearn:latest
+          image: maikovich/retinalearn:from_source
           imagePullPolicy: Always
           resources:
             requests:
