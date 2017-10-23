@@ -93,7 +93,6 @@ RUN pip3 install --no-cache-dir \
 RUN apt-get purge --autoremove -y \
       autoconf \
       automake \
-      ca-certificates \
       curl \
       libtool \
       openjdk-8-jdk \
