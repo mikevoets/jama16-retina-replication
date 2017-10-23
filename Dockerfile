@@ -87,7 +87,8 @@ RUN pip3 install --no-cache-dir \
       sklearn \
       pandas \
       h5py \
-      Pillow
+      Pillow \
+      networkx==1.11
 
 RUN apt-get purge --autoremove -y \
       autoconf \

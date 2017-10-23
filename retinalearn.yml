@@ -27,12 +27,12 @@ spec:
           resources:
             requests:
               alpha.kubernetes.io/nvidia-gpu: 1
-              cpu: 2
-              memory: 12Gi
+              cpu: 12
+              memory: 18Gi
             limits:
               alpha.kubernetes.io/nvidia-gpu: 1
-              cpu: 2
-              memory: 12Gi
+              cpu: 12
+              memory: 18Gi
           volumeMounts:
             - name: data
               mountPath: /data:rslave
