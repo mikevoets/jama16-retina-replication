@@ -64,7 +64,7 @@ eyepacs.v2.maybe_extract_labels()
 eyepacs.v2.maybe_create_subdirs_group_by_labels()
 
 # Split training and validation set.
-eyepacs.v2.split_training_and_validation(split=validation_split, seed=seed)
+# eyepacs.v2.split_training_and_validation(split=validation_split, seed=seed)
 
 ########################################################################
 
@@ -194,8 +194,7 @@ def model(params):
 
     score, acc = model.evaluate_generator(
         validation_generator,
-        steps=100,
-        verbose=0)
+        steps=100)
 
     return {'loss': -acc, 'status': STATUS_OK, 'model': model}
 
