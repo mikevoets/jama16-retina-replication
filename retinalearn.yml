@@ -26,12 +26,12 @@ spec:
           imagePullPolicy: Always
           resources:
             requests:
-              alpha.kubernetes.io/nvidia-gpu: 1
-              cpu: 12
+              alpha.kubernetes.io/nvidia-gpu: 2
+              cpu: 18
               memory: 18Gi
             limits:
-              alpha.kubernetes.io/nvidia-gpu: 1
-              cpu: 12
+              alpha.kubernetes.io/nvidia-gpu: 2
+              cpu: 18
               memory: 18Gi
           volumeMounts:
             - name: data
