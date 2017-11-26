@@ -1,4 +1,5 @@
 from layers import *
+from config import Config
 from eyepacs.v3 import BALANCE_WEIGHTS
 
 config = {
@@ -60,3 +61,5 @@ layers = [
     (FeaturePooling2D, {'pool_size': 2}),
     (Dense, {'num_units': 1})
 ]
+
+config = Config(layers=layers, conf=conf)

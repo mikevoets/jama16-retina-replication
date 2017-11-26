@@ -1,5 +1,6 @@
 import os
 import sys
+import importlib
 # Use the EyePacs dataset.
 import eyepacs.v3 as eye
 
@@ -43,6 +44,14 @@ eye.maybe_extract_labels()
 eye.maybe_create_subdirs_group_by_labels()
 
 # Split training and validation set.
-eye.split_training_and_validation(split=validation_split, seed=seed)
-
+# eye.split_training_and_validation(split=validation_split, seed=seed)
 # eye.maybe_convert()
+
+
+def load_module(mod):
+    return importlib.import_module(mod.replace('/', '.').split('.py')[0])
+
+
+config = load_module('eyepacs/configs/512x512-5.py')
+
+pdb.set_trace()

@@ -11,47 +11,47 @@ mkdir(FEATURE_DIR)
 
 
 class Config(object):
-    def __init__(self, layers, cnf=None):
+    def __init__(self, layers, conf=None):
         self.layers = layers
-        self.cnf = cnf
-        pprint.pprint(cnf)
+        self.conf = conf
+        pprint.pprint(conf)
 
     def get(self, k, default=None):
-        return self.cnf.get(k, default)
+        return self.conf.get(k, default)
 
     def weights_epoch(self):
-        path = "weights/{}/epochs".format(self.cnf['name'])
+        path = "weights/{}/epochs".format(self.conf['name'])
         mkdir(path)
         return os.path.join(path, '{epoch}_{timestamp}_{loss}.pkl')
 
     def weights_best(self):
-        path = "weights/{}/best".format(self.cnf['name'])
+        path = "weights/{}/best".format(self.conf['name'])
         mkdir(path)
         return os.path.join(path, '{epoch}_{timestamp}_{loss}.pkl')
 
     def weights_file(self):
-        path = "weights/{}".format(self.cnf['name'])
+        path = "weights/{}".format(self.conf['name'])
         mkdir(path)
         return os.path.join(path, 'weights.pkl')
 
     def retrain_weights_file(self):
-        path = "weights/{}/retrain".format(self.cnf['name'])
+        path = "weights/{}/retrain".format(self.conf['name'])
         mkdir(path)
         return os.path.join(path, 'weights.pkl')
 
     def final_weights_file(self):
-        path = "weights/{}".format(self.cnf['name'])
+        path = "weights/{}".format(self.conf['name'])
         mkdir(path)
         return os.path.join(path, 'weights_final.pkl')
 
     def get_features_fname(self, n_iter, skip=0, test=False):
         fname = '{}_{}_mean_iter_{}_skip_{}.npy'.format(
-            self.cnf['name'], ('test' if test else 'train'),  n_iter, skip)
+            self.conf['name'], ('test' if test else 'train'),  n_iter, skip)
         return os.path.join(FEATURE_DIR, fname)
 
     def get_std_fname(self, n_iter, skip=0, test=False):
         fname = '{}_{}_std_iter_{}_skip_{}.npy'.format(
-            self.cnf['name'], ('test' if test else 'train'), n_iter, skip)
+            self.conf['name'], ('test' if test else 'train'), n_iter, skip)
         return os.path.join(FEATURE_DIR, fname)
 
     def save_features(self, X, n_iter, skip=0, test=False):
