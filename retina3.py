@@ -22,7 +22,10 @@ seed = 448
 # Initializer functions
 
 # Set locations of dataset.
-eye.data_path = "/data/eyepacs"
+eye.data_path = "data/eyepacs"
+eye.train_pre_subpath = "preprocessed/train/"
+eye.val_pre_subpath = "preprocessed/test/"
+eye.test_pre_subpath = "preprocessed/validation/"
 
 # Block and wait until data is available.
 eye.wait_until_available()
@@ -42,5 +45,4 @@ eye.maybe_create_subdirs_group_by_labels()
 # Split training and validation set.
 eye.split_training_and_validation(split=validation_split, seed=seed)
 
-# Test.
-eye.maybe_convert()
+# eye.maybe_convert()
