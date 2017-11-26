@@ -63,9 +63,9 @@ test_subpath = "test/"
 
 # Directory to where preprocessed training and test-sets should
 # be uploaded to.
-train_pre_subpath = "preprocessed/512/train/"
-val_pre_subpath = "preprocessed/512/test/"
-test_pre_subpath = "preprocessed/512/val/"
+train_pre_subpath = "preprocessed/train/"
+val_pre_subpath = "preprocessed/test/"
+test_pre_subpath = "preprocessed/val/"
 
 # File name for the training-set.
 train_data_filename = "train.7z"
