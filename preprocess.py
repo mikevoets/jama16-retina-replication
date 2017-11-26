@@ -76,7 +76,7 @@ def _get_filename(file_path):
     return file_path.split("/")[-1]
 
 
-def _scale_normalize(image):
+def _scale_normalize(image, diameter):
     """
     Helper function for scale normalizing image.
     """
@@ -102,21 +102,21 @@ def _scale_normalize(image):
     copy = copy[y_min:y_max, x_min:x_max]
 
     # Scale the image.
-    fx = fy = 149.5/radius
+    fx = fy = (diameter / 2) / radius
     copy = cv2.resize(copy, (0, 0), fx=fx, fy=fy)
 
-    # Add padding to image to make it 299x299.
+    # Add padding to image.
     shape = copy.shape
 
     # Get the border shape size.
-    top = bottom = int((299 - shape[0])/2)
-    left = right = int((299 - shape[1])/2)
+    top = bottom = int((diameter - shape[0])/2)
+    left = right = int((diameter - shape[1])/2)
 
     # Add 1 pixel if necessary.
-    if shape[0] + top + bottom == 298:
+    if shape[0] + top + bottom == diameter - 1:
         top += 1
 
-    if shape[1] + left + right == 298:
+    if shape[1] + left + right == diameter - 1:
         left += 1
 
     # Define border of the image.
@@ -137,7 +137,7 @@ def _get_image_paths(images_path):
     return [os.path.join(images_path, fn) for fn in os.listdir(images_path)]
 
 
-def _scale_normalize_all(image_paths, save_path):
+def _scale_normalize_all(image_paths, save_path, diameter):
     # Get the total amount of images.
     num_images = len(image_paths)
 
@@ -155,7 +155,7 @@ def _scale_normalize_all(image_paths, save_path):
             image = cv2.imread(image_path)
 
             # Scale normalize the image.
-            processed = _scale_normalize(image)
+            processed = _scale_normalize(image, diameter=diameter)
 
             if processed is None:
                 print("Could not preprocess {}...".format(image_path))
@@ -174,7 +174,8 @@ def _scale_normalize_all(image_paths, save_path):
 ########################################################################
 
 
-def scale_normalize(save_path=None, images_path=None, image_paths=None):
+def scale_normalize(save_path=None, images_path=None, image_paths=None,
+                    diameter=512):
     """
     Function for normalizing scale of images.
 
@@ -187,6 +188,9 @@ def scale_normalize(save_path=None, images_path=None, image_paths=None):
     :param image:
         Optional. Numpy array/OpenCV image with 8-bit image.
 
+    :param diameter:
+        Optional. Result diameter of fundus. Defaults to 512.
+
     :return:
         Nothing.
     """
@@ -194,10 +198,35 @@ def scale_normalize(save_path=None, images_path=None, image_paths=None):
         raise ValueError("Save path not specified!")
 
     if image_paths is not None:
-        _scale_normalize_all(image_paths=image_paths, save_path=save_path)
+        _scale_normalize_all(image_paths=image_paths, save_path=save_path,
+                             diameter=diameter)
 
     elif images_path is not None:
         # Get the paths to all images.
         image_paths = _get_image_paths(images_path)
         # Scale all images.
-        _scale_normalize_all(image_paths=image_paths, save_path=save_path)
+        _scale_normalize_all(image_paths=image_paths, save_path=save_path,
+                             diameter=diameter)
+
+
+def resize(images_paths, size=512):
+    """
+    Function for resizing images.
+
+    :param images_paths:
+        Required. Paths to images.
+
+    :param size:
+        Optional. Size to which resize to. Defaults to 512.
+
+    :return:
+        Nothing.
+    """
+    for image_path in images_paths:
+        image = cv2.imread(image_path)
+
+        # Resize the image.
+        cv2.resize(image, (size, size))
+
+        # Save the image.
+        cv2.imwrite(image_path, image, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
