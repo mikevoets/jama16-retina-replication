@@ -25,7 +25,7 @@ seed = 448
 eye.data_path = "data/eyepacs"
 eye.train_pre_subpath = "preprocessed/train/"
 eye.val_pre_subpath = "preprocessed/test/"
-eye.test_pre_subpath = "preprocessed/validation/"
+eye.test_pre_subpath = "preprocessed/val/"
 
 # Block and wait until data is available.
 eye.wait_until_available()

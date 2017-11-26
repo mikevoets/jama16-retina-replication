@@ -65,7 +65,7 @@ test_subpath = "test/"
 # be uploaded to.
 train_pre_subpath = "preprocessed/512/train/"
 val_pre_subpath = "preprocessed/512/test/"
-test_pre_subpath = "preprocessed/512/validation/"
+test_pre_subpath = "preprocessed/512/val/"
 
 # File name for the training-set.
 train_data_filename = "train.7z"
