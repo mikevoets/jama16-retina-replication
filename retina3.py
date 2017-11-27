@@ -30,9 +30,9 @@ seed = 448
 
 # Set locations of dataset.
 eye.data_path = "data/eyepacs"
-eye.train_pre_subpath = "preprocessed/299/train/"
-eye.val_pre_subpath = "preprocessed/299/test/"
-eye.test_pre_subpath = "preprocessed/299/val/"
+eye.train_pre_subpath = "preprocessed/299/train"
+eye.val_pre_subpath = "preprocessed/299/test"
+eye.test_pre_subpath = "preprocessed/299/val"
 
 # Block and wait until data is available.
 eye.wait_until_available()

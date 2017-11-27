@@ -557,8 +557,10 @@ def maybe_convert(convert_to=[256, 128]):
             path = os.path.join(data_path, pre_subpath)
             new_path = path.replace('299', str(size))
 
+            old_images_paths = _get_image_paths(path)
+
             # Copy the images from the images dir to the new dir.
-            _maybe_move(path, new_path, copy=True)
+            _maybe_move(old_images_paths, new_path, copy=True)
 
             # Convert the images to size.
             images_paths = _get_image_paths(images_dir=new_path)
