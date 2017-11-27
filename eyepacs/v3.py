@@ -27,6 +27,7 @@ import csv
 import numpy as np
 import sys
 import random
+from shutil import copyfile
 from re import split
 from PIL import Image
 from glob import glob
@@ -347,7 +348,7 @@ def _maybe_move(images, to_directory, copy=False):
 
         # Move the image to the other directory set.
         if copy:
-            os.copy(x, new_dest)
+            copyfile(x, new_dest)
         else:
             os.rename(x, new_dest)
 
