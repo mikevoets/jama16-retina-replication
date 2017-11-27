@@ -78,6 +78,7 @@ layers = [
     (Dense, dense_params(1024)),
     (LeakyReLU, {'alpha': 0.1}),
     (Maxout, {'lambda': True, 'units': 512}),
+    (Flatten, {}),
     (Dense, {'units': 5, 'activation': 'softmax'})
 ]
 

@@ -1,5 +1,5 @@
 from tensorflow.contrib.keras.api.keras.models import Model
-from tensorflow.contrib.keras.api.keras.layers import Input, Dense, Conv2D, MaxPooling2D, AveragePooling2D, LeakyReLU, Dropout
+from tensorflow.contrib.keras.api.keras.layers import Input, Flatten, Dense, Conv2D, MaxPooling2D, AveragePooling2D, LeakyReLU, Dropout
 from tensorflow.contrib.keras.api.keras import backend as K
 from tensorflow.contrib.keras.api.keras.initializers import Orthogonal, Constant
 from tensorflow.contrib.keras.api.keras.regularizers import l2
@@ -80,11 +80,10 @@ def Maxout(x, units=None):
     if units is None:
         units = ch / 2
     assert ch is not None and ch % units == 0
-
     if ndim == 4:
         if data_format == 'channels_first':
             x = K.permute_dimensions(x, (0, 2, 3, 1))
-        x = K.reshape(x, (-1, input_shape[2], input_shape[3], ch // units, units))
+        x = K.reshape(x, (-1, input_shape[1], input_shape[2], ch // units, units))
         x = K.max(x, axis=3)
         if data_format == 'channels_first':
             x = K.permute_dimensions(x, (0, 3, 1, 2))
