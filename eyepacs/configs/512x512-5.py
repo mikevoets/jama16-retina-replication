@@ -4,10 +4,10 @@ from eyepacs.v3 import BALANCE_WEIGHTS
 
 conf = {
     'name': __name__.split('.')[-1],
-    'width': 448,
-    'height': 448,
-    'train_dir': 'data/eyepacs/preprocessed/train',
-    'test_dir': 'data/eyepacs/preprocessed/test',
+    'width': 112,
+    'height': 112,
+    'train_dir': 'data/eyepacs/preprocessed/128/train',
+    'test_dir': 'data/eyepacs/preprocessed/128/test',
     'batch_size_train': 32,
     'batch_size_test': 8,
     'balance_weights': BALANCE_WEIGHTS,
