@@ -4,6 +4,8 @@ import importlib
 
 from tensorflow.contrib.keras.api.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.contrib.keras.api.keras.models import Sequential
+from tensorflow.contrib.keras.api.keras.layers import Lambda
+from tensorflow.contrib.keras.api.keras.optimizers import SGD
 
 # Use the EyePacs dataset.
 import eyepacs.v3 as eye
@@ -33,19 +35,19 @@ eye.val_pre_subpath = "preprocessed/test/"
 eye.test_pre_subpath = "preprocessed/val/"
 
 # Block and wait until data is available.
-eye.wait_until_available()
+# eye.wait_until_available()
 
 # Extract if necessary.
-eye.maybe_extract_images()
+# eye.maybe_extract_images()
 
 # Preprocess if necessary.
-eye.maybe_preprocess()
+# eye.maybe_preprocess()
 
 # Extract labels if necessary.
-eye.maybe_extract_labels()
+# eye.maybe_extract_labels()
 
 # Create labels-grouped subdirectories if necessary.
-eye.maybe_create_subdirs_group_by_labels()
+# eye.maybe_create_subdirs_group_by_labels()
 
 # Split training and validation set.
 # eye.split_training_and_validation(split=validation_split, seed=seed)
@@ -60,17 +62,43 @@ config = load_module('eyepacs/configs/512x512-5.py').config
 
 
 def make_model(layers):
-    pdb.set_trace()
+    model = Sequential()
+
+    for func, params in layers:
+        if 'lambda' in params and params['lambda']:
+            del params['lambda']
+            model.add(Lambda(func, arguments=params))
+        else:
+            model.add(func(**params))
+
+    return model
 
 
-train_datagen = ImageDataGenerator(
-    zoom_range=config.get('augmentation_params')['zoom_range'],
-    rotation_range=config.get('augmentation_params')['rotation_range'],
-    shear_range=config.get('augmentation_params')['shear_range'],
-    width_shift_range=config.get('augmentation_params')['width_shift_range'],
-    height_shift_range=config.get('augmentation_params')['height_shift_range'],
-    horizontal_flip=config.get('augmentation_params')['horizontal_flip'],
-    vertical_flip=config.get('augmentation_params')['vertical_flip']
+def find_num_train_images():
+    """Helper function for finding amount of training images."""
+    train_images_dir = os.path.join(eye.data_path, eye.train_pre_subpath)
+
+    return len(eye._get_image_paths(images_dir=train_images_dir))
+
+
+train_datagen = ImageDataGenerator(**config.get('augmentation_params'))
+
+train_generator = train_datagen.flow_from_directory(
+    config.get('train_dir'),
+    target_size=(config.get('width'), config.get('height')),
+    batch_size=config.get('batch_size_train'),
 )
 
+
 model = make_model(config.layers)
+model.compile(optimizer=SGD(lr=3e-3, momentum=0.9, nesterov=True),
+              loss='mean_squared_error', metrics=['accuracy'])
+
+# TODO: Learning rate scheduler
+
+model.fit_generator(
+    train_generator,
+    epochs=200,
+    class_weight=config.get('balance_weights'),
+    steps_per_epoch=(find_num_train_images() // config.get('batch_size_train'))
+)

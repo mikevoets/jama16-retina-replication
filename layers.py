@@ -1,41 +1,41 @@
 from tensorflow.contrib.keras.api.keras.models import Model
-from tensorflow.contrib.keras.api.keras.layers import Input, Dense, Conv2D, MaxPooling2D, AveragePooling2D, LeakyReLU, Lambda, Dropout
-from tensorflow.contrib.keras.api.keras.optimizers import SGD
+from tensorflow.contrib.keras.api.keras.layers import Input, Dense, Conv2D, MaxPooling2D, AveragePooling2D, LeakyReLU, Dropout
 from tensorflow.contrib.keras.api.keras import backend as K
 from tensorflow.contrib.keras.api.keras.initializers import Orthogonal, Constant
+from tensorflow.contrib.keras.api.keras.regularizers import l2
 
 
-def conv2d_params(num_filters, filter_size=(3, 3), padding='same',
-                  activation=LeakyReLU(alpha=0.1), W=Orthogonal(gain=1.0),
-                  b=Constant(value=0.05), untie_biases=True, **kwargs):
+def conv2d_params(filters, kernel_size=(3, 3), padding='same',
+                  W=Orthogonal(gain=1.0), b=Constant(value=0.05),
+                  W_regularizer=l2(5e-4), **kwargs):
     args = {
-        'num_filters': num_filters,
-        'filter_size': filter_size,
-        'activation': activation,
-        'W': W,
-        'b': b,
-        'untie_biases': untie_biases
+        'filters': filters,
+        'kernel_size': kernel_size,
+        'kernel_initializer': W,
+        'bias_initializer': b,
+        'kernel_regularizer': W_regularizer,
+        'padding': padding
     }
     args.update(kwargs)
     return args
 
 
-def pool2d_params(pool_size=3, stride=(2, 2), **kwargs):
+def pool2d_params(pool_size=3, strides=(2, 2), **kwargs):
     args = {
         'pool_size': pool_size,
-        'stride': stride
+        'strides': strides
     }
     args.update(kwargs)
     return args
 
 
-def dense_params(num_units, activation=LeakyReLU(alpha=0.1),
-                 W=Orthogonal(gain=1.0), b=Constant(value=0.05), **kwargs):
+def dense_params(units, W=Orthogonal(gain=1.0), b=Constant(value=0.05),
+                 W_regularizer=l2(5e-4), **kwargs):
     args = {
-        'num_units': num_units,
-        'activation': activation,
-        'W': W,
-        'b': b
+        'units': units,
+        'kernel_initializer': W,
+        'bias_initializer': b,
+        'kernel_regularizer': W_regularizer
     }
     args.update(kwargs)
     return args
@@ -44,35 +44,52 @@ def dense_params(num_units, activation=LeakyReLU(alpha=0.1),
 class RMSPooling2D(MaxPooling2D):
     def __init__(self, pool_size=(2, 2), strides=None, padding='valid',
                  data_format=None, epsilon=1e-12, **kwargs):
-        super(FeaturePooling2D, self).__init__(pool_size, strides, padding,
-                                               data_format, **kwargs)
+        super(RMSPooling2D, self).__init__(pool_size, strides, padding,
+                                           data_format, **kwargs)
         self.epsilon = epsilon
 
     def _pooling_function(self, inputs, pool_size, strides,
                           padding, data_format):
         output = K.pool2d(K.square(inputs), pool_size, strides,
                           padding, data_format, pool_mode='avg')
-        return K.sqrt(out + epsilon)
+        return K.sqrt(output + epsilon)
 
 
-class FeaturePooling2D(MaxPooling2D):
-    def __init__(self, pool_size=(2, 2), axis=1, strides=None,
-                 padding='valid', pool_function=K.max,
-                 data_format=None, **kwargs):
-        super(FeaturePooling2D, self).__init__(pool_size, strides, padding,
-                                               data_format, **kwargs)
-        self.axis = axis
-        self.pool_function = pool_function
+def Maxout(x, units=None):
+    """
+    Maxout as in the paper `Maxout Networks <http://arxiv.org/abs/1302.4389>`_.
 
-    def _pooling_function(self, inputs, pool_size, strides,
-                          padding, data_format):
-        input_shape = tuple(inputs.shape)
-        num_feature_maps = input_shape[self.axis]
-        num_feature_maps_out = num_feature_maps // pool_size
+    Args:
+        x (tf.Tensor): a NHWC or NC tensor. Channel has to be known.
+        units (int): a int. Must be divisible by C.
 
-        pool_shape = (input_shape[:self.axis] +
-                      (num_feature_maps_out, pool_size) +
-                      input_shape[self.axis+1:])
+    Returns:
+        tf.Tensor: of shape NHW(C/units) named ``output``.
+    """
+    input_shape = x.get_shape().as_list()
+    ndim = len(input_shape)
+    assert ndim == 4 or ndim == 2
 
-        input_reshaped = inputs.reshape(pool_shape)
-        return self.pool_function(input_reshaped, axis=self.axis + 1)
+    data_format = K.image_data_format()
+
+    if data_format == 'channels_first':
+        ch = input_shape[1]
+    else:
+        ch = input_shape[-1]
+
+    if units is None:
+        units = ch / 2
+    assert ch is not None and ch % units == 0
+
+    if ndim == 4:
+        if data_format == 'channels_first':
+            x = K.permute_dimensions(x, (0, 2, 3, 1))
+        x = K.reshape(x, (-1, input_shape[2], input_shape[3], ch // units, units))
+        x = K.max(x, axis=3)
+        if data_format == 'channels_first':
+            x = K.permute_dimensions(x, (0, 3, 1, 2))
+    else:
+        x = K.reshape(x, (-1, ch // units, units))
+        x = K.max(x, axis=1)
+
+    return x

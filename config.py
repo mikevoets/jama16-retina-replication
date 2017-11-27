@@ -4,8 +4,13 @@ import os
 
 import numpy as np
 
-from util import mkdir
 from eyepacs.v3 import FEATURE_DIR
+
+
+def mkdir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
 
 mkdir(FEATURE_DIR)
 
