@@ -35,23 +35,23 @@ eye.val_pre_subpath = "preprocessed/test/"
 eye.test_pre_subpath = "preprocessed/val/"
 
 # Block and wait until data is available.
-# eye.wait_until_available()
+eye.wait_until_available()
 
 # Extract if necessary.
-# eye.maybe_extract_images()
+eye.maybe_extract_images()
 
 # Preprocess if necessary.
-# eye.maybe_preprocess()
+eye.maybe_preprocess()
 
 # Extract labels if necessary.
-# eye.maybe_extract_labels()
+eye.maybe_extract_labels()
 
 # Create labels-grouped subdirectories if necessary.
-# eye.maybe_create_subdirs_group_by_labels()
+eye.maybe_create_subdirs_group_by_labels()
 
 # Split training and validation set.
 # eye.split_training_and_validation(split=validation_split, seed=seed)
-# eye.maybe_convert()
+eye.maybe_convert()
 
 
 def load_module(mod):

@@ -63,9 +63,9 @@ test_subpath = "test/"
 
 # Directory to where preprocessed training and test-sets should
 # be uploaded to.
-train_pre_subpath = "preprocessed/train/"
-val_pre_subpath = "preprocessed/test/"
-test_pre_subpath = "preprocessed/val/"
+train_pre_subpath = "preprocessed/299/train/"
+val_pre_subpath = "preprocessed/299/test/"
+test_pre_subpath = "preprocessed/299/val/"
 
 # File name for the training-set.
 train_data_filename = "train.7z"
@@ -555,7 +555,7 @@ def maybe_convert(convert_to=[256, 128]):
     for pre_subpath in [train_pre_subpath, test_pre_subpath, val_pre_subpath]:
         for size in convert_to:
             path = os.path.join(data_path, pre_subpath)
-            new_path = path.replace('512', str(size))
+            new_path = path.replace('299', str(size))
 
             # Copy the images from the images dir to the new dir.
             _maybe_move(path, new_path, copy=True)
