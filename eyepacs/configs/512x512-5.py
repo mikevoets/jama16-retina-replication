@@ -14,12 +14,13 @@ config = {
     'balance_ratio': 0.975,
     'final_balance_weights': [1, 2, 2, 2, 2],
     'augmentation_params': {
-        'zoom_range': (1 / 1.15, 1.15),
-        'rotation_range': (0, 360),
-        'shear_range': (0, 0),
-        'translation_range': (-40, 40),
-        'do_flip': True,
-        'allow_stretch': True
+        'zoom_range': [1 / 1.15, 1.15],
+        'rotation_range': 360,
+        'shear_range': 0.,
+        'width_shift_range': 0.4,
+        'height_shift_range': 0.4,
+        'horizontal_flip': True,
+        'vertical_flip': True
     },
     'weight_decay' = 5e-4,
     'sigma': 0.5,
