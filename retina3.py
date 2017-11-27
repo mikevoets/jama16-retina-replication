@@ -30,9 +30,9 @@ seed = 448
 
 # Set locations of dataset.
 eye.data_path = "data/eyepacs"
-eye.train_pre_subpath = "preprocessed/299/train"
-eye.val_pre_subpath = "preprocessed/299/test"
-eye.test_pre_subpath = "preprocessed/299/val"
+eye.train_pre_subpath = "preprocessed/512/train"
+eye.val_pre_subpath = "preprocessed/512/test"
+eye.test_pre_subpath = "preprocessed/512/val"
 
 # Block and wait until data is available.
 eye.wait_until_available()
@@ -58,7 +58,7 @@ def load_module(mod):
     return importlib.import_module(mod.replace('/', '.').split('.py')[0])
 
 
-config = load_module('eyepacs/configs/512x512-5.py').config
+config = load_module('eyepacs/configs/128x128-5.py').config
 
 
 def make_model(layers):
