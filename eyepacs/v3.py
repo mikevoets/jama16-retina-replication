@@ -28,6 +28,7 @@ import numpy as np
 import sys
 import random
 from shutil import copyfile
+from distutils.dir_util import copy_tree
 from re import split
 from PIL import Image
 from glob import glob
@@ -62,11 +63,10 @@ data_path = "/data/eyepacs/"
 train_subpath = "train/"
 test_subpath = "test/"
 
-# Directory to where preprocessed training and test-sets should
+# Directory to where preprocessed training and val-sets should
 # be uploaded to.
 train_pre_subpath = "preprocessed/512/train/"
 val_pre_subpath = "preprocessed/512/test/"
-test_pre_subpath = "preprocessed/512/val/"
 
 # File name for the training-set.
 train_data_filename = "train.7z"
@@ -128,7 +128,7 @@ def _get_images_path(test=False):
     Returns the path for the directory the processed data-set.
     """
     if test:
-        images_dir = test_pre_subpath
+        images_dir = test_subpath
     else:
         images_dir = train_pre_subpath
 
@@ -217,7 +217,7 @@ def _get_data_path(filename="", test=None):
     """
     if test is not None:
         if test:
-            return data_path + test_pre_subpath + filename
+            return data_path + test_subpath + filename
         else:
             return data_path + train_pre_subpath + filename
     else:
@@ -269,15 +269,15 @@ def _maybe_extract_images(test=False):
         download.maybe_extract(file_path=file_path, extract_dir=data_path)
 
 
-def _maybe_preprocess(test=False, convert=True):
+def _maybe_preprocess(convert=True):
     """
     Helper function for preprocessing of images.
     """
     # Find the path where processed images should be uploaded to.
-    save_path = os.path.join(_get_images_path(test=test))
+    save_path = os.path.join(_get_images_path())
 
     # Get image path.
-    images_dir = _get_extract_path(test=test)
+    images_dir = _get_extract_path()
 
     # Get paths of images that are to be preprocessed.
     image_paths = _get_image_paths(images_dir=images_dir)
@@ -382,7 +382,6 @@ def maybe_preprocess():
     """
 
     _maybe_preprocess()
-    _maybe_preprocess(test=True)
 
     # Also create the validation preprocess directory.
     val_dir = os.path.join(data_path, val_pre_subpath)
@@ -454,7 +453,7 @@ def maybe_create_subdirs_group_by_labels():
     # Retrieve all data-sets.
     train_images_path = os.path.join(data_path, train_pre_subpath)
     val_images_path = os.path.join(data_path, val_pre_subpath)
-    test_images_path = os.path.join(data_path, test_pre_subpath)
+    test_images_path = os.path.join(data_path, test_subpath)
 
     # Retrieve all labels.
     train_labels_path = os.path.join(data_path, train_labels_extracted)
@@ -553,17 +552,24 @@ def maybe_convert(convert_to=[256, 128]):
     """
     Converts images and places to another directory.
     """
-    for pre_subpath in [train_pre_subpath, test_pre_subpath, val_pre_subpath]:
+    for pre_subpath in [train_pre_subpath, val_pre_subpath]:
+        print_status("Converting images in {}.".format(pre_subpath))
+
         for size in convert_to:
+            print_status("Converting images to {} pixels.".format(size))
+
             path = os.path.join(data_path, pre_subpath)
             new_path = path.replace('512', str(size))
 
-            old_images_paths = _get_image_paths(path)
+            if os.path.exists(new_path):
+                print_status("Already converted.")
+                return
 
-            # Copy the images from the images dir to the new dir.
-            _maybe_move(old_images_paths, new_path, copy=True)
+            # Copy files to new path.
+            copy_tree(path, new_path)
 
             # Convert the images to size.
+            old_images_paths = _get_image_paths(path)
             images_paths = _get_image_paths(images_dir=new_path)
             resize(images_paths, size=size)
 

@@ -29,29 +29,30 @@ seed = 448
 # Initializer functions
 
 # Set locations of dataset.
-eye.data_path = "data/eyepacs"
-eye.train_pre_subpath = "preprocessed/512/train"
-eye.val_pre_subpath = "preprocessed/512/test"
-eye.test_pre_subpath = "preprocessed/512/val"
+eye.data_path = "data/eyepacs/"
+eye.train_pre_subpath = "preprocessed/128/train"
+eye.val_pre_subpath = "preprocessed/128/val"
 
 # Block and wait until data is available.
-eye.wait_until_available()
+# eye.wait_until_available()
 
 # Extract if necessary.
-eye.maybe_extract_images()
+# eye.maybe_extract_images()
 
 # Preprocess if necessary.
-eye.maybe_preprocess()
+# eye.maybe_preprocess()
 
 # Extract labels if necessary.
-eye.maybe_extract_labels()
+# eye.maybe_extract_labels()
 
 # Create labels-grouped subdirectories if necessary.
-eye.maybe_create_subdirs_group_by_labels()
+# eye.maybe_create_subdirs_group_by_labels()
 
 # Split training and validation set.
 # eye.split_training_and_validation(split=validation_split, seed=seed)
-eye.maybe_convert()
+
+# Convert the images to 256 and 128 pixels.
+# eye.maybe_convert()
 
 
 def load_module(mod):
@@ -89,7 +90,7 @@ train_generator = train_datagen.flow_from_directory(
     batch_size=config.get('batch_size_train'),
 )
 
-
+import pdb; pdb.set_trace()
 model = make_model(config.layers)
 model.compile(optimizer=SGD(lr=3e-3, momentum=0.9, nesterov=True),
               loss='mean_squared_error', metrics=['accuracy'])

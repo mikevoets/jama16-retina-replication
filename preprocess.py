@@ -226,7 +226,7 @@ def resize(images_paths, size=512):
         image = cv2.imread(image_path)
 
         # Resize the image.
-        cv2.resize(image, (size, size))
+        image = cv2.resize(image, (size, size))
 
         # Save the image.
         cv2.imwrite(image_path, image, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
