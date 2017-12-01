@@ -59,7 +59,7 @@ def load_module(mod):
     return importlib.import_module(mod.replace('/', '.').split('.py')[0])
 
 
-config = load_module('eyepacs/configs/128x128-5.py').config
+config = load_module('eyepacs/configs/128_5x5.py').config
 
 
 def make_model(layers):
@@ -90,7 +90,6 @@ train_generator = train_datagen.flow_from_directory(
     batch_size=config.get('batch_size_train'),
 )
 
-import pdb; pdb.set_trace()
 model = make_model(config.layers)
 model.compile(optimizer=SGD(lr=3e-3, momentum=0.9, nesterov=True),
               loss='mean_squared_error', metrics=['accuracy'])

@@ -8,8 +8,8 @@ conf = {
     'height': 112,
     'train_dir': 'data/eyepacs/preprocessed/128/train',
     'test_dir': 'data/eyepacs/preprocessed/128/test',
-    'batch_size_train': 32,
-    'batch_size_test': 8,
+    'batch_size_train': 128,
+    'batch_size_test': 128,
     'balance_weights': BALANCE_WEIGHTS,
     'balance_ratio': 0.975,
     'final_balance_weights': [1, 2, 2, 2, 2],
@@ -30,8 +30,7 @@ conf = {
     'learn_rate_schedule': {
         0: 3e-3,
         150: 3e-4,
-        220: 3e-5,
-        250: 'stop'
+        201: 'stop'
     }
 }
 
@@ -56,18 +55,6 @@ layers = [
     (Conv2D, conv2d_params(4 * n)),
     (LeakyReLU, {'alpha': 0.1}),
     (Conv2D, conv2d_params(4 * n)),
-    (LeakyReLU, {'alpha': 0.1}),
-    (MaxPooling2D, pool2d_params()),
-    (Conv2D, conv2d_params(8 * n)),
-    (LeakyReLU, {'alpha': 0.1}),
-    (Conv2D, conv2d_params(8 * n)),
-    (LeakyReLU, {'alpha': 0.1}),
-    (Conv2D, conv2d_params(8 * n)),
-    (LeakyReLU, {'alpha': 0.1}),
-    (MaxPooling2D, pool2d_params()),
-    (Conv2D, conv2d_params(16 * n)),
-    (LeakyReLU, {'alpha': 0.1}),
-    (Conv2D, conv2d_params(16 * n)),
     (LeakyReLU, {'alpha': 0.1}),
     (RMSPooling2D, pool2d_params(strides=(3, 3))),
     (Dropout, {'rate': 0.5}),
