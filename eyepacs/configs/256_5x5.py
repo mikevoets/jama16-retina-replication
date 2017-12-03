@@ -7,6 +7,7 @@ conf = {
     'width': 224,
     'height': 224,
     'train_dir': 'data/eyepacs/preprocessed/256/train',
+    'val_dir': 'data/eyepacs/preprocessed/256/val',
     'test_dir': 'data/eyepacs/preprocessed/256/test',
     'batch_size_train': 128,
     'batch_size_test': 16,

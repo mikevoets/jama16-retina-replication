@@ -1,11 +1,14 @@
 import os
 import sys
 import importlib
+import numpy as np
 
 from tensorflow.contrib.keras.api.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.contrib.keras.api.keras.models import Sequential
 from tensorflow.contrib.keras.api.keras.layers import Lambda
 from tensorflow.contrib.keras.api.keras.optimizers import SGD
+
+from sklearn.utils import class_weight
 
 # Use the EyePacs dataset.
 import eyepacs.v3 as eye
@@ -82,10 +85,23 @@ def find_num_train_images():
     return len(eye._get_image_paths(images_dir=train_images_dir))
 
 
-train_datagen = ImageDataGenerator(**config.get('augmentation_params'))
+def find_num_val_images():
+    """Helper function for finding amount of validation images."""
+    val_images_dir = os.path.join(eye.data_path, eye.val_pre_subpath)
 
+    return len(eye._get_image_paths(images_dir=val_images_dir))
+
+
+train_datagen = ImageDataGenerator(**config.get('augmentation_params'))
 train_generator = train_datagen.flow_from_directory(
     config.get('train_dir'),
+    target_size=(config.get('width'), config.get('height')),
+    batch_size=config.get('batch_size_train'),
+)
+
+val_datagen = ImageDataGenerator(rescale=1./255)
+val_generator = val_datagen.flow_from_directory(
+    config.get('val_dir'),
     target_size=(config.get('width'), config.get('height')),
     batch_size=config.get('batch_size_train'),
 )
@@ -96,9 +112,14 @@ model.compile(optimizer=SGD(lr=3e-3, momentum=0.9, nesterov=True),
 
 # TODO: Learning rate scheduler
 
+class_weight = class_weight.compute_class_weight(
+    'balanced', np.unique(train_generator.classes), train_generator.classes)
+
 model.fit_generator(
     train_generator,
-    epochs=200,
-    class_weight=config.get('balance_weights'),
-    steps_per_epoch=(find_num_train_images() // config.get('batch_size_train'))
+    epochs=20,
+    class_weight=dict(enumerate(class_weight)),
+    steps_per_epoch=find_num_train_images() // config.get('batch_size_train'),
+    validation_data=val_generator,
+    validation_steps=find_num_val_images() // config.get('batch_size_train')
 )
