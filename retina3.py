@@ -35,8 +35,8 @@ seed = 448
 
 # Set locations of dataset.
 eye.data_path = "data/eyepacs/"
-eye.train_pre_subpath = "preprocessed/128/train"
-eye.val_pre_subpath = "preprocessed/128/val"
+eye.train_pre_subpath = "preprocessed/256/train"
+eye.val_pre_subpath = "preprocessed/256/val"
 
 # Block and wait until data is available.
 # eye.wait_until_available()
@@ -64,7 +64,7 @@ def load_module(mod):
     return importlib.import_module(mod.replace('/', '.').split('.py')[0])
 
 
-config = load_module('eyepacs/configs/128_5x5.py').config
+config = load_module('eyepacs/configs/256_5x5.py').config
 
 
 def make_model(layers):
@@ -126,12 +126,13 @@ def learning_rate_schedule(epoch):
     return lr
 
 
+model.load_weights('weights-128.hdf5', by_name=True)
 class_weight = class_weight.compute_class_weight(
     'balanced', np.unique(train_generator.classes), train_generator.classes)
 
 callbacks = [
     ModelCheckpoint(
-        'weights-128.hdf5',
+        'weights-256.hdf5',
         monitor='val_loss',
         save_weights_only=True,
         save_best_only=True),
