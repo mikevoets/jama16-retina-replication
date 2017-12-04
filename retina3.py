@@ -136,8 +136,7 @@ model.fit_generator(
     steps_per_epoch=find_num_train_images() // config.get('batch_size_train'),
     validation_data=val_generator,
     validation_steps=find_num_val_images() // config.get('batch_size_train'),
-    callbacks=[LearningRateScheduler(learning_rate_schedule),
-               ModelCheckpoint('weights-128.{epoch:02d}-{val_loss:.2f}.hdf5',
+    callbacks=[ModelCheckpoint('weights-128.hdf5',
                                monitor='val_loss',
                                save_weights_only=True,
                                save_best_only=True)]
