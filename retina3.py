@@ -7,7 +7,7 @@ from tensorflow.contrib.keras.api.keras.preprocessing.image import ImageDataGene
 from tensorflow.contrib.keras.api.keras.models import Sequential
 from tensorflow.contrib.keras.api.keras.layers import Lambda
 from tensorflow.contrib.keras.api.keras.optimizers import SGD
-from tensorflow.contrib.keras.api.keras.callbacks import ModelCheckpoint, LearningRateScheduler
+from tensorflow.contrib.keras.api.keras.callbacks import ModelCheckpoint, LearningRateScheduler, TensorBoard
 
 from sklearn.utils import class_weight
 from collections import OrderedDict
@@ -129,6 +129,19 @@ def learning_rate_schedule(epoch):
 class_weight = class_weight.compute_class_weight(
     'balanced', np.unique(train_generator.classes), train_generator.classes)
 
+callbacks = [
+    ModelCheckpoint(
+        'weights-128.hdf5',
+        monitor='val_loss',
+        save_weights_only=True,
+        save_best_only=True),
+    TensorBoard(
+        log_dir='./logs',
+        histogram_freq=1,
+        batch_size=find_num_val_images() // config.get('batch_size_train'),
+        write_images=True)
+]
+
 model.fit_generator(
     train_generator,
     epochs=200,
@@ -136,8 +149,5 @@ model.fit_generator(
     steps_per_epoch=find_num_train_images() // config.get('batch_size_train'),
     validation_data=val_generator,
     validation_steps=find_num_val_images() // config.get('batch_size_train'),
-    callbacks=[ModelCheckpoint('weights-128.hdf5',
-                               monitor='val_loss',
-                               save_weights_only=True,
-                               save_best_only=True)]
+    callbacks=callbacks
 )
