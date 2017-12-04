@@ -138,6 +138,7 @@ def load_weights(name, obj):
                 layer_dict[name].set_weights(weights)
             except ValueError:
                 # Do not load due to shape mismatch.
+                pass
 
 
 f = h5py.File('weights-128.hdf5', 'r')
