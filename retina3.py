@@ -112,9 +112,6 @@ model = make_model(config.layers)
 model.compile(optimizer=SGD(lr=3e-3, momentum=0.9, nesterov=True),
               loss='mean_squared_error', metrics=['accuracy'])
 
-class_weight = class_weight.compute_class_weight(
-    'balanced', np.unique(train_generator.classes), train_generator.classes)
-
 
 def learning_rate_schedule(epoch):
     global config
@@ -135,7 +132,7 @@ def learning_rate_schedule(epoch):
 model.fit_generator(
     train_generator,
     epochs=2,
-    class_weight=dict(enumerate(class_weight)),
+    class_weight=dict(enumerate(config.get('balance_weights'))),
     steps_per_epoch=find_num_train_images() // config.get('batch_size_train'),
     validation_data=val_generator,
     validation_steps=find_num_val_images() // config.get('batch_size_train'),
