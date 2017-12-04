@@ -7,8 +7,10 @@ from tensorflow.contrib.keras.api.keras.preprocessing.image import ImageDataGene
 from tensorflow.contrib.keras.api.keras.models import Sequential
 from tensorflow.contrib.keras.api.keras.layers import Lambda
 from tensorflow.contrib.keras.api.keras.optimizers import SGD
+from tensorflow.contrib.keras.api.keras.callbacks import ModelCheckpoint, LearningRateScheduler
 
 from sklearn.utils import class_weight
+from collections import OrderedDict
 
 # Use the EyePacs dataset.
 import eyepacs.v3 as eye
@@ -110,16 +112,36 @@ model = make_model(config.layers)
 model.compile(optimizer=SGD(lr=3e-3, momentum=0.9, nesterov=True),
               loss='mean_squared_error', metrics=['accuracy'])
 
-# TODO: Learning rate scheduler
-
 class_weight = class_weight.compute_class_weight(
     'balanced', np.unique(train_generator.classes), train_generator.classes)
 
+
+def learning_rate_schedule(epoch):
+    global config
+    s = config.get('learn_rate_schedule')
+
+    lr = s[0]
+    for k, v in OrderedDict(sorted(s.items())).items():
+        if epoch < k:
+            break
+        lr = v
+
+    print(lr)
+    return lr
+
+
+# TODO: Add balance callback
+
 model.fit_generator(
     train_generator,
-    epochs=20,
+    epochs=2,
     class_weight=dict(enumerate(class_weight)),
     steps_per_epoch=find_num_train_images() // config.get('batch_size_train'),
     validation_data=val_generator,
-    validation_steps=find_num_val_images() // config.get('batch_size_train')
+    validation_steps=find_num_val_images() // config.get('batch_size_train'),
+    callbacks=[LearningRateScheduler(learning_rate_schedule),
+               ModelCheckpoint('weights.{epoch:02d}-{val_loss:.2f}.hdf5',
+                               monitor='val_loss',
+                               save_weights_only=True),
+               ]
 )
