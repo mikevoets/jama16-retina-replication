@@ -123,22 +123,22 @@ def learning_rate_schedule(epoch):
             break
         lr = v
 
-    print(lr)
     return lr
 
 
-# TODO: Add balance callback
+class_weight = class_weight.compute_class_weight(
+    'balanced', np.unique(train_generator.classes), train_generator.classes)
 
 model.fit_generator(
     train_generator,
-    epochs=2,
-    class_weight=dict(enumerate(config.get('balance_weights'))),
+    epochs=200,
+    class_weight=dict(enumerate(class_weight)),
     steps_per_epoch=find_num_train_images() // config.get('batch_size_train'),
     validation_data=val_generator,
     validation_steps=find_num_val_images() // config.get('batch_size_train'),
     callbacks=[LearningRateScheduler(learning_rate_schedule),
-               ModelCheckpoint('weights.{epoch:02d}-{val_loss:.2f}.hdf5',
+               ModelCheckpoint('weights-128.{epoch:02d}-{val_loss:.2f}.hdf5',
                                monitor='val_loss',
-                               save_weights_only=True),
-               ]
+                               save_weights_only=True,
+                               save_best_only=True)]
 )
