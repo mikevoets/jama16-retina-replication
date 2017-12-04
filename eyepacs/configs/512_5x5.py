@@ -51,7 +51,7 @@ layers = [
     (LeakyReLU, {'alpha': 0.1}),
     (Conv2D, conv2d_params(2 * n)),
     (LeakyReLU, {'alpha': 0.1}),
-    (MaxPooling2D, pool2d_params()):,
+    (MaxPooling2D, pool2d_params()),
     (Conv2D, conv2d_params(4 * n)),
     (LeakyReLU, {'alpha': 0.1}),
     (Conv2D, conv2d_params(4 * n)),
