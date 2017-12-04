@@ -2,6 +2,7 @@ import os
 import sys
 import importlib
 import numpy as np
+import h5py
 
 from tensorflow.contrib.keras.api.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.contrib.keras.api.keras.models import Sequential
@@ -114,7 +115,6 @@ model.compile(optimizer=SGD(lr=3e-3, momentum=0.9, nesterov=True),
 
 
 def learning_rate_schedule(epoch):
-    global config
     s = config.get('learn_rate_schedule')
 
     lr = s[0]
@@ -126,7 +126,23 @@ def learning_rate_schedule(epoch):
     return lr
 
 
-model.load_weights('weights-128.hdf5', by_name=True)
+layer_dict = dict([(layer.name, layer) for layer in model.layers])
+
+
+def load_weights(name, obj):
+    for key, val in obj.attrs.items():
+        if name in layer_dict:
+            try:
+                # Load kernel and bias weights.
+                weights = [obj[v].value for v in val]
+                layer_dict[name].set_weights(weights)
+            except ValueError:
+                # Do not load due to shape mismatch.
+
+
+f = h5py.File('weights-128.hdf5', 'r')
+f.visititems(load_weights)
+
 class_weight = class_weight.compute_class_weight(
     'balanced', np.unique(train_generator.classes), train_generator.classes)
 
