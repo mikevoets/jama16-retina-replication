@@ -4,21 +4,23 @@ import argparse
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
-from hyperopt import fmin, hp, Trials, STATUS_OK, tpe
+import importlib
 
 from sklearn.metrics import roc_auc_score
+from sklearn.utils import class_weight
 from PIL import Image
 
 from tensorflow.contrib.keras.api.keras.applications.inception_v3 import InceptionV3, preprocess_input
 from tensorflow.contrib.keras.api.keras.models import Model, load_model
 from tensorflow.contrib.keras.api.keras.layers import Dense, GlobalAveragePooling2D
 from tensorflow.contrib.keras.api.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.contrib.keras.api.keras.callbacks import ModelCheckpoint, EarlyStopping
 from tensorflow.contrib.keras.api.keras.optimizers import SGD
 
 from dataset import one_hot_encoded
 
 # Use the EyePacs dataset.
-import eyepacs.v2
+import eyepacs.v2 as eye
 from eyepacs.v2 import num_classes
 
 # For debugging purposes.
@@ -29,9 +31,6 @@ import pdb
 
 ########################################################################
 # Various constants.
-
-# Shape of a preprocessed image.
-image_shape = (299, 299)
 
 # Fully-connected layer size.
 fully_connected_size = 1024
@@ -46,32 +45,34 @@ seed = 448
 # Initializer functions
 
 # Set locations of dataset.
-eyepacs.v2.data_path = "/data/eyepacs"
+eye.data_path = "data/eyepacs"
+eye.train_pre_subpath = "preprocessed/128/train"
+eye.val_pre_subpath = "preprocessed/128/val"
 
 # Block and wait until data is available.
-eyepacs.v2.wait_until_available()
+# eye.wait_until_available()
 
 # Extract if necessary.
-eyepacs.v2.maybe_extract_images()
+# eye.maybe_extract_images()
 
 # Preprocess if necessary.
-eyepacs.v2.maybe_preprocess()
+# eye.maybe_preprocess()
 
 # Extract labels if necessary.
-eyepacs.v2.maybe_extract_labels()
+# eye.maybe_extract_labels()
 
 # Create labels-grouped subdirectories if necessary.
-eyepacs.v2.maybe_create_subdirs_group_by_labels()
+# eye.maybe_create_subdirs_group_by_labels()
 
 # Split training and validation set.
-# eyepacs.v2.split_training_and_validation(split=validation_split, seed=seed)
+# eye.split_training_and_validation(split=validation_split, seed=seed)
 
 ########################################################################
 
 
-def get_num_files(test=False):
+def get_num_files():
     """Get number of files by searching directory recursively"""
-    return len(eyepacs.v2._get_image_paths(test=test, extension=".jpeg"))
+    return len(eye._get_image_paths(extension=".jpeg"))
 
 
 def add_new_last_layer(base_model, nb_classes):
@@ -110,48 +111,48 @@ def setup_to_finetune(model, num_layers_freeze):
         layer.trainable = False
     for layer in model.layers[num_layers_freeze:]:
         layer.trainable = True
-    model.compile(optimizer=SGD(lr=0.0001, momentum=0.9),
+    model.compile(optimizer=SGD(lr=3e-3, momentum=0.9, nesterov=True),
                   loss='categorical_crossentropy', metrics=['accuracy'])
 
 
 def find_num_train_images():
     """Helper function for finding amount of training images."""
-    train_images_dir = os.path.join(
-        eyepacs.v2.data_path, eyepacs.v2.train_pre_subpath)
+    train_images_dir = os.path.join(eye.data_path, eye.train_pre_subpath)
 
-    return len(eyepacs.v2._get_image_paths(images_dir=train_images_dir))
+    return len(eye._get_image_paths(images_dir=train_images_dir))
 
 
-def model(params):
+def find_num_val_images():
+    """Helper function for finding amount of training images."""
+    val_images_dir = os.path.join(eye.data_path, eye.val_pre_subpath)
+
+    return len(eye._get_image_paths(images_dir=val_images_dir))
+
+
+def train(config, num_epochs, num_layers_freeze, transfer_num_epochs=2):
     """
     Use transfer learning and fine-tuning to train a network on a new dataset
     """
     num_images = find_num_train_images()
-    num_epochs = int(params['num_epochs'])
-    batch_size = int(params['batch_size'])
-    num_layers_freeze = int(params['num_layers_freeze'])
+    num_val_images = find_num_val_images()
+    batch_size = config.get('batch_size_train')
 
     print()
     print("Settings: Num Epochs: {}, Batch Size: {}, Freeze Layers: {}"
           .format(num_epochs, batch_size, num_layers_freeze))
     print("Find images...")
 
-    train_datagen = ImageDataGenerator(
-        rescale=1./255,
-        shear_range=params['shear_range'],
-        zoom_range=params['zoom_range'],
-        horizontal_flip=params['horizontal_flip'])
-
-    test_datagen = ImageDataGenerator(rescale=1./255)
+    train_datagen = ImageDataGenerator(**config.get('augmentation_params'))
+    val_datagen = ImageDataGenerator(rescale=1./255)
 
     train_generator = train_datagen.flow_from_directory(
-            os.path.join(eyepacs.v2.data_path, eyepacs.v2.train_pre_subpath),
-            target_size=image_shape,
+            config.get('train_dir'),
+            target_size=(config.get('width'), config.get('height')),
             batch_size=batch_size)
 
-    validation_generator = test_datagen.flow_from_directory(
-            os.path.join(eyepacs.v2.data_path, eyepacs.v2.val_pre_subpath),
-            target_size=image_shape,
+    validation_generator = val_datagen.flow_from_directory(
+            config.get('val_dir'),
+            target_size=(config.get('width'), config.get('height')),
             batch_size=batch_size)
 
     print("Setup model...")
@@ -165,18 +166,26 @@ def model(params):
         layer.trainable = False
 
     # Compile the model.
-    model.compile(optimizer=params['optimizer'],
+    model.compile(optimizer=SGD(lr=3e-3, momentum=0.9, nesterov=True),
                   loss='categorical_crossentropy')
 
     print("Train the model on the new retina data for a few epochs...")
 
+    class_weight_dict = dict(enumerate(class_weight.compute_class_weight(
+        'balanced',
+        np.unique(train_generator.classes),
+        train_generator.classes
+    )))
+
     model.fit_generator(
         train_generator,
-        steps_per_epoch=int(num_images/batch_size),
-        epochs=num_epochs,
+        epochs=transfer_num_epochs,
+        class_weight=class_weight_dict,
+        steps_per_epoch=num_images // batch_size,
         validation_data=validation_generator,
-        validation_steps=100,
-        verbose=2)
+        validation_steps=num_val_images // batch_size,
+        callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=0)]
+    )
 
     print("Fine-tuning model...")
 
@@ -186,53 +195,23 @@ def model(params):
 
     model.fit_generator(
         train_generator,
-        steps_per_epoch=int(num_images/batch_size),
         epochs=num_epochs,
+        class_weight=class_weight_dict,
+        steps_per_epoch=num_images // batch_size,
         validation_data=validation_generator,
-        validation_steps=100,
-        verbose=2)
-
-    score, acc = model.evaluate_generator(
-        validation_generator,
-        steps=100)
-
-    return {'loss': -acc, 'status': STATUS_OK, 'model': model}
-
-
-def plot_training(history):
-    acc = history.history['acc']
-    val_acc = history.history['val_acc']
-    loss = history.history['loss']
-    val_loss = history.history['val_loss']
-    epochs = range(len(acc))
-
-    plt.plot(epochs, acc, 'r.')
-    plt.plot(epochs, val_acc, 'r')
-    plt.title('Training and validation accuracy')
-
-    plt.figure()
-    plt.plot(epochs, loss, 'r.')
-    plt.plot(epochs, val_loss, 'r-')
-    plt.title('Training and validation loss')
-    plt.show()
+        validation_steps=num_val_images // batch_size,
+        callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=0),
+                   ModelCheckpoint('retina2-weights-128.hdf5',
+                                   monitor='val_loss',
+                                   save_weights_only=True,
+                                   save_best_only=True)]
+    )
 
 
-space = {'num_epochs': hp.quniform('num_epochs', 1, 25, 1),
-         'batch_size': hp.quniform('batch_size', 28, 128, 1),
-
-         'optimizer': hp.choice('optimizer', ['rmsprop', 'adam', 'sgd']),
-         'num_layers_freeze': hp.quniform('num_layers_freeze', 170, 240, 1),
-
-         'shear_range': hp.uniform('shear_range', 0, 1),
-         'zoom_range': hp.uniform('zoom_range', 0, 1),
-         'horizontal_flip': hp.choice('horizontal_flip', [True, False])}
+def load_module(mod):
+    return importlib.import_module(mod.replace('/', '.').split('.py')[0])
 
 
 if __name__ == "__main__":
-    best = fmin(model,
-                space,
-                algo=tpe.suggest,
-                max_evals=5,
-                trials=Trials())
-    print("Best performing model chosen hyper-parameters:")
-    print(best)
+    config128 = load_module('eyepacs/configs/128_5x5.py').config
+    train(config128, 200, 178, transfer_num_epochs=50)
