@@ -124,6 +124,7 @@ val_generator = val_datagen.flow_from_directory(
 class_weight = class_weight.compute_class_weight(
     'balanced', np.unique(train_generator.classes), train_generator.classes)
 
+
 def learning_rate_schedule(epoch):
     s = config.get('learn_rate_schedule')
 
@@ -153,7 +154,7 @@ def load_weights(name, obj):
 
 callbacks = [
     ModelCheckpoint(
-        'weights-128-local.hdf5',
+        'weights-128-norm.hdf5',
         monitor='val_loss',
         save_weights_only=True,
         save_best_only=True),
