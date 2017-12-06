@@ -16,8 +16,8 @@ conf = {
     'final_balance_weights': [1, 2, 2, 2, 2],
     'augmentation_params': {
         'rescale': 1./255,
-        'samplewise_center': True,
-        'samplewise_std_normalization': True,
+        'featurewise_center': True,
+        'featurewise_std_normalization': True,
         'zoom_range': [1 / 1.15, 1.15],
         'rotation_range': 360.,
         'shear_range': 0.,
