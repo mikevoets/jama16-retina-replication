@@ -103,3 +103,7 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+logs/
+logs*/
+*.hdf5
