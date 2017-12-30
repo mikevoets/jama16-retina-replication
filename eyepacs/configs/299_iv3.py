@@ -10,9 +10,9 @@ conf = {
     'name': __name__.split('.')[-1],
     'width': 299,
     'height': 299,
-    'train_dir': 'data/eyepacs/preprocessed/299/train',
-    'val_dir': 'data/eyepacs/preprocessed/299/val',
-    'test_dir': 'data/eyepacs/preprocessed/299/test',
+    'train_dir': 'preprocessed/299/train',
+    'val_dir': 'preprocessed/299/val',
+    'test_dir': 'preprocessed/299/test',
     'batch_size_train': 32,
     'batch_size_test': 32,
     'augmentation_params': {

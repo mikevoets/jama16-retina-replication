@@ -100,21 +100,21 @@ for i in range(0, 10):
     val_datagen = ImageDataGenerator(**config.get('augmentation_params'))
 
     train_generator = train_datagen.flow_from_directory(
-            config.get('train_dir'),
+            os.path.join(eye.data_path, eye.train_pre_subpath),
             target_size=(config.get('width'), config.get('height')),
             batch_size=batch_size)
 
     validation_generator = val_datagen.flow_from_directory(
-            config.get('val_dir'),
+            os.path.join(eye.data_path, eye.val_pre_subpath),
             target_size=(config.get('width'), config.get('height')),
             batch_size=batch_size)
 
-    print("Setup model {}...".format(i))
+    print("Setup model {}...".format(i+1))
 
     model = config.get_model()
     model.compile(**config.get('compile_params'))
 
-    print("Start training {}...".format(i))
+    print("Start training {}...".format(i+1))
 
     model.fit_generator(
         multiclass_flow_from_directory(train_generator, transform_target),
