@@ -159,7 +159,7 @@ callbacks = [
         save_weights_only=True,
         save_best_only=True),
     TensorBoard(
-        log_dir='./logs',
+        log_dir='./logs-2',
         histogram_freq=1,
         batch_size=find_num_val_images() // config.get('batch_size_train'),
         write_images=True),
