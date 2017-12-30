@@ -10,12 +10,9 @@ from sklearn.metrics import roc_auc_score
 from sklearn.utils import class_weight
 from PIL import Image
 
-from tensorflow.contrib.keras.api.keras.applications.inception_v3 import InceptionV3, preprocess_input
-from tensorflow.contrib.keras.api.keras.models import Model, load_model
-from tensorflow.contrib.keras.api.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.contrib.keras.api.keras.models import load_model
 from tensorflow.contrib.keras.api.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.contrib.keras.api.keras.callbacks import ModelCheckpoint, EarlyStopping
-from tensorflow.contrib.keras.api.keras.optimizers import SGD
 
 from dataset import one_hot_encoded
 
@@ -41,53 +38,11 @@ validation_split = 0.1
 seed = 448
 
 ########################################################################
-# Initializer functions
-
-# Set locations of dataset.
-eye.data_path = "data/eyepacs"
-eye.train_pre_subpath = "preprocessed/128/train"
-eye.val_pre_subpath = "preprocessed/128/val"
-
-# Block and wait until data is available.
-# eye.wait_until_available()
-
-# Extract if necessary.
-# eye.maybe_extract_images()
-
-# Preprocess if necessary.
-# eye.maybe_preprocess()
-
-# Extract labels if necessary.
-# eye.maybe_extract_labels()
-
-# Create labels-grouped subdirectories if necessary.
-# eye.maybe_create_subdirs_group_by_labels()
-
-# Split training and validation set.
-# eye.split_training_and_validation(split=validation_split, seed=seed)
-
-########################################################################
 
 
 def get_num_files():
     """Get number of files by searching directory recursively"""
     return len(eye._get_image_paths(extension=".jpeg"))
-
-
-def setup_to_predict(base_model):
-    """
-    Set all layers to trainable.
-
-    Args:
-    model: keras model
-    """
-    x = base_model.output
-    x = GlobalAveragePooling2D()(x)
-    predictions = Dense(2, activation='sigmoid')(x)
-
-    model = Model(inputs=base_model.input, outputs=predictions)
-
-    return model
 
 
 def find_num_train_images():
@@ -123,55 +78,55 @@ def multiclass_flow_from_directory(flow_from_directory_gen, m_class_getter):
         yield x, m_class_getter(y)
 
 
-# Training...
+for i in range(0, 10):
+    # Get config and set directories.
+    config = load_module('eyepacs/configs/299_iv3.py').config
 
-config = load_module('eyepacs/configs/128_5x5.py').config
+    # Set locations of dataset.
+    eye.data_path = "data/eyepacs/"
+    eye.train_pre_subpath = config.get('train_dir')
+    eye.val_pre_subpath = config.get('val_dir')
 
-num_epochs = 10
-num_images = find_num_train_images()
-num_val_images = find_num_val_images()
-batch_size = config.get('batch_size_train')
+    num_epochs = 10
+    num_images = find_num_train_images()
+    num_val_images = find_num_val_images()
+    batch_size = config.get('batch_size_train')
 
-print("Settings: Num Epochs: {}, Batch Size: {}"
-      .format(num_epochs, batch_size))
-print("Find images...")
+    print("Settings: Num Epochs: {}, Batch Size: {}"
+          .format(num_epochs, batch_size))
+    print("Find images...")
 
-train_datagen = ImageDataGenerator(rescale=1./255)
-val_datagen = ImageDataGenerator(rescale=1./255)
+    train_datagen = ImageDataGenerator(**config.get('augmentation_params'))
+    val_datagen = ImageDataGenerator(**config.get('augmentation_params'))
 
-train_generator = train_datagen.flow_from_directory(
-        config.get('train_dir'),
-        target_size=(config.get('width'), config.get('height')),
-        batch_size=batch_size)
+    train_generator = train_datagen.flow_from_directory(
+            config.get('train_dir'),
+            target_size=(config.get('width'), config.get('height')),
+            batch_size=batch_size)
 
-validation_generator = val_datagen.flow_from_directory(
-        config.get('val_dir'),
-        target_size=(config.get('width'), config.get('height')),
-        batch_size=batch_size)
+    validation_generator = val_datagen.flow_from_directory(
+            config.get('val_dir'),
+            target_size=(config.get('width'), config.get('height')),
+            batch_size=batch_size)
 
-print("Setup model...")
+    print("Setup model {}...".format(i))
 
-base_model = InceptionV3(weights='imagenet', include_top=False)
-model = setup_to_predict(base_model)
+    model = config.get_model()
+    model.compile(**config.get('compile_params'))
 
-for layer in model.layers:
-    layer.trainable = True
+    print("Start training {}...".format(i))
 
-model.compile(optimizer=SGD(lr=3e-3, momentum=0.9, nesterov=True),
-              loss='binary_crossentropy', metrics=['accuracy'])
-
-print("Start training...")
-
-model.fit_generator(
-    multiclass_flow_from_directory(train_generator, transform_target),
-    epochs=num_epochs,
-    steps_per_epoch=num_images // batch_size,
-    validation_data=multiclass_flow_from_directory(validation_generator,
-                                                   transform_target),
-    validation_steps=num_val_images // batch_size,
-    callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=0),
-               ModelCheckpoint('retina4-weights-128.hdf5',
-                               monitor='val_loss',
-                               save_weights_only='val_loss',
-                               save_best_only=True)]
-)
+    model.fit_generator(
+        multiclass_flow_from_directory(train_generator, transform_target),
+        epochs=num_epochs,
+        steps_per_epoch=num_images // batch_size,
+        validation_data=multiclass_flow_from_directory(validation_generator,
+                                                       transform_target),
+        validation_steps=num_val_images // batch_size,
+        callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=0),
+                   ModelCheckpoint('weights/{0}-{1}.hdf5'.format(
+                                       config.get('name'), i),
+                                   monitor='val_loss',
+                                   save_weights_only='val_loss',
+                                   save_best_only=True)]
+    )

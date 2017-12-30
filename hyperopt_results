@@ -1,1 +1,0 @@
-{'zoom_range': 0.19401838294817442, 'num_layers_freeze': 182.0, 'optimizer': 1, 'num_epochs': 16.0, 'batch_size': 35.0, 'horizontal_flip': 0, 'shear_range': 0.09826287940085288}
