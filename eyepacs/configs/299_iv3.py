@@ -19,7 +19,7 @@ conf = {
         'rescale': 1./255,
     },
     'compile_params': {
-        'optimizer': SGD(lr=3e-5, momentum=0.9, nesterov=True),
+        'optimizer': SGD(lr=3e-5),
         'loss': 'binary_crossentropy',
         'metrics': ['accuracy'],
     },

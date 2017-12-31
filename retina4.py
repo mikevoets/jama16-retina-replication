@@ -106,14 +106,19 @@ validation_generator = val_datagen.flow_from_directory(
         target_size=(config.get('width'), config.get('height')),
         batch_size=batch_size)
 
-if True:
+
+def print_ensemble_history():
     models = []
 
     # Load all saved models.
     for i in range(0, 10):
         model = config.get_model()
-        model.load_weights('weights/{0}-{1}.hdf5'
-                           .format(config.get('name'), i))
+        model.load_weights('weights/{0}-{1}-{2}.hdf5'.format(
+                               config.get('compile_params')
+                                     .get('optimizer')
+                                     .get_config()
+                                     .get('lr'),
+                               config.get('name'), i))
         models.append(model)
 
     ensemble = model_module.ensemble(models)
@@ -126,6 +131,7 @@ if True:
 
     print(loss)
     sys.exit(0)
+
 
 for i in range(0, 10):
     print("Settings: Num Epochs: {}, Batch Size: {}"
@@ -146,8 +152,15 @@ for i in range(0, 10):
                                                        transform_target),
         validation_steps=num_val_images // batch_size,
         callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=0),
-                   ModelCheckpoint('weights/{0}-{1}.hdf5'.format(
+                   ModelCheckpoint('weights/{0}-{1}-{2}.hdf5'.format(
+                                       config.get('compile_params')
+                                           .get('optimizer')
+                                           .get_config()
+                                           .get('lr'),
                                        config.get('name'), i),
                                    monitor='val_loss',
                                    save_weights_only='val_loss',
                                    save_best_only=True)])
+
+print("Ensemble history:")
+print_ensemble_history()
