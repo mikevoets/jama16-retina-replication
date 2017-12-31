@@ -13,13 +13,13 @@ conf = {
     'train_dir': 'preprocessed/299/train',
     'val_dir': 'preprocessed/299/val',
     'test_dir': 'preprocessed/299/test',
-    'batch_size_train': 32,
+    'batch_size_train': 56,
     'batch_size_test': 32,
     'augmentation_params': {
         'rescale': 1./255,
     },
     'compile_params': {
-        'optimizer': SGD(lr=3e-3, momentum=0.9, nesterov=True),
+        'optimizer': SGD(lr=3e-5, momentum=0.9, nesterov=True),
         'loss': 'binary_crossentropy',
         'metrics': ['accuracy'],
     },

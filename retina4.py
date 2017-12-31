@@ -10,9 +10,10 @@ from sklearn.metrics import roc_auc_score
 from sklearn.utils import class_weight
 from PIL import Image
 
-from tensorflow.contrib.keras.api.keras.models import load_model
+from tensorflow.contrib.keras.api.keras.models import Model
 from tensorflow.contrib.keras.api.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.contrib.keras.api.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.contrib.keras.api.keras.layers import Average
 
 from dataset import one_hot_encoded
 
@@ -76,6 +77,44 @@ def transform_target(y):
 def multiclass_flow_from_directory(flow_from_directory_gen, m_class_getter):
     for x, y in flow_from_directory_gen:
         yield x, m_class_getter(y)
+
+if True:
+    models = []
+    
+    for i in range(0, 10):
+        config = load_module('eyepacs/configs/299_iv3.py').config
+
+        model = config.get_model()
+
+        model.load_weights('weights/{0}-{1}.hdf5'
+                           .format(config.get('name'), i))
+        
+        models.append(model)
+
+    outputs = [model.outputs[0] for model in models]
+    y = Average()(outputs)
+
+    model = Model(models[0].input, y, name='ensemble')
+    model.compile(**config.get('compile_params'))
+
+    eye.data_path = "data/eyepacs/"
+    eye.train_pre_subpath = config.get('train_dir')
+    eye.val_pre_subpath = config.get('val_dir')
+
+    val_datagen = ImageDataGenerator(**config.get('augmentation_params'))
+    validation_generator = val_datagen.flow_from_directory(                                                                       
+            os.path.join(eye.data_path, eye.val_pre_subpath),                                                                     
+            target_size=(config.get('width'), config.get('height')),                                                              
+            batch_size=config.get('batch_size_train'))                                  
+
+
+    loss = model.evaluate_generator(
+            multiclass_flow_from_directory(validation_generator, transform_target),
+            steps=find_num_val_images() // config.get('batch_size_train'),
+    )
+
+    print(loss)
+    sys.exit()
 
 
 for i in range(0, 10):
