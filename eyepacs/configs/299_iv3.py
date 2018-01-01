@@ -19,24 +19,27 @@ conf = {
         'rescale': 1./255,
     },
     'compile_params': {
-        'optimizer': SGD(lr=3e-5),
+        'optimizer': SGD(lr=3e-5, momentum=0.9, nesterov=True, decay=5e-4),
         'loss': 'binary_crossentropy',
         'metrics': ['accuracy'],
     },
-    'weight_decay': 5e-4,
 }
 
-base_model = InceptionV3(weights='imagenet', include_top=False)
+config = Config(conf)
 
-x = base_model.output
-x = GlobalAveragePooling2D()(x)
-predictions = Dense(2, activation='sigmoid')(x)
-model = Model(inputs=base_model.input, outputs=predictions)
 
-for layer in model.layers:
-    layer.trainable = True
+def initialize_model():
+    base_model = InceptionV3(weights='imagenet', include_top=False)
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    predictions = Dense(2, activation='sigmoid')(x)
 
-config = Config(model=model, conf=conf)
+    model = Model(inputs=base_model.input, outputs=predictions)
+
+    for layer in model.layers:
+        layer.trainable = True
+
+    return model
 
 
 def ensemble(models):
@@ -44,6 +47,6 @@ def ensemble(models):
 
     y = Average()(outputs)
 
-    ensemble = Model(inputs=base_model.input, outputs=y, name='ensemble')
+    ensemble = Model(inputs=models[0].input, outputs=y, name='ensemble')
 
     return ensemble

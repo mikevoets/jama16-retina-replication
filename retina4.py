@@ -78,8 +78,8 @@ def multiclass_flow_from_directory(flow_from_directory_gen, m_class_getter):
 
 
 # Get config and set directories.
-model_module = load_module('eyepacs/configs/299_iv3.py')
-config = model_module.config
+module = load_module('eyepacs/configs/299_iv3.py')
+config = module.config
 
 # Set locations of dataset.
 eye.data_path = "data/eyepacs/"
@@ -112,7 +112,7 @@ def print_ensemble_history():
 
     # Load all saved models.
     for i in range(0, 10):
-        model = config.get_model()
+        model = module.initialize_model()
         model.load_weights('weights/{0}-{1}-{2}.hdf5'.format(
                                config.get('compile_params')
                                      .get('optimizer')
@@ -121,7 +121,7 @@ def print_ensemble_history():
                                config.get('name'), i))
         models.append(model)
 
-    ensemble = model_module.ensemble(models)
+    ensemble = module.ensemble(models)
     ensemble.compile(**config.get('compile_params'))
 
     loss = ensemble.evaluate_generator(
@@ -130,7 +130,6 @@ def print_ensemble_history():
         steps=find_num_val_images() // config.get('batch_size_train'))
 
     print(loss)
-    sys.exit(0)
 
 
 for i in range(0, 10):
@@ -139,7 +138,7 @@ for i in range(0, 10):
 
     print("Setup model {}...".format(i+1))
 
-    model = config.get_model()
+    model = module.initialize_model()
     model.compile(**config.get('compile_params'))
 
     print("Start training {}...".format(i+1))
@@ -151,12 +150,12 @@ for i in range(0, 10):
         validation_data=multiclass_flow_from_directory(validation_generator,
                                                        transform_target),
         validation_steps=num_val_images // batch_size,
-        callbacks=[EarlyStopping(monitor='val_loss', min_delta=0, patience=0),
+        callbacks=[EarlyStopping(monitor='val_loss', min_delta=0.1, patience=3),
                    ModelCheckpoint('weights/{0}-{1}-{2}.hdf5'.format(
                                        config.get('compile_params')
-                                           .get('optimizer')
-                                           .get_config()
-                                           .get('lr'),
+                                             .get('optimizer')
+                                             .get_config()
+                                             .get('lr'),
                                        config.get('name'), i),
                                    monitor='val_loss',
                                    save_weights_only='val_loss',
