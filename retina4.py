@@ -85,6 +85,7 @@ config = module.config
 eye.data_path = "data/eyepacs/"
 eye.train_pre_subpath = config.get('train_dir')
 eye.val_pre_subpath = config.get('val_dir')
+eye.test_pre_subpath = config.get('test_dir')
 
 num_epochs = 10
 num_images = find_num_train_images()
@@ -150,8 +151,10 @@ for i in range(0, 10):
         validation_data=multiclass_flow_from_directory(validation_generator,
                                                        transform_target),
         validation_steps=num_val_images // batch_size,
-        callbacks=[EarlyStopping(monitor='val_loss', min_delta=0.1, patience=3),
-            ModelCheckpoint('weights/{0:f}-{1}-{2}.hdf5'.format(
+        callbacks=[EarlyStopping(monitor='val_loss',
+                                 min_delta=0.1,
+                                 patience=3),
+                   ModelCheckpoint('weights/{0:f}-{1}-{2}.hdf5'.format(
                                        config.get('compile_params')
                                              .get('optimizer')
                                              .get_config()
