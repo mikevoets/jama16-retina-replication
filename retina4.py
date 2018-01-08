@@ -113,7 +113,7 @@ def print_ensemble_history():
     # Load all saved models.
     for i in range(0, 10):
         model = module.initialize_model()
-        model.load_weights('weights/{0}-{1}-{2}.hdf5'.format(
+        model.load_weights('weights/{0:f}-{1}-{2}.hdf5'.format(
                                config.get('compile_params')
                                      .get('optimizer')
                                      .get_config()
@@ -151,7 +151,7 @@ for i in range(0, 10):
                                                        transform_target),
         validation_steps=num_val_images // batch_size,
         callbacks=[EarlyStopping(monitor='val_loss', min_delta=0.1, patience=3),
-                   ModelCheckpoint('weights/{0}-{1}-{2}.hdf5'.format(
+            ModelCheckpoint('weights/{0:f}-{1}-{2}.hdf5'.format(
                                        config.get('compile_params')
                                              .get('optimizer')
                                              .get_config()
