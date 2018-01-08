@@ -165,9 +165,9 @@ for i in range(0, 10):
         multiclass_flow_from_directory(train_generator, transform_target),
         epochs=num_epochs,
         steps_per_epoch=num_images // batch_size,
-        #validation_data=multiclass_flow_from_directory(validation_generator,
-        #                                               transform_target),
-        #validation_steps=num_val_images // batch_size,
+        validation_data=multiclass_flow_from_directory(validation_generator,
+                                                       transform_target),
+        validation_steps=num_val_images // batch_size,
         callbacks=[EarlyStopping(monitor='val_loss',
                                  min_delta=0.1,
                                  patience=3),
@@ -180,8 +180,9 @@ for i in range(0, 10):
                                    monitor='val_loss',
                                    save_weights_only='val_loss',
                                    save_best_only=True),
-                   Validate(multiclass_flow_from_directory(validation_generator, transform_target),
-                            num_val_images // batch_size)])
+                   Validate(data=multiclass_flow_from_directory(
+                                    validation_generator, transform_target),
+                            steps=num_val_images // batch_size)])
 
 print("Ensemble history:")
 print_ensemble_history()

@@ -21,7 +21,7 @@ conf = {
     'compile_params': {
         'optimizer': SGD(lr=3e-4, momentum=0.9, nesterov=True, decay=5e-4),
         'loss': 'binary_crossentropy',
-        'metrics': ['accuracy', 'binary_accuracy'],
+        'metrics': ['accuracy'],
     },
 }
 
