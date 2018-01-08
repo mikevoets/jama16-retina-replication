@@ -55,7 +55,6 @@ class Validate(Callback):
         import pdb; pdb.set_trace()
 
 
-
 def get_num_files():
     """Get number of files by searching directory recursively"""
     return len(eye._get_image_paths(extension=".jpeg"))
