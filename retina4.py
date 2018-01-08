@@ -6,12 +6,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import importlib
 
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, confusion_matrix, f1_score, precision_score, recall_score
 from sklearn.utils import class_weight
 from PIL import Image
 
 from tensorflow.contrib.keras.api.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.contrib.keras.api.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.contrib.keras.api.keras.callbacks import ModelCheckpoint, EarlyStopping, Callback
 
 from dataset import one_hot_encoded
 
@@ -37,6 +37,23 @@ validation_split = 0.1
 seed = 448
 
 ########################################################################
+
+
+class Validate(Callback):
+    def __init__(self, data, steps):
+        super().__init__()
+        self.data = data
+        self.steps = steps
+
+    def on_train_begin(self, logs={}):
+        self.val_f1s = []
+        self.val_recalls = []
+        self.val_precisions = []
+
+    def on_epoch_end(self, epoch, logs={}):
+        val_predict = np.asarray(self.model.predict_generator(self.data, self.steps))
+        import pdb; pdb.set_trace()
+
 
 
 def get_num_files():
@@ -105,7 +122,8 @@ train_generator = train_datagen.flow_from_directory(
 validation_generator = val_datagen.flow_from_directory(
         os.path.join(eye.data_path, eye.val_pre_subpath),
         target_size=(config.get('width'), config.get('height')),
-        batch_size=batch_size)
+        batch_size=batch_size,
+        shuffle=False)
 
 
 def print_ensemble_history():
@@ -148,9 +166,9 @@ for i in range(0, 10):
         multiclass_flow_from_directory(train_generator, transform_target),
         epochs=num_epochs,
         steps_per_epoch=num_images // batch_size,
-        validation_data=multiclass_flow_from_directory(validation_generator,
-                                                       transform_target),
-        validation_steps=num_val_images // batch_size,
+        #validation_data=multiclass_flow_from_directory(validation_generator,
+        #                                               transform_target),
+        #validation_steps=num_val_images // batch_size,
         callbacks=[EarlyStopping(monitor='val_loss',
                                  min_delta=0.1,
                                  patience=3),
@@ -162,7 +180,9 @@ for i in range(0, 10):
                                        config.get('name'), i),
                                    monitor='val_loss',
                                    save_weights_only='val_loss',
-                                   save_best_only=True)])
+                                   save_best_only=True),
+                   Validate(multiclass_flow_from_directory(validation_generator, transform_target),
+                            num_val_images // batch_size)])
 
 print("Ensemble history:")
 print_ensemble_history()
