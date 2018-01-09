@@ -50,27 +50,26 @@ class RocAucMetricCallback(Callback):
         # Only calculate metrics on RDR (label 0).
         logs['val_roc_auc'] = roc_auc_score(self.val_true[:, 0], y_score[:, 0])
 
-        target_names=["Moderate+", "Severe+"]
+        target_names = ["Moderate+", "Severe+"]
 
-        print()
-        print("Iteration {} ______________________________________________________________________".format(epoch)) 
-        print()
-        print("Classification report")
-        print(classification_report(self.val_true, np.rint(y_score), target_names=target_names))
-        
+        print("\nIteration {} ________________________________________________"
+              "______________________".format(epoch))
+        print("\nClassification report")
+        print(classification_report(self.val_true, np.rint(y_score),
+                                    target_names=target_names))
+
         for i in range(2):
             y_pred = np.rint(y_score[:, i])
             _confusion_matrix = confusion_matrix(self.val_true[:, i], y_pred)
-            print()
-            print("Confusion matrix for {}".format(target_names[i]))
+            print("\nConfusion matrix for {}".format(target_names[i]))
             print(_confusion_matrix)
-            
+
             tn, fp, fn, tp = _confusion_matrix.ravel()
-            print("Sensitivity: {:5f}, Specificity: {:5f}".format(tp / (tp+fn), tn / (tn+fp)))
-        
-        print()
-        print("___________________________________________________________________________________")
-        print()
+            print("Sensitivity: {:5f}, Specificity: {:5f}"
+                  .format(tp / (tp+fn), tn / (tn+fp)))
+
+        print("\n_____________________________________________________________"
+              "______________________\n")
 
 
 def get_num_files():
