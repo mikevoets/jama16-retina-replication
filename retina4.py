@@ -52,8 +52,8 @@ class RocAucMetricCallback(Callback):
 
         target_names = ["Moderate+", "Severe+"]
 
-        print("\nIteration {} ________________________________________________"
-              "______________________".format(epoch))
+        print("\nEpoch {} ____________________________________________________"
+              "______________________".format(epoch+1))
         print("\nClassification report")
         print(classification_report(self.val_true, np.rint(y_score),
                                     target_names=target_names))
