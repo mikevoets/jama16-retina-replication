@@ -68,8 +68,7 @@ class RocAucMetricCallback(Callback):
             print("Sensitivity: {:5f}, Specificity: {:5f}"
                   .format(tp / (tp+fn), tn / (tn+fp)))
 
-        print("\n_____________________________________________________________"
-              "______________________\n")
+        print()
 
 
 def get_num_files():
