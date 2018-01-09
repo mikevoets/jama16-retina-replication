@@ -48,20 +48,18 @@ class Validate(Callback):
         self.y_true = y_true
 
     def on_train_begin(self, logs={}):
-        self.val_f1s = []
-        self.val_recalls = []
-        self.val_precisions = []
+        self.val_sensitivities = []
+        self.val_specificities = []
 
     def on_epoch_end(self, epoch, logs={}):
         y_pred = np.rint(self.model.predict_generator(self.data, self.steps))
-        _val_f1 = f1_score(self.y_true, y_pred, average='micro')
-        _val_recall = recall_score(self.y_true, y_pred, average='micro')
-        _val_precision = precision_score(self.y_true, y_pred, average='micro')
-        self.val_f1s.append(_val_f1)
-        self.val_recalls.append(_val_recall)
-        self.val_precisions.append(_val_precision)
-        print(" - val_f1: {:f} - val_precision: {:f} - val recall: {:f}"
-              .format(_val_f1, _val_precision, _val_recall))
+        tn, fp, fn, tp = confusion_matrix(self.y_true, y_pred)
+        _val_sensitivity = tp / (tp+fn)
+        _val_specificity = tn / (tn+fp)
+        self.val_sensitivities.append(_val_sensitivity)
+        self.val_specificities.append(_val_specificity)
+        print("\t\t - val_spec: {:f} - val_sens: {:f}"
+              .format(_val_specificity, _val_sensitivity))
 
 
 def get_num_files():
