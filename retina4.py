@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import importlib
 from math import ceil
 
-from sklearn.metrics import roc_auc_score, confusion_matrix, f1_score, precision_score, recall_score
+from sklearn.metrics import roc_auc_score, confusion_matrix, classification_report
 from sklearn.utils import class_weight
 from PIL import Image
 
@@ -41,7 +41,7 @@ seed = 448
 
 
 class RocAucMetricCallback(Callback):
-    def __init__(self, data_generator, steps, val_true):
+    def __init__(self, data, steps, val_true):
         super().__init__()
         self.data = data
         self.steps = steps
@@ -67,6 +67,9 @@ class RocAucMetricCallback(Callback):
         logs['val_sensitivity'] = tp / (tp+fn)
         logs['val_specificity'] = tn / (tn+fp)
 
+        print()
+        print(classification_report(self.val_true, np.rint(y_score), target_names=["Mild or worse", "Severe or worse"]))
+        print()
 
 def get_num_files():
     """Get number of files by searching directory recursively"""
@@ -117,7 +120,7 @@ eye.train_pre_subpath = config.get('train_dir')
 eye.val_pre_subpath = config.get('val_dir')
 eye.test_pre_subpath = config.get('test_dir')
 
-num_epochs = 10
+num_epochs = 200
 num_images = find_num_train_images()
 num_val_images = find_num_val_images()
 batch_size = config.get('batch_size_train')
