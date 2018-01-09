@@ -10,9 +10,9 @@ conf = {
     'name': __name__.split('.')[-1],
     'width': 299,
     'height': 299,
-    'train_dir': 'test/train',
-    'val_dir': 'test/val',
-    'test_dir': 'test/test',
+    'train_dir': 'jama_dist/train',
+    'val_dir': 'jama_dist/val',
+    'test_dir': 'jama_dist/test',
     'batch_size_train': 56,
     'batch_size_test': 32,
     'augmentation_params': {
