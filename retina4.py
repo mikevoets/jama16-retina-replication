@@ -5,6 +5,7 @@ import csv
 import numpy as np
 import matplotlib.pyplot as plt
 import importlib
+from math import ceil
 
 from sklearn.metrics import roc_auc_score, confusion_matrix, f1_score, precision_score, recall_score
 from sklearn.utils import class_weight
@@ -40,10 +41,11 @@ seed = 448
 
 
 class Validate(Callback):
-    def __init__(self, data, steps):
+    def __init__(self, data, steps, y_true):
         super().__init__()
         self.data = data
         self.steps = steps
+        self.y_true = y_true
 
     def on_train_begin(self, logs={}):
         self.val_f1s = []
@@ -51,8 +53,15 @@ class Validate(Callback):
         self.val_precisions = []
 
     def on_epoch_end(self, epoch, logs={}):
-        val_predict = np.asarray(self.model.predict_generator(self.data, self.steps))
-        import pdb; pdb.set_trace()
+        y_pred = np.rint(self.model.predict_generator(self.data, self.steps))
+        _val_f1 = f1_score(self.y_true, y_pred, average='micro')
+        _val_recall = recall_score(self.y_true, y_pred, average='micro')
+        _val_precision = precision_score(self.y_true, y_pred, average='micro')
+        self.val_f1s.append(_val_f1)
+        self.val_recalls.append(_val_recall)
+        self.val_precisions.append(_val_precision)
+        print(" - val_f1: {:f} - val_precision: {:f} - val recall: {:f}"
+              .format(_val_f1, _val_precision, _val_recall))
 
 
 def get_num_files():
@@ -78,13 +87,14 @@ def load_module(mod):
     return importlib.import_module(mod.replace('/', '.').split('.py')[0])
 
 
-def transform_target(y):
+def transform_target(y, one_hot=True):
     t = np.zeros((y.shape[0], 2), dtype=np.float32)
     # Convert one-hot encoded to labels.
-    h = y.argmax(axis=1)
+    if one_hot is True:
+        y = y.argmax(axis=1)
     # Transform the m-class y to a 2-label y.
-    t[np.argwhere(h > 1).reshape(-1), 0] = 1
-    t[np.argwhere(h > 2).reshape(-1), 1] = 1
+    t[np.argwhere(y > 1).reshape(-1), 0] = 1
+    t[np.argwhere(y > 2).reshape(-1), 1] = 1
     return t
 
 
@@ -145,7 +155,7 @@ def print_ensemble_history():
     loss = ensemble.evaluate_generator(
         multiclass_flow_from_directory(validation_generator,
                                        transform_target),
-        steps=find_num_val_images() // config.get('batch_size_train'))
+        steps=ceil(find_num_val_images() / config.get('batch_size_train')))
 
     print(loss)
 
@@ -164,10 +174,10 @@ for i in range(0, 10):
     model.fit_generator(
         multiclass_flow_from_directory(train_generator, transform_target),
         epochs=num_epochs,
-        steps_per_epoch=num_images // batch_size,
+        steps_per_epoch=ceil(num_images / batch_size),
         validation_data=multiclass_flow_from_directory(validation_generator,
                                                        transform_target),
-        validation_steps=num_val_images // batch_size,
+        validation_steps=ceil(num_val_images / batch_size),
         callbacks=[EarlyStopping(monitor='val_loss',
                                  min_delta=0.1,
                                  patience=3),
@@ -182,7 +192,9 @@ for i in range(0, 10):
                                    save_best_only=True),
                    Validate(data=multiclass_flow_from_directory(
                                     validation_generator, transform_target),
-                            steps=num_val_images // batch_size)])
+                            steps=ceil(num_val_images / batch_size),
+                            y_true=transform_target(validation_generator.classes,
+                                                    one_hot=False))])
 
 print("Ensemble history:")
 print_ensemble_history()
