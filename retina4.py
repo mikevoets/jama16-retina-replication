@@ -26,18 +26,6 @@ import pdb
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 ########################################################################
-# Various constants.
-
-# Fully-connected layer size.
-fully_connected_size = 1024
-
-# Define the ratio of training-validation data.
-validation_split = 0.1
-
-# Seed for shuffling training-validation data.
-seed = 448
-
-########################################################################
 
 
 class RocAucMetricCallback(Callback):
@@ -62,14 +50,28 @@ class RocAucMetricCallback(Callback):
         # Only calculate metrics on RDR (label 0).
         logs['val_roc_auc'] = roc_auc_score(self.val_true[:, 0], y_score[:, 0])
 
-        y_pred = np.rint(y_score[:, 0])
-        tn, fp, fn, tp = confusion_matrix(self.val_true[:, 0], y_pred).ravel()
-        logs['val_sensitivity'] = tp / (tp+fn)
-        logs['val_specificity'] = tn / (tn+fp)
+        target_names=["Moderate+", "Severe+"]
 
         print()
-        print(classification_report(self.val_true, np.rint(y_score), target_names=["Mild or worse", "Severe or worse"]))
+        print("Iteration {} ______________________________________________________________________".format(epoch)) 
         print()
+        print("Classification report")
+        print(classification_report(self.val_true, np.rint(y_score), target_names=target_names))
+        
+        for i in range(2):
+            y_pred = np.rint(y_score[:, i])
+            _confusion_matrix = confusion_matrix(self.val_true[:, i], y_pred)
+            print()
+            print("Confusion matrix for {}".format(target_names[i]))
+            print(_confusion_matrix)
+            
+            tn, fp, fn, tp = _confusion_matrix.ravel()
+            print("Sensitivity: {:5f}, Specificity: {:5f}".format(tp / (tp+fn), tn / (tn+fp)))
+        
+        print()
+        print("___________________________________________________________________________________")
+        print()
+
 
 def get_num_files():
     """Get number of files by searching directory recursively"""
