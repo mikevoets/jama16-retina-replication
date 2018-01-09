@@ -40,34 +40,32 @@ seed = 448
 ########################################################################
 
 
-class Validate(Callback):
-    def __init__(self, data, steps, y_true):
+class RocAucMetricCallback(Callback):
+    def __init__(self, data_generator, steps, val_true):
         super().__init__()
         self.data = data
         self.steps = steps
-        self.y_true = y_true
+        self.val_true = val_true
 
     def on_train_begin(self, logs={}):
-        self.val_sensitivities = []
-        self.val_specificities = []
+        if 'val_roc_auc' not in self.params['metrics']:
+            self.params['metrics'].append('val_roc_auc')
+        if 'val_sensitivity' not in self.params['metrics']:
+            self.params['metrics'].append('val_sensitivity')
+        if 'val_specificity' not in self.params['metrics']:
+            self.params['metrics'].append('val_specificity')
 
     def on_epoch_end(self, epoch, logs={}):
-        y_pred = np.rint(self.model.predict_generator(self.data, self.steps))
-        # 2-label problem:
-        _val_specificity = {}
-        _val_sensitivity = {}
-        for i in range(2):
-            _y_true = self.y_true[:, i]
-            _y_pred = y_pred[:, i]
-            tn, fp, fn, tp = confusion_matrix(_y_true, _y_pred).ravel()
-            _val_sensitivity[i] = tp / (tp+fn)
-            _val_specificity[i] = tn / (tn+fp)
-        self.val_sensitivities.append(_val_sensitivity)
-        self.val_specificities.append(_val_specificity)
-        print(" - val_spec(0): {:f} - val_sens(0): {:f}"
-              " - val_spec(1): {:f} - val_sens(1): {:f}"
-              .format(_val_specificity[0], _val_sensitivity[0],
-                      _val_specificity[1], _val_sensitivity[1]))
+        logs['val_roc_auc'] = float('-inf')
+
+        y_score = self.model.predict_generator(self.data, self.steps)
+        # Only calculate metrics on RDR (label 0).
+        logs['val_roc_auc'] = roc_auc_score(self.val_true[:, 0], y_score[:, 0])
+
+        y_pred = np.rint(y_score[:, 0])
+        tn, fp, fn, tp = confusion_matrix(self.val_true[:, 0], y_pred).ravel()
+        logs['val_sensitivity'] = tp / (tp+fn)
+        logs['val_specificity'] = tn / (tn+fp)
 
 
 def get_num_files():
@@ -184,23 +182,25 @@ for i in range(0, 10):
         validation_data=multiclass_flow_from_directory(validation_generator,
                                                        transform_target),
         validation_steps=ceil(num_val_images / batch_size),
-        callbacks=[EarlyStopping(monitor='val_loss',
-                                 min_delta=0.1,
-                                 patience=3),
-                   ModelCheckpoint('weights/{0:f}-{1}-{2}.hdf5'.format(
-                                       config.get('compile_params')
-                                             .get('optimizer')
-                                             .get_config()
-                                             .get('lr'),
-                                       config.get('name'), i),
-                                   monitor='val_loss',
-                                   save_weights_only='val_loss',
-                                   save_best_only=True),
-                   Validate(data=multiclass_flow_from_directory(
-                                    validation_generator, transform_target),
-                            steps=ceil(num_val_images / batch_size),
-                            y_true=transform_target(validation_generator.classes,
-                                                    one_hot=False))])
+        callbacks=[RocAucMetricCallback(
+                       data=multiclass_flow_from_directory(
+                                validation_generator, transform_target),
+                       steps=ceil(num_val_images / batch_size),
+                       val_true=transform_target(validation_generator.classes,
+                                                 one_hot=False)),
+                   EarlyStopping(
+                       monitor='val_roc_auc', mode='max', patience=3),
+                   ModelCheckpoint(
+                       'weights/{0:f}-{1}-{2}.hdf5'.format(
+                           config.get('compile_params')
+                                 .get('optimizer')
+                                 .get_config()
+                                 .get('lr'),
+                           config.get('name'), i),
+                       monitor='val_roc_auc',
+                       mode='max',
+                       save_weights_only='val_roc_auc',
+                       save_best_only=True)])
 
 print("Ensemble history:")
 print_ensemble_history()
