@@ -59,12 +59,12 @@ class Validate(Callback):
         for i in range(2):
             _y_true = self.y_true[:, i]
             _y_pred = y_pred[:, i]
-            tn, fp, fn, tp = confusion_matrix(_y_true, _y_pred)
+            tn, fp, fn, tp = confusion_matrix(_y_true, _y_pred).ravel()
             _val_sensitivity[i] = tp / (tp+fn)
             _val_specificity[i] = tn / (tn+fp)
         self.val_sensitivities.append(_val_sensitivity)
         self.val_specificities.append(_val_specificity)
-        print("\t\t - val_spec(0): {:f} - val_sens(0): {:f}"
+        print(" - val_spec(0): {:f} - val_sens(0): {:f}"
               " - val_spec(1): {:f} - val_sens(1): {:f}"
               .format(_val_specificity[0], _val_sensitivity[0],
                       _val_specificity[1], _val_sensitivity[1]))
