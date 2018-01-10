@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import importlib
 from math import ceil
 
-from sklearn.metrics import roc_auc_score, confusion_matrix, classification_report
+from sklearn.metrics import roc_auc_score, confusion_matrix, classification_report, accuracy_score
 from sklearn.utils import class_weight
 from PIL import Image
 
@@ -44,8 +44,6 @@ class RocAucMetricCallback(Callback):
             self.params['metrics'].append('val_specificity')
 
     def on_epoch_end(self, epoch, logs={}):
-        logs['val_roc_auc'] = float('-inf')
-
         y_score = self.model.predict_generator(self.data, self.steps)
         # Only calculate metrics on RDR (label 0).
         logs['val_roc_auc'] = roc_auc_score(self.val_true[:, 0], y_score[:, 0])
@@ -54,6 +52,7 @@ class RocAucMetricCallback(Callback):
 
         print("\nEpoch {} ____________________________________________________"
               "______________________".format(epoch+1))
+        print("\nValidation Accuracy: {:5f}".format(accuracy_score(self.val_true, np.rint(y_score))))
         print("\nClassification report")
         print(classification_report(self.val_true, np.rint(y_score),
                                     target_names=target_names))
@@ -192,7 +191,7 @@ for i in range(0, 10):
                        val_true=transform_target(validation_generator.classes,
                                                  one_hot=False)),
                    EarlyStopping(
-                       monitor='val_roc_auc', mode='max', patience=3),
+                       monitor='val_loss', patience=5),
                    ModelCheckpoint(
                        'weights/{0:f}-{1}-{2}.hdf5'.format(
                            config.get('compile_params')
@@ -202,7 +201,7 @@ for i in range(0, 10):
                            config.get('name'), i),
                        monitor='val_roc_auc',
                        mode='max',
-                       save_weights_only='val_roc_auc',
+                       save_weights_only=True,
                        save_best_only=True)])
 
 print("Ensemble history:")
