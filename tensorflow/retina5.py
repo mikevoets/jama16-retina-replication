@@ -120,8 +120,9 @@ class ImageGenerator():
     def _generate_dataset(self):
         def _read_image(filename, label):
             image_string = tf.read_file(filename)
-            image_decoded = tf.image.decode_image(image_string)
-            return image_decoded, label
+            image = tf.image.convert_image_dtype(
+                tf.image.decode_image(image_string), tf.float32)
+            return image, label
 
         dataset = tf.data.Dataset.from_tensor_slices(
             (self.filenames(), self.labels()))
