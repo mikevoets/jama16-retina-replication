@@ -13,12 +13,22 @@ tf.logging.set_verbosity(tf.logging.INFO)
 random.seed(432)
 
 # Various constants.
+training_images_dir = '../data/eyepacs/jama_dist/train'
+validation_images_dir = '../data/eyepacs/jama_dist/val'
 image_dim = 299
 num_channels = 3
+
+# Maximum number of epochs. Can be stopped early.
 num_epochs = 10
+
+# Buffer size for image shuffling.
 shuffle_buffer_size = 10000
+
+# Batch sizes.
 training_batch_size = 32
 validation_batch_size = 32
+
+# Training and predicting mode.
 mode = 'one_label'
 
 # Various hyper-parameter variables.
@@ -132,7 +142,7 @@ def create_reset_metric(metric, scope='reset_metrics', **metric_args):
 
 # Calculate metrics for validation.
 mse, update_mse_op, reset_mse_op = create_reset_metric(
-    tf.metrics.mean_squared_error, scope='mse', 
+    tf.metrics.mean_squared_error, scope='mse',
     labels=y_true, predictions=y_pred_cls)
 
 auc, update_auc_op, reset_auc_op = create_reset_metric(
@@ -173,7 +183,7 @@ class ImageGenerator():
         self.classes = self._find_classes()
         self.class_dict = self._generate_class_dict()
         self.paths_to_images = self._paths_to_images()
-        self.path_tensor = self._path_tensor() 
+        self.path_tensor = self._path_tensor()
         self.label_tensor = self._label_tensor()
         self.dataset = self._generate_dataset()
 
@@ -239,12 +249,17 @@ class ImageGenerator():
 
 
 training_generator = ImageGenerator(
-    '../data/eyepacs/jama_dist/train', batch_size=training_batch_size)
+    training_images_dir, batch_size=training_batch_size)
 validation_generator = ImageGenerator(
-    '../data/eyepacs/jama_dist/val', batch_size=validation_batch_size)
+    validation_images_dir, batch_size=validation_batch_size)
 
 training_dataset = training_generator.dataset
 validation_dataset = validation_generator.dataset
+
+print("Training: {0} images found of {1} classes."
+      .format(len(training_generator), len(training_generator.classes)))
+print("Validation: {0} images found of {1} classes."
+      .format(len(validation_generator), len(validation_generator.classes)))
 
 iterator = tf.data.Iterator.from_structure(
     training_dataset.output_types, training_dataset.output_shapes)
@@ -279,6 +294,11 @@ sess.run(tf.global_variables_initializer())
 sess.run(tf.local_variables_initializer())
 
 # Train for the specified amount of epochs.
+# Can be stopped early if peak of validation auc (Area under curve)
+#  is reached.
+previous_auc = 0
+waited_epochs = 0
+
 for epoch in range(num_epochs):
     # Start training.
     sess.run(training_init_op)
@@ -334,5 +354,23 @@ for epoch in range(num_epochs):
 
     # Reset all streaming variables.
     sess.run(
-        [reset_tp_op, reset_tn_op, reset_fp_op, reset_fn_op, 
+        [reset_tp_op, reset_tn_op, reset_fp_op, reset_fn_op,
          reset_mse_op, reset_auc_op])
+
+    if val_auc < previous_auc:
+        # Stop early if peak of val auc has been reached.
+        # If it is lower than the previous auc value, wait up to `wait_epochs`
+        #  to see if it does not increase again.
+
+        if wait_epochs == waited_epochs:
+            print("Stopped early at epoch {0} with saved peak auc {1:6.4}"
+                  .format(epoch+1, latest_peak_auc))
+            break
+
+        waited_epochs += 1
+    else:
+        latest_peak_auc = val_auc
+        # Save the model weights.
+
+# Close the session.
+sess.close()
