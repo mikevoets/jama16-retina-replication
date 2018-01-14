@@ -10,15 +10,16 @@ print(f"Numpy version: {np.__version__}")
 print(f"Tensorflow version: {tf.__version__}")
 
 tf.logging.set_verbosity(tf.logging.INFO)
+random.seed(432)
 
 # Various constants.
 image_dim = 299
 num_channels = 3
-num_epochs = 5
-shuffle_buffer_size = 100
-training_batch_size = 1
-validation_batch_size = 1
-mode = 'two_labels'
+num_epochs = 10
+shuffle_buffer_size = 10000
+training_batch_size = 32
+validation_batch_size = 32
+mode = 'one_label'
 
 # Various hyper-parameter variables.
 learning_rate = 3e-4
@@ -82,7 +83,8 @@ loss = tf.reduce_mean(
     tf.nn.sigmoid_cross_entropy_with_logits(labels=y_true, logits=logits))
 
 # Use stochastic gradient descent for optimizing.
-optimizer = tf.train.GradientDescentOptimizer(learning_rate) \
+optimizer = tf.train.MomentumOptimizer(
+        learning_rate, momentum=0.9, use_nesterov=True) \
                 .minimize(loss, global_step)
 
 # Calculate metrics for training.
@@ -128,8 +130,11 @@ def create_reset_metric(metric, scope='reset_metrics', **metric_args):
         reset_op = tf.variables_initializer(vars)
     return metric_op, update_op, reset_op
 
-
 # Calculate metrics for validation.
+mse, update_mse_op, reset_mse_op = create_reset_metric(
+    tf.metrics.mean_squared_error, scope='mse', 
+    labels=y_true, predictions=y_pred_cls)
+
 auc, update_auc_op, reset_auc_op = create_reset_metric(
     tf.metrics.auc, scope='auc', labels=y_true, predictions=y_pred)
 
@@ -167,8 +172,9 @@ class ImageGenerator():
 
         self.classes = self._find_classes()
         self.class_dict = self._generate_class_dict()
-        self.labels = self._labels_tensor()
-        self.filenames = self._filenames_tensor()
+        self.paths_to_images = self._paths_to_images()
+        self.path_tensor = self._path_tensor() 
+        self.label_tensor = self._label_tensor()
         self.dataset = self._generate_dataset()
 
         self.steps = ceil(len(self) / self.batch_size)
@@ -177,7 +183,7 @@ class ImageGenerator():
         if self.steps_set_by_user is True:
             return self.batch_size * self.steps
         else:
-            return len(self._paths_to_images())
+            return len(self.paths_to_images)
 
     def _paths_to_images(self):
         return glob(os.path.join(self.images_dir, "*/*.jpeg"))
@@ -201,7 +207,7 @@ class ImageGenerator():
             return image, label
 
         dataset = tf.data.Dataset.from_tensor_slices(
-            (self.filenames, self.labels))
+            (self.path_tensor, self.label_tensor))
         dataset = dataset.map(_read_image)
 
         if self.preprocess_py_fn is not None:
@@ -219,12 +225,12 @@ class ImageGenerator():
         dataset = dataset.batch(self.batch_size)
         return dataset
 
-    def _filenames_tensor(self):
-        return tf.constant(self._paths_to_images())
+    def _path_tensor(self):
+        return tf.constant(self.paths_to_images)
 
-    def _labels_tensor(self):
+    def _label_tensor(self):
         return tf.constant(
-            [self._find_label(path) for path in self._paths_to_images()],
+            [self._find_label(path) for path in self.paths_to_images],
             tf.float32)
 
     def set_steps(self, num):
@@ -259,7 +265,7 @@ def print_training_status(epoch, num_epochs, batch, num_batches, acc, loss):
     m.append(
         f"Step: {{0:>{length(num_batches)}}}/{{1:>{length(num_batches)}}}"
         .format(batch+1, num_batches))
-    m.append(f"Accuracy: {acc:6.4}, Loss: {loss:6.4}")
+    m.append(f"Acc: {acc:6.4}, Xent: {loss:6.4}")
 
     if batch == num_batches-1:
         end = ", "
@@ -311,14 +317,15 @@ for epoch in range(num_epochs):
         # Retrieve the validation set confusion metrics.
         sess.run(
             [update_tp_op, update_tn_op, update_fp_op, update_fn_op,
-             update_auc_op],
+             update_auc_op, update_mse_op],
             feed_dict=feed_dict_validation)
 
     # Retrieve confusion matrix and estimated roc auc score.
-    val_confusion_matrix, val_auc = sess.run([confusion_matrix, auc])
+    val_confusion_matrix, val_mse, val_auc = sess.run(
+            [confusion_matrix, mse, auc])
 
     # Print total roc auc score for validation.
-    print(f"Validation AUC: {val_auc:6.4}")
+    print(f"Val mse: {val_mse:6.4}, Val auc: {val_auc:6.4}")
 
     # Print confusion matrix for each label.
     for i in range(num_labels):
@@ -327,4 +334,5 @@ for epoch in range(num_epochs):
 
     # Reset all streaming variables.
     sess.run(
-        [reset_tp_op, reset_tn_op, reset_fp_op, reset_fn_op, reset_auc_op])
+        [reset_tp_op, reset_tn_op, reset_fp_op, reset_fn_op, 
+         reset_mse_op, reset_auc_op])
