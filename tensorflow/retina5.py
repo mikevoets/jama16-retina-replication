@@ -89,16 +89,30 @@ optimizer = tf.train.GradientDescentOptimizer(learning_rate) \
 accuracy = tf.reduce_mean(tf.cast(tf.equal(y_pred_cls, y_true), tf.float32))
 
 # Calculate metrics for validation.
-total = tf.Variable(trainable=False, dtype=tf.float32)
-tp, tp_op = tf.metrics.true_positives(y_true, y_pred_cls)
-fp, fp_op = tf.metrics.false_positives(y_true, y_pred_cls)
-fn, fn_op = tf.metrics.false_negatives(y_true, y_pred_cls)
-tn = total-tp-fp-fn
+auc, auc_op = tf.metrics.auc(y_true, y_pred)
+
+# Variables for confusion matrix and other metrics. Initialize values with zero.
+tp = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="tp")
+tn = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="tn")
+fp = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="fp")
+fn = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="fn")
+
+# Operations for calculating total amount of tp, tn, fp and fn.
+tp_op = tf.assign(tp, tf.add(tp, tf.count_nonzero(y_true * y_pred_cls, axis=0)))
+tn_op = tf.assign(tn, tf.add(tn, tf.count_nonzero((y_true-1) * (y_pred_cls-1), axis=0)))
+fp_op = tf.assign(fp, tf.add(fp, tf.count_nonzero(y_true * (y_pred_cls-1), axis=0)))
+fn_op = tf.assign(fn, tf.add(fn, tf.count_nonzero((y_true-1) * y_pred_cls, axis=0)))
+
+# Operations for confusion matrix.
+confusion_matrix = tf.reshape(
+    tf.stack([tp, fp, fn, tn], axis=1), shape=[num_labels, 2, 2])
+
 
 # Data batcher.
 class ImageGenerator():
     def __init__(self, images_dir, batch_size, shuffle=True,
                  preprocess_py_fn=None, preprocess_tf_fn=None):
+        self.steps_set_by_user = False
         self.images_dir = images_dir
         self.batch_size = batch_size
         self.do_shuffle = shuffle
@@ -110,10 +124,14 @@ class ImageGenerator():
         self.labels = self._labels_tensor()
         self.filenames = self._filenames_tensor()
         self.dataset = self._generate_dataset()
+        
         self.steps = ceil(len(self) / self.batch_size)
 
     def __len__(self):
-        return len(self._paths_to_images())
+        if self.steps_set_by_user is True:
+            return self.batch_size * self.steps
+        else:
+            return len(self._paths_to_images())
 
     def _paths_to_images(self):
         return glob(os.path.join(self.images_dir, "*/*.jpeg"))
@@ -163,6 +181,10 @@ class ImageGenerator():
             [self._find_label(path) for path in self._paths_to_images()],
             tf.float32)
 
+    def set_steps(self, num):
+        self.steps = num
+        self.steps_set_by_user = True
+
 
 training_generator = ImageGenerator(
     '../data/eyepacs/jama_dist/train', batch_size=training_batch_size)
@@ -170,8 +192,9 @@ validation_generator = ImageGenerator(
     '../data/eyepacs/jama_dist/val', batch_size=validation_batch_size)
 
 training_dataset = training_generator.dataset
-steps_per_epoch = training_generator.steps
 validation_dataset = validation_generator.dataset
+
+training_generator.set_steps(20)
 
 iterator = tf.data.Iterator.from_structure(
     training_dataset.output_types, training_dataset.output_shapes)
@@ -210,45 +233,39 @@ for epoch in range(num_epochs):
     # Start training.
     sess.run(training_init_op)
 
-    while True:
-        try:
-            # Retrieve a batch of training data.
-            images, labels = sess.run(next_element)
+    for step in range(training_generator.steps):
+        # Retrieve a batch of training data.
+        images, labels = sess.run(next_element)
 
-            # Create a feed dictionary for the input data.
-            feed_dict_training = {
-                x: images, y_orig_cls: labels,
-                tf.keras.backend.learning_phase(): 1}
+        # Create a feed dictionary for the input data.
+        feed_dict_training = {
+            x: images, y_orig_cls: labels,
+            tf.keras.backend.learning_phase(): 1}
 
-            # Optimize loss.
-            i_global, _, batch_acc, batch_loss = sess.run(
-                [global_step, optimizer, accuracy, loss],
-                feed_dict=feed_dict_training)
+        # Optimize loss.
+        i_global, _, batch_acc, batch_loss = sess.run(
+            [global_step, optimizer, accuracy, loss],
+            feed_dict=feed_dict_training)
 
-            # Print a nice training status.
-            print_training_status(
-                epoch, num_epochs, i_global, steps_per_epoch,
-                batch_acc, batch_loss)
-        except tf.errors.OutOfRangeError:
-            break
+        # Print a nice training status.
+        print_training_status(
+            epoch, num_epochs, step, training_generator.steps,
+            batch_acc, batch_loss)
 
     # Validation.
     sess.run(validation_init_op)
 
-    while True:
-        try:
-            # Retrieve a batch of validation data.
-            images, labels = sess.run(next_element)
+    for _ in range(validation_generator.steps):
+        # Retrieve a batch of validation data.
+        images, labels = sess.run(next_element)
             
-            # Validate the current classifier against validation set.
-            feed_dict_validation = {x: images,
-                                    y_orig_cls: labels,
-                                    tf.keras.backend.learning_phase(): 0}
+        # Validate the current classifier against validation set.
+        feed_dict_validation = {x: images,
+                                y_orig_cls: labels,
+                                tf.keras.backend.learning_phase(): 0}
 
-            # Retrieve the validation set confusion metrics.
-            sess.run([tp_op, fp_op, fn_op, auc_op], feed_dict=feed_dict_validation)
-        except tf.errors.OutOfRangeError:
-            break
+        # Retrieve the validation set confusion metrics.
+        sess.run([tp_op, fp_op, fn_op, auc_op], feed_dict=feed_dict_validation)
     
     val_tp, val_tn, val_fn, val_fp, val_auc = sess.run(
         [tp, tn, fn, fp, auc], feed_dict={total: len(validation_generator)})
