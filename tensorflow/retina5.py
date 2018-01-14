@@ -14,9 +14,10 @@ tf.logging.set_verbosity(tf.logging.INFO)
 # Various constants.
 image_dim = 299
 num_channels = 3
+num_epochs = 5
 shuffle_buffer_size = 100
-training_batch_size = 32
-validation_batch_size = 32
+training_batch_size = 1
+validation_batch_size = 1
 mode = 'two_labels'
 
 # Various hyper-parameter variables.
@@ -84,8 +85,15 @@ loss = tf.reduce_mean(
 optimizer = tf.train.GradientDescentOptimizer(learning_rate) \
                 .minimize(loss, global_step)
 
-# Calculate metrics and streaming metrics operations.
+# Calculate confusion metrics.
 accuracy = tf.reduce_mean(tf.cast(tf.equal(y_pred_cls, y_true), tf.float32))
+tp = tf.count_nonzero(y_pred_cls * y_true)
+tn = tf.count_nonzero((y_pred_cls-1) * (y_true-1))
+fp = tf.count_nonzero(y_pred_cls * (y_true-1))
+fn = tf.count_nonzero((y_pred_cls-1) * y_true)
+precision = tp / (tp+fp)
+recall = tp / (tp+fn)
+fmeasure = (2 * precision * recall) / (precision + recall)
 
 
 # Data batcher.
@@ -98,8 +106,12 @@ class ImageGenerator():
         self.preprocess_py_fn = preprocess_py_fn
         self.preprocess_tf_fn = preprocess_tf_fn
 
+        self.classes = self._find_classes()
         self.class_dict = self._generate_class_dict()
+        self.labels = self._labels_tensor()
+        self.filenames = self._filenames_tensor()
         self.dataset = self._generate_dataset()
+        self.steps = ceil(len(self) / self.batch_size)
 
     def __len__(self):
         return len(self._paths_to_images())
@@ -107,13 +119,16 @@ class ImageGenerator():
     def _paths_to_images(self):
         return glob(os.path.join(self.images_dir, "*/*.jpeg"))
 
+    def _find_classes(self):
+        return sorted(
+            [name for name in os.listdir(self.images_dir)
+             if os.path.isdir(os.path.join(self.images_dir, name))])
+
     def _find_label(self, filename):
-        return self.class_dict[os.path.basename(
-            os.path.normpath(os.path.join(filename, os.pardir)))]
+        return self.class_dict[filename.split("/")[-2]]
 
     def _generate_class_dict(self):
-        classes = self.classes()
-        return dict(zip(classes, range(len(classes))))
+        return dict(zip(self.classes, range(len(self.classes))))
 
     def _generate_dataset(self):
         def _read_image(filename, label):
@@ -123,7 +138,7 @@ class ImageGenerator():
             return image, label
 
         dataset = tf.data.Dataset.from_tensor_slices(
-            (self.filenames(), self.labels()))
+            (self.filenames, self.labels))
         dataset = dataset.map(_read_image)
 
         if self.preprocess_py_fn is not None:
@@ -141,15 +156,10 @@ class ImageGenerator():
         dataset = dataset.batch(self.batch_size)
         return dataset
 
-    def classes(self):
-        return sorted(
-            [name for name in os.listdir(self.images_dir)
-             if os.path.isdir(os.path.join(self.images_dir, name))])
-
-    def filenames(self):
+    def _filenames_tensor(self):
         return tf.constant(self._paths_to_images())
 
-    def labels(self):
+    def _labels_tensor(self):
         return tf.constant(
             [self._find_label(path) for path in self._paths_to_images()],
             tf.float32)
@@ -158,10 +168,10 @@ class ImageGenerator():
 training_generator = ImageGenerator(
     '../data/eyepacs/jama_dist/train', batch_size=training_batch_size)
 validation_generator = ImageGenerator(
-    '../data/eyepacs/jama_dist/val', batch_size=validation_batch_size,
-    shuffle=False)
+    '../data/eyepacs/jama_dist/val', batch_size=validation_batch_size)
 
 training_dataset = training_generator.dataset
+steps_per_epoch = training_generator.steps
 validation_dataset = validation_generator.dataset
 
 iterator = tf.data.Iterator.from_structure(
@@ -172,13 +182,27 @@ next_element = iterator.get_next()
 training_init_op = iterator.make_initializer(training_dataset)
 validation_init_op = iterator.make_initializer(validation_dataset)
 
+
+def print_training_status(epoch, num_epochs, batch, num_batches, acc, loss):
+    def length(x): return len(str(x))
+    m = []
+    m.append(
+        f"Epoch: {{0:>{length(num_epochs)}}}/{{1:>{length(num_epochs)}}}"
+        .format(epoch, num_epochs))
+    m.append(
+        f"Step: {{0:>{length(num_batches)}}}/{{1:>{length(num_batches)}}}"
+        .format(batch, num_batches))
+    m.append(f"Accuracy: {acc:6.4}, Loss: {loss:6.4}")
+    print(", ".join(m), end="\r")
+
+
 sess = tf.Session()
 tf.keras.backend.set_session(sess)
 sess.run(tf.global_variables_initializer())
 sess.run(tf.local_variables_initializer())
 
 # Train for 5 epochs.
-for epoch in range(5):
+for epoch in range(num_epochs):
     # Start training.
     sess.run(training_init_op)
 
@@ -193,17 +217,14 @@ for epoch in range(5):
                 tf.keras.backend.learning_phase(): 1}
 
             # Optimize loss.
-            i_global, _ = sess.run(
-                [global_step, optimizer], feed_dict=feed_dict_training)
+            i_global, _, batch_acc, batch_loss = sess.run(
+                [global_step, optimizer, accuracy, loss],
+                feed_dict=feed_dict_training)
 
-            if i_global % 10 == 0:
-                # Calculate the current accuracy on the training batch.
-                batch_acc, batch_loss = sess.run(
-                    [accuracy, loss], feed_dict=feed_dict_training)
-
-                print("Epoch: {0:>3}, Step: {1:>6}, "
-                      "Accuracy: {2:>3.1%}, Loss: {3:6.4}"
-                      .format(epoch, i_global, batch_acc, batch_loss))
+            # Print a nice training status.
+            print_training_status(
+                epoch, num_epochs, i_global, steps_per_epoch,
+                batch_acc, batch_loss)
         except tf.errors.OutOfRangeError:
             break
 
@@ -216,10 +237,11 @@ for epoch in range(5):
                             y_orig_cls: labels,
                             tf.keras.backend.learning_phase(): 0}
 
-    # Retrieve the accuracy and loss on the validation set.
-    validation_acc, validation_loss = sess.run(
-        [accuracy, loss], feed_dict=feed_dict_validation)
+    # Retrieve the validation set confusion metrics.
+    val_acc, val_loss, val_precision, val_recall, val_fmeasure = sess.run(
+        [accuracy, loss, precision, recall, fmeasure],
+        feed_dict=feed_dict_validation)
 
-    print("Epoch: {0:>3}, Validation accuracy: {1:>3.1%}, "
-          "Validation loss: {2:6.4}"
-          .format(epoch, validation_acc, validation_loss))
+    print(" - Val Accuracy: {0:6.4}, Loss: {1:6.4}, Precision: {2:6.4},"
+          " Recall: {3:6.4}, Fmeasure: {4:6.4}"
+          .format(val_acc, val_loss, val_precision, val_recall, val_fmeasure))
