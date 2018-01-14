@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import numpy as np
 import tensorflow as tf
 import pdb
@@ -19,8 +15,8 @@ tf.logging.set_verbosity(tf.logging.INFO)
 image_dim = 299
 num_channels = 3
 shuffle_buffer_size = 100
-training_batch_size = 1
-validation_batch_size = 1
+training_batch_size = 32
+validation_batch_size = 32
 mode = 'two_labels'
 
 # Various hyper-parameter variables.
@@ -81,16 +77,15 @@ y_pred = tf.sigmoid(logits, name='y_pred')
 y_pred_cls = tf.round(y_pred, name='y_pred_cls')
 
 # Retrieve loss of network.
-loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=y_true, logits=logits)
+loss = tf.reduce_mean(
+    tf.nn.sigmoid_cross_entropy_with_logits(labels=y_true, logits=logits))
 
 # Use stochastic gradient descent for optimizing.
 optimizer = tf.train.GradientDescentOptimizer(learning_rate) \
                 .minimize(loss, global_step)
 
 # Calculate metrics and streaming metrics operations.
-accuracy, accuracy_op = tf.metrics.accuracy(y_pred_cls, y_true)
-recall, recall_op = tf.metrics.recall(y_pred_cls, y_true)
-precision, precision_op = tf.metrics.precision(y_pred_cls, y_true)
+accuracy = tf.reduce_mean(tf.cast(tf.equal(y_pred_cls, y_true), tf.float32))
 
 
 # Data batcher.
@@ -201,13 +196,14 @@ for epoch in range(5):
             i_global, _ = sess.run(
                 [global_step, optimizer], feed_dict=feed_dict_training)
 
-            if i_global % 100 == 0:
+            if i_global % 10 == 0:
                 # Calculate the current accuracy on the training batch.
                 batch_acc, batch_loss = sess.run(
                     [accuracy, loss], feed_dict=feed_dict_training)
 
-                print(f"Epoch: {epoch:>3}, Step: {i_global:>6}, "
-                      f"Accuracy: {batch_acc:>3.1%}, Loss: {batch_loss:6.4}")
+                print("Epoch: {0:>3}, Step: {1:>6}, "
+                      "Accuracy: {2:>3.1%}, Loss: {3:6.4}"
+                      .format(epoch, i_global, batch_acc, batch_loss))
         except tf.errors.OutOfRangeError:
             break
 
@@ -217,11 +213,13 @@ for epoch in range(5):
     images, labels = sess.run(next_element)
     # Validate the current classifier against validation set.
     feed_dict_validation = {x: images,
-                            y_orig_cls: labels}
+                            y_orig_cls: labels,
+                            tf.keras.backend.learning_phase(): 0}
 
     # Retrieve the accuracy and loss on the validation set.
     validation_acc, validation_loss = sess.run(
         [accuracy, loss], feed_dict=feed_dict_validation)
 
-    print(f"Epoch: {epoch:>3}, Validation accuracy: {validation_acc:>3.1%}, "
-          f"Validation loss: {validation_loss:6.4}")
+    print("Epoch: {0:>3}, Validation accuracy: {1:>3.1%}, "
+          "Validation loss: {2:6.4}"
+          .format(epoch, validation_acc, validation_loss))
