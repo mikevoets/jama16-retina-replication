@@ -92,6 +92,29 @@ accuracy = tf.reduce_mean(tf.cast(tf.equal(y_pred_cls, y_true), tf.float32))
 auc, auc_op = tf.metrics.auc(y_true, y_pred)
 
 # Variables for confusion matrix and other metrics. Initialize values with zero.
+
+
+def true_positives_each(predictions, labels):
+    pdb.set_trace()
+    tp = tf.Variable(
+        tf.zeros(shape(labels.shape[?]), dtype=tf.int64), name='reset_metrics/TruePositives')
+    tp_op = tf.assign(tp, tf.add(tp, tf.count_nonzero(labels * predictions, axis=0)))
+    return tp, tp_op
+
+def true_negatives_each(p
+
+
+def create_reset_metric(metric, scope='reset_metrics', **metric_args):
+    with tf.variable_scope(scope) as scope:
+        metric_op, update_op = metric(**metric_args)
+        vars = tf.contrib.framework.get_variables(
+                    scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
+        reset_op = tf.variables_initializer(vars)
+    return metric_op, update_op, reset_op
+
+
+zeros_labels = tf.Constant(tf.zeros(shape=(num_labels), dtype=tf.int64))
+reset_op = tf.assign(tp, 
 tp = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="tp")
 tn = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="tn")
 fp = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="fp")
@@ -211,13 +234,13 @@ def print_training_status(epoch, num_epochs, batch, num_batches, acc, loss):
     m = []
     m.append(
         f"Epoch: {{0:>{length(num_epochs)}}}/{{1:>{length(num_epochs)}}}"
-        .format(epoch, num_epochs))
+        .format(epoch+1, num_epochs))
     m.append(
         f"Step: {{0:>{length(num_batches)}}}/{{1:>{length(num_batches)}}}"
-        .format(batch, num_batches))
+        .format(batch+1, num_batches))
     m.append(f"Accuracy: {acc:6.4}, Loss: {loss:6.4}")
     
-    if batch == num_batches:
+    if batch == num_batches-1:
         end = "\n"
 
     print(", ".join(m), end=end)
@@ -265,9 +288,8 @@ for epoch in range(num_epochs):
                                 tf.keras.backend.learning_phase(): 0}
 
         # Retrieve the validation set confusion metrics.
-        sess.run([tp_op, fp_op, fn_op, auc_op], feed_dict=feed_dict_validation)
+        sess.run([tp_op, tn_op, fp_op, fn_op, auc_op], feed_dict=feed_dict_validation)
     
-    val_tp, val_tn, val_fn, val_fp, val_auc = sess.run(
-        [tp, tn, fn, fp, auc], feed_dict={total: len(validation_generator)})
+    val_confusion_matrix, val_auc = sess.run([confusion_matrix, auc])
 
-    pdb.set_trace()
+    print(val_confusion_matrix, val_auc)
