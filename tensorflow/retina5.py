@@ -18,6 +18,9 @@ tf.logging.set_verbosity(tf.logging.INFO)
 # Various constants.
 image_dim = 299
 num_channels = 3
+shuffle_buffer_size = 100
+training_batch_size = 1
+validation_batch_size = 1
 mode = 'two_labels'
 
 # Various hyper-parameter variables.
@@ -138,7 +141,7 @@ class ImageGenerator():
             dataset = dataset.map(self.preprocess_tf_fn)
 
         if self.do_shuffle is True:
-            dataset = dataset.shuffle(buffer_size=10000)
+            dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
 
         dataset = dataset.batch(self.batch_size)
         return dataset
@@ -158,9 +161,11 @@ class ImageGenerator():
 
 
 training_generator = ImageGenerator(
-    '../data/eyepacs/jama_dist/train', batch_size=4)
+    '../data/eyepacs/jama_dist/train', batch_size=training_batch_size)
 validation_generator = ImageGenerator(
-    '../data/eyepacs/jama_dist/val', batch_size=4, shuffle=False)
+    '../data/eyepacs/jama_dist/val', batch_size=validation_batch_size,
+    shuffle=False)
+
 training_dataset = training_generator.dataset
 validation_dataset = validation_generator.dataset
 
@@ -173,20 +178,50 @@ training_init_op = iterator.make_initializer(training_dataset)
 validation_init_op = iterator.make_initializer(validation_dataset)
 
 sess = tf.Session()
+tf.keras.backend.set_session(sess)
 sess.run(tf.global_variables_initializer())
 sess.run(tf.local_variables_initializer())
 
 # Train for 5 epochs.
-for _ in range(5):
+for epoch in range(5):
     # Start training.
     sess.run(training_init_op)
+
     while True:
         try:
+            # Retrieve a batch of training data.
             images, labels = sess.run(next_element)
-            pdb.set_trace()
 
+            # Create a feed dictionary for the input data.
+            feed_dict_training = {
+                x: images, y_orig_cls: labels,
+                tf.keras.backend.learning_phase(): 1}
+
+            # Optimize loss.
+            i_global, _ = sess.run(
+                [global_step, optimizer], feed_dict=feed_dict_training)
+
+            if i_global % 100 == 0:
+                # Calculate the current accuracy on the training batch.
+                batch_acc, batch_loss = sess.run(
+                    [accuracy, loss], feed_dict=feed_dict_training)
+
+                print(f"Epoch: {epoch:>3}, Step: {i_global:>6}, "
+                      f"Accuracy: {batch_acc:>3.1%}, Loss: {batch_loss:6.4}")
         except tf.errors.OutOfRangeError:
             break
 
     # Validation.
     sess.run(validation_init_op)
+    # Retrieve a batch of validation data.
+    images, labels = sess.run(next_element)
+    # Validate the current classifier against validation set.
+    feed_dict_validation = {x: images,
+                            y_orig_cls: labels}
+
+    # Retrieve the accuracy and loss on the validation set.
+    validation_acc, validation_loss = sess.run(
+        [accuracy, loss], feed_dict=feed_dict_validation)
+
+    print(f"Epoch: {epoch:>3}, Validation accuracy: {validation_acc:>3.1%}, "
+          f"Validation loss: {validation_loss:6.4}")
