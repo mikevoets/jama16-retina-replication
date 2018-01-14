@@ -15,9 +15,9 @@ tf.logging.set_verbosity(tf.logging.INFO)
 image_dim = 299
 num_channels = 3
 num_epochs = 5
-shuffle_buffer_size = 10000
-training_batch_size = 32
-validation_batch_size = 32
+shuffle_buffer_size = 100
+training_batch_size = 1
+validation_batch_size = 1
 mode = 'two_labels'
 
 # Various hyper-parameter variables.
@@ -88,43 +88,66 @@ optimizer = tf.train.GradientDescentOptimizer(learning_rate) \
 # Calculate metrics for training.
 accuracy = tf.reduce_mean(tf.cast(tf.equal(y_pred_cls, y_true), tf.float32))
 
-# Calculate metrics for validation.
-auc, auc_op = tf.metrics.auc(y_true, y_pred)
 
-# Variables for confusion matrix and other metrics. Initialize values with zero.
-
-
-def true_positives_each(predictions, labels):
-    pdb.set_trace()
+def true_positives_each(labels, predictions):
     tp = tf.Variable(
-        tf.zeros(shape(labels.shape[?]), dtype=tf.int64), name='reset_metrics/TruePositives')
-    tp_op = tf.assign(tp, tf.add(tp, tf.count_nonzero(labels * predictions, axis=0)))
+        tf.zeros((labels.shape[-1]), dtype=tf.int64))
+    tp_op = tf.assign(
+        tp, tf.add(tp, tf.count_nonzero(labels * predictions, axis=0)))
     return tp, tp_op
 
-def true_negatives_each(p
+
+def true_negatives_each(labels, predictions):
+    tn = tf.Variable(
+        tf.zeros((labels.shape[-1]), dtype=tf.int64))
+    tn_op = tf.assign(
+        tn, tf.add(tn, tf.count_nonzero((labels-1) * (predictions-1), axis=0)))
+    return tn, tn_op
+
+
+def false_positives_each(labels, predictions):
+    fp = tf.Variable(
+        tf.zeros((labels.shape[-1]), dtype=tf.int64))
+    fp_op = tf.assign(
+        fp, tf.add(fp, tf.count_nonzero(labels * (predictions-1), axis=0)))
+    return fp, fp_op
+
+
+def false_negatives_each(labels, predictions):
+    fn = tf.Variable(
+        tf.zeros((labels.shape[-1]), dtype=tf.int64))
+    fn_op = tf.assign(
+        fn, tf.add(fn, tf.count_nonzero((labels-1) * predictions, axis=0)))
+    return fn, fn_op
 
 
 def create_reset_metric(metric, scope='reset_metrics', **metric_args):
     with tf.variable_scope(scope) as scope:
         metric_op, update_op = metric(**metric_args)
-        vars = tf.contrib.framework.get_variables(
-                    scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
+        vars = tf.contrib.framework.get_variables(scope)
         reset_op = tf.variables_initializer(vars)
     return metric_op, update_op, reset_op
 
 
-zeros_labels = tf.Constant(tf.zeros(shape=(num_labels), dtype=tf.int64))
-reset_op = tf.assign(tp, 
-tp = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="tp")
-tn = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="tn")
-fp = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="fp")
-fn = tf.Variable(tf.zeros(shape=(num_labels), dtype=tf.int64), name="fn")
+# Calculate metrics for validation.
+auc, update_auc_op, reset_auc_op = create_reset_metric(
+    tf.metrics.auc, scope='auc', labels=y_true, predictions=y_pred)
 
-# Operations for calculating total amount of tp, tn, fp and fn.
-tp_op = tf.assign(tp, tf.add(tp, tf.count_nonzero(y_true * y_pred_cls, axis=0)))
-tn_op = tf.assign(tn, tf.add(tn, tf.count_nonzero((y_true-1) * (y_pred_cls-1), axis=0)))
-fp_op = tf.assign(fp, tf.add(fp, tf.count_nonzero(y_true * (y_pred_cls-1), axis=0)))
-fn_op = tf.assign(fn, tf.add(fn, tf.count_nonzero((y_true-1) * y_pred_cls, axis=0)))
+tp, update_tp_op, reset_tp_op = create_reset_metric(
+    true_positives_each, scope='true_positives',
+    labels=y_true, predictions=y_pred_cls)
+
+tn, update_tn_op, reset_tn_op = create_reset_metric(
+    true_negatives_each, scope='true_negatives',
+    labels=y_true, predictions=y_pred_cls)
+
+fp, update_fp_op, reset_fp_op = create_reset_metric(
+    false_positives_each, scope='false_positives',
+    labels=y_true, predictions=y_pred_cls)
+
+fn, update_fn_op, reset_fn_op = create_reset_metric(
+    false_negatives_each, scope='false_negatives',
+    labels=y_true, predictions=y_pred_cls)
 
 # Operations for confusion matrix.
 confusion_matrix = tf.reshape(
@@ -147,7 +170,7 @@ class ImageGenerator():
         self.labels = self._labels_tensor()
         self.filenames = self._filenames_tensor()
         self.dataset = self._generate_dataset()
-        
+
         self.steps = ceil(len(self) / self.batch_size)
 
     def __len__(self):
@@ -217,8 +240,6 @@ validation_generator = ImageGenerator(
 training_dataset = training_generator.dataset
 validation_dataset = validation_generator.dataset
 
-training_generator.set_steps(20)
-
 iterator = tf.data.Iterator.from_structure(
     training_dataset.output_types, training_dataset.output_shapes)
 
@@ -239,9 +260,9 @@ def print_training_status(epoch, num_epochs, batch, num_batches, acc, loss):
         f"Step: {{0:>{length(num_batches)}}}/{{1:>{length(num_batches)}}}"
         .format(batch+1, num_batches))
     m.append(f"Accuracy: {acc:6.4}, Loss: {loss:6.4}")
-    
+
     if batch == num_batches-1:
-        end = "\n"
+        end = ", "
 
     print(", ".join(m), end=end)
 
@@ -281,15 +302,29 @@ for epoch in range(num_epochs):
     for _ in range(validation_generator.steps):
         # Retrieve a batch of validation data.
         images, labels = sess.run(next_element)
-            
+
         # Validate the current classifier against validation set.
         feed_dict_validation = {x: images,
                                 y_orig_cls: labels,
                                 tf.keras.backend.learning_phase(): 0}
 
         # Retrieve the validation set confusion metrics.
-        sess.run([tp_op, tn_op, fp_op, fn_op, auc_op], feed_dict=feed_dict_validation)
-    
+        sess.run(
+            [update_tp_op, update_tn_op, update_fp_op, update_fn_op,
+             update_auc_op],
+            feed_dict=feed_dict_validation)
+
+    # Retrieve confusion matrix and estimated roc auc score.
     val_confusion_matrix, val_auc = sess.run([confusion_matrix, auc])
 
-    print(val_confusion_matrix, val_auc)
+    # Print total roc auc score for validation.
+    print(f"Validation AUC: {val_auc:6.4}")
+
+    # Print confusion matrix for each label.
+    for i in range(num_labels):
+        print(f"Confusion matrix for label {i+1}:")
+        print(val_confusion_matrix[i])
+
+    # Reset all streaming variables.
+    sess.run(
+        [reset_tp_op, reset_tn_op, reset_fp_op, reset_fn_op, reset_auc_op])
