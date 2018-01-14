@@ -247,7 +247,7 @@ for epoch in range(num_epochs):
 
             # Retrieve the validation set confusion metrics.
             sess.run([tp_op, fp_op, fn_op, auc_op], feed_dict=feed_dict_validation)
-        except: tf.errors.OutOfRangeError:
+        except tf.errors.OutOfRangeError:
             break
     
     val_tp, val_tn, val_fn, val_fp, val_auc = sess.run(
