@@ -15,9 +15,9 @@ tf.logging.set_verbosity(tf.logging.INFO)
 image_dim = 299
 num_channels = 3
 num_epochs = 5
-shuffle_buffer_size = 100
-training_batch_size = 1
-validation_batch_size = 1
+shuffle_buffer_size = 10000
+training_batch_size = 32
+validation_batch_size = 32
 mode = 'two_labels'
 
 # Various hyper-parameter variables.
@@ -85,16 +85,15 @@ loss = tf.reduce_mean(
 optimizer = tf.train.GradientDescentOptimizer(learning_rate) \
                 .minimize(loss, global_step)
 
-# Calculate confusion metrics.
+# Calculate metrics for training.
 accuracy = tf.reduce_mean(tf.cast(tf.equal(y_pred_cls, y_true), tf.float32))
-tp = tf.count_nonzero(y_pred_cls * y_true)
-tn = tf.count_nonzero((y_pred_cls-1) * (y_true-1))
-fp = tf.count_nonzero(y_pred_cls * (y_true-1))
-fn = tf.count_nonzero((y_pred_cls-1) * y_true)
-precision = tp / (tp+fp)
-recall = tp / (tp+fn)
-fmeasure = (2 * precision * recall) / (precision + recall)
 
+# Calculate metrics for validation.
+total = tf.Variable(trainable=False, dtype=tf.float32)
+tp, tp_op = tf.metrics.true_positives(y_true, y_pred_cls)
+fp, fp_op = tf.metrics.false_positives(y_true, y_pred_cls)
+fn, fn_op = tf.metrics.false_negatives(y_true, y_pred_cls)
+tn = total-tp-fp-fn
 
 # Data batcher.
 class ImageGenerator():
@@ -185,6 +184,7 @@ validation_init_op = iterator.make_initializer(validation_dataset)
 
 def print_training_status(epoch, num_epochs, batch, num_batches, acc, loss):
     def length(x): return len(str(x))
+    end = "\r"
     m = []
     m.append(
         f"Epoch: {{0:>{length(num_epochs)}}}/{{1:>{length(num_epochs)}}}"
@@ -193,7 +193,11 @@ def print_training_status(epoch, num_epochs, batch, num_batches, acc, loss):
         f"Step: {{0:>{length(num_batches)}}}/{{1:>{length(num_batches)}}}"
         .format(batch, num_batches))
     m.append(f"Accuracy: {acc:6.4}, Loss: {loss:6.4}")
-    print(", ".join(m), end="\r")
+    
+    if batch == num_batches:
+        end = "\n"
+
+    print(", ".join(m), end=end)
 
 
 sess = tf.Session()
@@ -201,7 +205,7 @@ tf.keras.backend.set_session(sess)
 sess.run(tf.global_variables_initializer())
 sess.run(tf.local_variables_initializer())
 
-# Train for 5 epochs.
+# Train for the specified amount of epochs.
 for epoch in range(num_epochs):
     # Start training.
     sess.run(training_init_op)
@@ -230,18 +234,23 @@ for epoch in range(num_epochs):
 
     # Validation.
     sess.run(validation_init_op)
-    # Retrieve a batch of validation data.
-    images, labels = sess.run(next_element)
-    # Validate the current classifier against validation set.
-    feed_dict_validation = {x: images,
-                            y_orig_cls: labels,
-                            tf.keras.backend.learning_phase(): 0}
 
-    # Retrieve the validation set confusion metrics.
-    val_acc, val_loss, val_precision, val_recall, val_fmeasure = sess.run(
-        [accuracy, loss, precision, recall, fmeasure],
-        feed_dict=feed_dict_validation)
+    while True:
+        try:
+            # Retrieve a batch of validation data.
+            images, labels = sess.run(next_element)
+            
+            # Validate the current classifier against validation set.
+            feed_dict_validation = {x: images,
+                                    y_orig_cls: labels,
+                                    tf.keras.backend.learning_phase(): 0}
 
-    print(" - Val Accuracy: {0:6.4}, Loss: {1:6.4}, Precision: {2:6.4},"
-          " Recall: {3:6.4}, Fmeasure: {4:6.4}"
-          .format(val_acc, val_loss, val_precision, val_recall, val_fmeasure))
+            # Retrieve the validation set confusion metrics.
+            sess.run([tp_op, fp_op, fn_op, auc_op], feed_dict=feed_dict_validation)
+        except: tf.errors.OutOfRangeError:
+            break
+    
+    val_tp, val_tn, val_fn, val_fp, val_auc = sess.run(
+        [tp, tn, fn, fp, auc], feed_dict={total: len(validation_generator)})
+
+    pdb.set_trace()
