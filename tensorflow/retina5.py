@@ -15,6 +15,9 @@ random.seed(432)
 # Various constants.
 training_images_dir = '../data/eyepacs/jama_dist/train'
 validation_images_dir = '../data/eyepacs/jama_dist/val'
+
+save_model_path = 'saved/model.ckpt'
+
 image_dim = 299
 num_channels = 3
 
@@ -32,7 +35,7 @@ validation_batch_size = 32
 mode = 'one_label'
 
 # Various hyper-parameter variables.
-learning_rate = 3e-4
+learning_rate = 3e-3
 
 # Other tensors.
 global_step = tf.Variable(
@@ -100,10 +103,13 @@ optimizer = tf.train.MomentumOptimizer(
 # Calculate metrics for training.
 accuracy = tf.reduce_mean(tf.cast(tf.equal(y_pred_cls, y_true), tf.float32))
 
+# Global constant for zeroed labels.
+zeroed_labels = tf.zeros(shape=(num_labels), dtype=tf.int64)
+
 
 def true_positives_each(labels, predictions):
     tp = tf.Variable(
-        tf.zeros((labels.shape[-1]), dtype=tf.int64))
+        zeroed_labels, collections=[tf.GraphKeys.LOCAL_VARIABLES])
     tp_op = tf.assign(
         tp, tf.add(tp, tf.count_nonzero(labels * predictions, axis=0)))
     return tp, tp_op
@@ -111,7 +117,7 @@ def true_positives_each(labels, predictions):
 
 def true_negatives_each(labels, predictions):
     tn = tf.Variable(
-        tf.zeros((labels.shape[-1]), dtype=tf.int64))
+        zeroed_labels, collections=[tf.GraphKeys.LOCAL_VARIABLES])
     tn_op = tf.assign(
         tn, tf.add(tn, tf.count_nonzero((labels-1) * (predictions-1), axis=0)))
     return tn, tn_op
@@ -119,7 +125,7 @@ def true_negatives_each(labels, predictions):
 
 def false_positives_each(labels, predictions):
     fp = tf.Variable(
-        tf.zeros((labels.shape[-1]), dtype=tf.int64))
+        zeroed_labels, collections=[tf.GraphKeys.LOCAL_VARIABLES])
     fp_op = tf.assign(
         fp, tf.add(fp, tf.count_nonzero(labels * (predictions-1), axis=0)))
     return fp, fp_op
@@ -127,7 +133,7 @@ def false_positives_each(labels, predictions):
 
 def false_negatives_each(labels, predictions):
     fn = tf.Variable(
-        tf.zeros((labels.shape[-1]), dtype=tf.int64))
+        zeroed_labels, collections=[tf.GraphKeys.LOCAL_VARIABLES])
     fn_op = tf.assign(
         fn, tf.add(fn, tf.count_nonzero((labels-1) * predictions, axis=0)))
     return fn, fn_op
@@ -136,7 +142,8 @@ def false_negatives_each(labels, predictions):
 def create_reset_metric(metric, scope='reset_metrics', **metric_args):
     with tf.variable_scope(scope) as scope:
         metric_op, update_op = metric(**metric_args)
-        vars = tf.contrib.framework.get_variables(scope)
+        vars = tf.contrib.framework.get_variables(
+            scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
         reset_op = tf.variables_initializer(vars)
     return metric_op, update_op, reset_op
 
@@ -293,12 +300,16 @@ tf.keras.backend.set_session(sess)
 sess.run(tf.global_variables_initializer())
 sess.run(tf.local_variables_initializer())
 
+# Add ops for saving and restoring all variables.
+saver = tf.train.Saver()
+
 # Train for the specified amount of epochs.
 # Can be stopped early if peak of validation auc (Area under curve)
 #  is reached.
 previous_auc = 0
 waited_epochs = 0
 
+validation_generator.set_steps(5)
 for epoch in range(num_epochs):
     # Start training.
     sess.run(training_init_op)
@@ -335,17 +346,19 @@ for epoch in range(num_epochs):
                                 tf.keras.backend.learning_phase(): 0}
 
         # Retrieve the validation set confusion metrics.
-        sess.run(
-            [update_tp_op, update_tn_op, update_fp_op, update_fn_op,
+        val_logits, val_pred, val_xent, *_ = sess.run(
+            [logits, y_pred, loss, update_tp_op, update_tn_op, update_fp_op, update_fn_op,
              update_auc_op, update_mse_op],
             feed_dict=feed_dict_validation)
+
+        print(val_pred)
 
     # Retrieve confusion matrix and estimated roc auc score.
     val_confusion_matrix, val_mse, val_auc = sess.run(
             [confusion_matrix, mse, auc])
 
     # Print total roc auc score for validation.
-    print(f"Val mse: {val_mse:6.4}, Val auc: {val_auc:6.4}")
+    print(f"Val mse: {val_mse:6.4}, Val auc: {val_auc:10.8}")
 
     # Print confusion matrix for each label.
     for i in range(num_labels):
@@ -363,14 +376,17 @@ for epoch in range(num_epochs):
         #  to see if it does not increase again.
 
         if wait_epochs == waited_epochs:
-            print("Stopped early at epoch {0} with saved peak auc {1:6.4}"
+            print("Stopped early at epoch {0} with saved peak auc {1:10.8}"
                   .format(epoch+1, latest_peak_auc))
             break
 
         waited_epochs += 1
     else:
         latest_peak_auc = val_auc
+        print(f"New peak auc reached: {val_auc:10.8}")
+        
         # Save the model weights.
+        saver.save(sess, save_model_path) 
 
 # Close the session.
 sess.close()
