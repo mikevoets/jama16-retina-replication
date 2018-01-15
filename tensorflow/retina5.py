@@ -22,20 +22,24 @@ image_dim = 299
 num_channels = 3
 
 # Maximum number of epochs. Can be stopped early.
-num_epochs = 10
-
-# Buffer size for image shuffling.
-shuffle_buffer_size = 10000
+num_epochs = 200
 
 # Batch sizes.
 training_batch_size = 32
 validation_batch_size = 32
+
+# Buffer size for image shuffling.
+shuffle_buffer_size = 100 * training_batch_size
 
 # Training and predicting mode.
 mode = 'one_label'
 
 # Various hyper-parameter variables.
 learning_rate = 3e-3
+
+sess = tf.Session()
+tf.keras.backend.set_session(sess)
+tf.keras.backend.set_learning_phase(False)
 
 # Other tensors.
 global_step = tf.Variable(
@@ -82,8 +86,11 @@ if mode == 'two_labels':
 base_model = tf.keras.applications.InceptionV3(
     include_top=False, weights='imagenet', input_tensor=x, pooling='avg')
 
+for layer in base_model.layers:
+    layer.trainable = True
+
 # Add dense layer with the same amount of neurons as labels.
-logits = tf.layers.dense(base_model.layers[-1].output, units=num_labels)
+logits = tf.layers.dense(base_model.output, units=num_labels)
 
 # Get the predictions with a sigmoid activation function.
 y_pred = tf.sigmoid(logits, name='y_pred')
@@ -203,7 +210,9 @@ class ImageGenerator():
             return len(self.paths_to_images)
 
     def _paths_to_images(self):
-        return glob(os.path.join(self.images_dir, "*/*.jpeg"))
+        paths = glob(os.path.join(self.images_dir, "*/*.jpeg"))
+        random.shuffle(paths)
+        return paths
 
     def _find_classes(self):
         return sorted(
@@ -225,7 +234,8 @@ class ImageGenerator():
 
         dataset = tf.data.Dataset.from_tensor_slices(
             (self.path_tensor, self.label_tensor))
-        dataset = dataset.map(_read_image)
+        dataset = dataset.map(_read_image, num_parallel_calls=8) \
+                            .prefetch(100 * self.batch_size)
 
         if self.preprocess_py_fn is not None:
             dataset = dataset.map(
@@ -295,10 +305,10 @@ def print_training_status(epoch, num_epochs, batch, num_batches, acc, loss):
     print(", ".join(m), end=end)
 
 
-sess = tf.Session()
-tf.keras.backend.set_session(sess)
 sess.run(tf.global_variables_initializer())
 sess.run(tf.local_variables_initializer())
+
+tf.train.start_queue_runners(sess=sess)
 
 # Add ops for saving and restoring all variables.
 saver = tf.train.Saver()
@@ -309,10 +319,10 @@ saver = tf.train.Saver()
 previous_auc = 0
 waited_epochs = 0
 
-validation_generator.set_steps(5)
 for epoch in range(num_epochs):
     # Start training.
     sess.run(training_init_op)
+    tf.keras.backend.set_learning_phase(True)
 
     for step in range(training_generator.steps):
         # Retrieve a batch of training data.
@@ -320,8 +330,7 @@ for epoch in range(num_epochs):
 
         # Create a feed dictionary for the input data.
         feed_dict_training = {
-            x: images, y_orig_cls: labels,
-            tf.keras.backend.learning_phase(): 1}
+            x: images, y_orig_cls: labels}
 
         # Optimize loss.
         i_global, _, batch_acc, batch_loss = sess.run(
@@ -335,6 +344,7 @@ for epoch in range(num_epochs):
 
     # Validation.
     sess.run(validation_init_op)
+    tf.keras.backend.set_learning_phase(False)
 
     for _ in range(validation_generator.steps):
         # Retrieve a batch of validation data.
@@ -342,16 +352,13 @@ for epoch in range(num_epochs):
 
         # Validate the current classifier against validation set.
         feed_dict_validation = {x: images,
-                                y_orig_cls: labels,
-                                tf.keras.backend.learning_phase(): 0}
+                                y_orig_cls: labels}
 
         # Retrieve the validation set confusion metrics.
-        val_logits, val_pred, val_xent, *_ = sess.run(
-            [logits, y_pred, loss, update_tp_op, update_tn_op, update_fp_op, update_fn_op,
-             update_auc_op, update_mse_op],
+        sess.run(
+            [logits, y_pred, loss, update_tp_op, update_tn_op, update_fp_op, 
+             update_fn_op, update_auc_op, update_mse_op],
             feed_dict=feed_dict_validation)
-
-        print(val_pred)
 
     # Retrieve confusion matrix and estimated roc auc score.
     val_confusion_matrix, val_mse, val_auc = sess.run(
