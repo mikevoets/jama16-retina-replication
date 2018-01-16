@@ -25,7 +25,7 @@ image_dim = 299
 num_channels = 3
 num_labels = 1
 wait_epochs = 5
-num_workers = 64
+num_workers = 16
 mode = 'train'
 
 # Maximum number of epochs. Can be stopped early.
@@ -233,8 +233,8 @@ for epoch in range(num_epochs):
     sess.run(training_init_op)
     batch_num = 0
 
-    while True:
-        try:
+    try:
+        while True:
             # Optimize cross entropy.
             i_global, batch_xent, _ = sess.run(
                 [global_step, mean_xentropy, train_op])
@@ -243,22 +243,21 @@ for epoch in range(num_epochs):
             print_training_status(epoch, num_epochs, batch_num, batch_xent)
             batch_num += 1
 
-        except tf.errors.OutOfRangeError:
-            print(f"\nEnd of epoch {epoch}!")
-            break
+    except tf.errors.OutOfRangeError:
+        print(f"\nEnd of epoch {epoch}!")
 
     # Validation.
     tf.keras.backend.set_learning_phase(False)
     sess.run(validation_init_op)
 
-    while True:
-        try:
+    try:
+        while True:
             # Retrieve the validation set confusion metrics.
             sess.run([labels, images, update_tp, update_fp, update_fn,
                       update_tn, update_brier, update_auc])
 
-        except tf.errors.OutOfRangeError:
-            break
+    except tf.errors.OutOfRangeError:
+        pass
 
     # Retrieve confusion matrix and estimated roc auc score.
     confusion_matrix, brier, auc = sess.run([confusion_matrix, brier, auc])
