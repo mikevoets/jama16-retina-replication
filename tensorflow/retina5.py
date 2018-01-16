@@ -32,18 +32,19 @@ mode = 'train'
 num_epochs = 200
 
 # Batch sizes.
-training_batch_size = 1
-validation_batch_size = 1
+training_batch_size = 32
+validation_batch_size = 32
 
 # Buffer size for image shuffling.
-shuffle_buffer_size = 100
+shuffle_buffer_size = 10000
 prefetch_buffer_size = training_batch_size * 100
 
 # Various hyper-parameter variables.
-learning_rate = 3e-3
+learning_rate = 3e-2
 
 # Set image datas format to channels first if GPU is available.
 if tf.test.is_gpu_available():
+    print("Found GPU! Using channels first as default image data format.")
     image_data_format = 'channels_first'
     image_shape = [num_channels, image_dim, image_dim]
 else:
@@ -268,9 +269,6 @@ for epoch in range(num_epochs):
             # Retrieve a batch of validation data.
             val_images, val_labels = sess.run(next_element)
 
-            # Validate the current classifier against validation set.
-            feed_dict_validation = {x: val_images, labels: val_labels}
-
             # Retrieve the validation set confusion metrics.
             sess.run(
                 [update_tp, update_fp, update_fn, update_tn,
@@ -294,7 +292,7 @@ for epoch in range(num_epochs):
     # Reset all streaming variables.
     sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
 
-    if val_auc < latest_peak_auc:
+    if auc < latest_peak_auc:
         # Stop early if peak of val auc has been reached.
         # If it is lower than the previous auc value, wait up to `wait_epochs`
         #  to see if it does not increase again.
@@ -306,8 +304,8 @@ for epoch in range(num_epochs):
 
         waited_epochs += 1
     else:
-        latest_peak_auc = val_auc
-        print(f"New peak auc reached: {val_auc:10.8}")
+        latest_peak_auc = auc
+        print(f"New peak auc reached: {auc:10.8}")
 
         # Save the model weights.
         saver.save(sess, save_model_path)
