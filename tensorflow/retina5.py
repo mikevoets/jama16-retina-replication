@@ -37,8 +37,11 @@ shuffle_buffer_size = 100  # 100 * training_batch_size
 # Various hyper-parameter variables.
 learning_rate = 3e-3
 
-tf.keras.backend.set_learning_phase(False)
-tf.keras.backend.set_image_data_format('channels_first')
+# Set channels mode to channels_first if GPU is available.
+if tf.test.is_gpu_available():
+    channels_mode = 'channels_first'
+else:
+    channels_mode = 'channels_last'
 
 
 def parse_example(example_proto):
@@ -73,9 +76,12 @@ def _parse_example(proto):
     image = tf.image.convert_image_dtype(
         tf.image.decode_jpeg(parsed["image/encoded"]), tf.float32)
 
-    # Reshape such that channels come first.
-    image = tf.reshape(image, [num_channels, image_dim, image_dim])
+    if channels_mode == 'channels_first':
+        channels_order = [num_channels, image_dim, image_dim]
+    else:
+        channels_order = [image_dim, image_dim, num_channels]
 
+    image = tf.reshape(image, channels_order)
     label = tf.cast(parsed["image/class/label"], tf.int32)
 
     return {'x': image}, label
@@ -103,6 +109,9 @@ def dataset_input_fn(dataset):
 
 
 def model_fn(features, labels, mode, params):
+    tf.keras.backend.set_learning_phase(True)
+    tf.keras.backend.set_image_data_format(params["image_data_format"])
+
     # Base model InceptionV3 without top and global average pooling.
     base_model = tf.keras.applications.InceptionV3(
         include_top=False, weights='imagenet', input_tensor=features['x'],
@@ -127,8 +136,6 @@ def model_fn(features, labels, mode, params):
             spec["predictions"]["Severe DR+"] = class_predictions[:, 1]
 
         return tf.estimator.EstimatorSpec(**specs)
-
-    tf.keras.backend.set_learning_phase(True)
 
     # The label classes are in a range of 0 to 4 (no DR towards
     #  proliferative DR).
@@ -172,6 +179,7 @@ def model_fn(features, labels, mode, params):
 
 
 model_params = {
+    "image_data_format": channels_mode,
     "num_labels": num_labels,
     "learning_rate": learning_rate,
     "momentum": 0.9,
