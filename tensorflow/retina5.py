@@ -19,6 +19,8 @@ training_records_dir = '../data/eyepacs/jama_dist_train'
 validation_records_dir = '../data/eyepacs/jama_dist_validation'
 test_records_dir = '../data/eyepacs/jama_dist_test'
 
+model_dir="./tmp/model"
+
 image_dim = 299
 num_channels = 3
 num_workers = 8
@@ -28,11 +30,12 @@ num_labels = 1
 num_epochs = 200
 
 # Batch sizes.
-training_batch_size = 1
-validation_batch_size = 1
+training_batch_size = 32
+validation_batch_size = 32
 
 # Buffer size for image shuffling.
-shuffle_buffer_size = 100  # 100 * training_batch_size
+shuffle_buffer_size = 10000
+prefetch_buffer_size = training_batch_size * 100
 
 # Various hyper-parameter variables.
 learning_rate = 3e-3
@@ -42,20 +45,6 @@ if tf.test.is_gpu_available():
     channels_mode = 'channels_first'
 else:
     channels_mode = 'channels_last'
-
-
-def parse_example(example_proto):
-    features = {"image/encoded": tf.FixedLenFeature((), tf.string),
-                "image/format": tf.FixedLenFeature((), tf.string),
-                "image/class/label": tf.FixedLenFeature((), tf.int64),
-                "image/height": tf.FixedLenFeature((), tf.int64),
-                "image/width": tf.FixedLenFeature((), tf.int64)}
-    parsed = tf.parse_single_example(example_proto, features)
-
-    image = tf.image.convert_image_dtype(
-        tf.image.decode_jpeg(parsed["image/format"]))
-    label = tf.cast(parsed["image/class/label"], tf.int32)
-    return image, label
 
 
 def _tfrecord_dataset_from_folder(folder, ext='.tfrecord'):
@@ -156,7 +145,7 @@ def model_fn(features, labels, mode, params):
         y = tf.reshape(tf.stack([y, second_label], axis=2), shape=[-1, 2])
 
     # Retrieve loss of network using cross entropy.
-    loss = tf.losses.sigmoid_cross_entropy(y, logits)
+    loss = tf.reduce_mean(tf.losses.sigmoid_cross_entropy(y, logits))
 
     # Calculate other metrics.
     eval_metric_ops = {
@@ -186,11 +175,12 @@ model_params = {
     "nesterov": True,
 }
 
-nn = tf.estimator.Estimator(model_fn=model_fn, params=model_params)
+nn = tf.estimator.Estimator(
+    model_fn=model_fn, params=model_params, model_dir=model_dir)
 
 training_dataset = initialize_dataset(
     training_records_dir, training_batch_size, num_epochs,
-    num_workers=num_workers, prefetch_buffer_size=100 * training_batch_size,
-    shuffle_buffer_size=1000)
+    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+    shuffle_buffer_size=shuffle_buffer_size)
 
 nn.train(input_fn=lambda: dataset_input_fn(training_dataset))
