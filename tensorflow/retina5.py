@@ -23,9 +23,9 @@ save_model_path = "./tmp/model.ckpt"
 # Various training and evaluation constants.
 image_dim = 299
 num_channels = 3
-num_workers = 8
 num_labels = 1
 wait_epochs = 5
+num_workers = 64
 mode = 'train'
 
 # Maximum number of epochs. Can be stopped early.
@@ -37,7 +37,7 @@ validation_batch_size = 32
 
 # Buffer size for image shuffling.
 shuffle_buffer_size = 10000
-prefetch_buffer_size = training_batch_size * 100
+prefetch_buffer_size = 100 * training_batch_size
 
 # Various hyper-parameter variables.
 learning_rate = 3e-2
@@ -81,17 +81,17 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
                        shuffle_buffer_size=None):
     # Retrieve data set from pattern.
     dataset = _tfrecord_dataset_from_folder(image_dir)
-
-    if prefetch_buffer_size is not None:
-        dataset = dataset.prefetch(prefetch_buffer_size)
-
-    dataset = dataset.repeat(num_epochs)
+    dataset = dataset.map(_parse_example, num_parallel_calls=num_workers)
 
     if shuffle_buffer_size is not None:
         dataset = dataset.shuffle(shuffle_buffer_size)
 
-    dataset = dataset.map(_parse_example, num_parallel_calls=num_workers)
+    dataset = dataset.repeat(num_epochs)
     dataset = dataset.batch(batch_size)
+
+    if prefetch_buffer_size is not None:
+        dataset = dataset.prefetch(prefetch_buffer_size)
+
     return dataset
 
 
@@ -101,13 +101,40 @@ tf.keras.backend.set_session(sess)
 tf.keras.backend.set_learning_phase(True)
 tf.keras.backend.set_image_data_format(image_data_format)
 
-# Define input images and labels.
-x = tf.placeholder(tf.float32, shape=[None] + image_shape, name='x')
-labels = tf.placeholder(tf.int32, shape=[None])
+if mode == 'test':
+    # Evaluate saved model.
+    test_dataset = initialize_dataset(
+        test_records_dir, test_batch_size, num_epochs,
+        num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+        shuffle_buffer_size=shuffle_buffer_size)
+
+    # TODO: Perform test.
+    sys.exit(0)
+
+
+# Initialize each data set.
+training_dataset = initialize_dataset(
+    training_records_dir, training_batch_size,
+    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+    shuffle_buffer_size=shuffle_buffer_size)
+
+validation_dataset = initialize_dataset(
+    validation_records_dir, validation_batch_size,
+    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+    shuffle_buffer_size=shuffle_buffer_size)
+
+# Create an initialize iterators.
+iterator = tf.data.Iterator.from_structure(
+    training_dataset.output_types, training_dataset.output_shapes)
+
+images, labels = iterator.get_next()
+
+training_init_op = iterator.make_initializer(training_dataset)
+validation_init_op = iterator.make_initializer(validation_dataset)
 
 # Base model InceptionV3 without top and global average pooling.
 base_model = tf.keras.applications.InceptionV3(
-    include_top=False, weights='imagenet', input_tensor=x, pooling='avg')
+    include_top=False, weights='imagenet', input_tensor=images, pooling='avg')
 
 # Add dense layer with the same amount of neurons as labels.
 logits = tf.layers.dense(base_model.output, units=num_labels)
@@ -139,6 +166,14 @@ if num_labels == 2:
 mean_xentropy = tf.reduce_mean(
     tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=logits))
 
+# Define SGD optimizer with momentum and nesterov.
+global_step = tf.Variable(0, dtype=tf.int32)
+
+train_op = tf.train.MomentumOptimizer(
+    learning_rate, momentum=0.9, use_nesterov=True) \
+        .minimize(loss=mean_xentropy, global_step=global_step)
+
+
 # Metrics for finding best validation set.
 tp, update_tp, reset_tp = metrics.create_reset_metric(
     metrics.true_positives, scope='tp', labels=y,
@@ -167,46 +202,6 @@ auc, update_auc, reset_auc = metrics.create_reset_metric(
     tf.metrics.auc, scope='auc', labels=y, predictions=predictions)
 
 
-if mode == 'test':
-    # Evaluate saved model.
-    test_dataset = initialize_dataset(
-        test_records_dir, test_batch_size, num_epochs,
-        num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-        shuffle_buffer_size=shuffle_buffer_size)
-
-    # TODO: Perform test.
-    sys.exit(0)
-
-
-# Define SGD optimizer with momentum and nesterov.
-global_step = tf.Variable(0, dtype=tf.int32)
-
-optimizer = tf.train.MomentumOptimizer(
-    learning_rate, momentum=0.9, use_nesterov=True) \
-        .minimize(loss=mean_xentropy, global_step=global_step)
-
-
-# Initialize each data set.
-training_dataset = initialize_dataset(
-    training_records_dir, training_batch_size,
-    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-    shuffle_buffer_size=shuffle_buffer_size)
-
-validation_dataset = initialize_dataset(
-    validation_records_dir, validation_batch_size,
-    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-    shuffle_buffer_size=shuffle_buffer_size)
-
-# Create an initialize iterators.
-iterator = tf.data.Iterator.from_structure(
-    training_dataset.output_types, training_dataset.output_shapes)
-
-next_element = iterator.get_next()
-
-training_init_op = iterator.make_initializer(training_dataset)
-validation_init_op = iterator.make_initializer(validation_dataset)
-
-
 def print_training_status(epoch, num_epochs, batch_num, xent):
     def length(x): return len(str(x))
 
@@ -226,7 +221,6 @@ sess.run(tf.local_variables_initializer())
 # Add ops for saving and restoring all variables.
 saver = tf.train.Saver()
 
-
 # Train for the specified amount of epochs.
 # Can be stopped early if peak of validation auc (Area under curve)
 #  is reached.
@@ -241,23 +235,16 @@ for epoch in range(num_epochs):
 
     while True:
         try:
-            # Retrieve a batch of training data.
-            batch_images, batch_labels = sess.run(next_element)
-
-            # Create a feed dictionary for the input data.
-            feed_dict_training = {x: batch_images, labels: batch_labels}
-
-            # Optimize loss.
+            # Optimize cross entropy.
             i_global, batch_xent, _ = sess.run(
-                [global_step, mean_xentropy, optimizer],
-                feed_dict=feed_dict_training)
+                [global_step, mean_xentropy, train_op])
 
             # Print a nice training status.
             print_training_status(epoch, num_epochs, batch_num, batch_xent)
             batch_num += 1
 
         except tf.errors.OutOfRangeError:
-            print()
+            print(f"\nEnd of epoch {epoch}!")
             break
 
     # Validation.
@@ -266,14 +253,9 @@ for epoch in range(num_epochs):
 
     while True:
         try:
-            # Retrieve a batch of validation data.
-            val_images, val_labels = sess.run(next_element)
-
             # Retrieve the validation set confusion metrics.
-            sess.run(
-                [update_tp, update_fp, update_fn, update_tn,
-                 update_brier, update_auc],
-                feed_dict=feed_dict_validation)
+            sess.run([labels, images, update_tp, update_fp, update_fn,
+                      update_tn, update_brier, update_auc])
 
         except tf.errors.OutOfRangeError:
             break
