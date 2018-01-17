@@ -40,7 +40,7 @@ shuffle_buffer_size = 10000
 prefetch_buffer_size = 100 * training_batch_size
 
 # Various hyper-parameter variables.
-learning_rate = 3e-2
+learning_rate = 3e-3
 
 # Set image datas format to channels first if GPU is available.
 if tf.test.is_gpu_available():
@@ -249,11 +249,14 @@ for epoch in range(num_epochs):
     # Validation.
     tf.keras.backend.set_learning_phase(False)
     sess.run(validation_init_op)
+    
+    # Reset all streaming variables.
+    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
 
     try:
         while True:
             # Retrieve the validation set confusion metrics.
-            sess.run([labels, images, update_tp, update_fp, update_fn,
+            sess.run([update_tp, update_fp, update_fn,
                       update_tn, update_brier, update_auc])
 
     except tf.errors.OutOfRangeError:
@@ -269,10 +272,7 @@ for epoch in range(num_epochs):
     for i in range(num_labels):
         print(f"Confusion matrix for label {i+1}:")
         print(confusion_matrix[i])
-
-    # Reset all streaming variables.
-    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
-
+    
     if auc < latest_peak_auc:
         # Stop early if peak of val auc has been reached.
         # If it is lower than the previous auc value, wait up to `wait_epochs`
