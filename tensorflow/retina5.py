@@ -263,17 +263,17 @@ for epoch in range(num_epochs):
         pass
 
     # Retrieve confusion matrix and estimated roc auc score.
-    confusion_matrix, brier, auc = sess.run([confusion_matrix, brier, auc])
+    val_conf_matrix, val_brier, val_auc = sess.run([confusion_matrix, brier, auc])
 
     # Print total roc auc score for validation.
-    print(f"Val brier score: {brier:6.4}, Val auc: {auc:10.8}")
+    print(f"Val brier score: {val_brier:6.4}, Val auc: {val_auc:10.8}")
 
     # Print confusion matrix for each label.
     for i in range(num_labels):
         print(f"Confusion matrix for label {i+1}:")
-        print(confusion_matrix[i])
+        print(val_conf_matrix[i])
     
-    if auc < latest_peak_auc:
+    if val_auc < latest_peak_auc:
         # Stop early if peak of val auc has been reached.
         # If it is lower than the previous auc value, wait up to `wait_epochs`
         #  to see if it does not increase again.
@@ -285,8 +285,8 @@ for epoch in range(num_epochs):
 
         waited_epochs += 1
     else:
-        latest_peak_auc = auc
-        print(f"New peak auc reached: {auc:10.8}")
+        latest_peak_auc = val_auc
+        print(f"New peak auc reached: {val_auc:10.8}")
 
         # Save the model weights.
         saver.save(sess, save_model_path)
