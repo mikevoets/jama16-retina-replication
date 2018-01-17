@@ -3,6 +3,7 @@ import tensorflow as tf
 import pdb
 import os
 import random
+import re
 from glob import glob
 from math import ceil
 
@@ -18,26 +19,28 @@ random.seed(432)
 training_records_dir = '../data/eyepacs/jama_dist_train'
 validation_records_dir = '../data/eyepacs/jama_dist_validation'
 test_records_dir = '../data/eyepacs/jama_dist_test'
+
 save_model_path = "./tmp/model.ckpt"
+save_summaries_dir = "./tmp/logs"
 
 # Various training and evaluation constants.
 image_dim = 299
 num_channels = 3
 num_labels = 1
 wait_epochs = 10
-num_workers = 16
+num_workers = 1
 mode = 'train'
 
 # Maximum number of epochs. Can be stopped early.
 num_epochs = 200
 
 # Batch sizes.
-training_batch_size = 32
-validation_batch_size = 32
+training_batch_size = 2
+validation_batch_size = 2
 
 # Buffer size for image shuffling.
-shuffle_buffer_size = 10000
-prefetch_buffer_size = 100 * training_batch_size
+shuffle_buffer_size = 1
+prefetch_buffer_size = 1 * training_batch_size
 
 # Various hyper-parameter variables.
 learning_rate = 3e-3
@@ -95,6 +98,18 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
     return dataset
 
 
+def variable_summaries(var):
+    with tf.name_scope('summaries'):
+        mean = tf.reduce_mean(var)
+        tf.summary.scalar('mean', mean)
+        with tf.name_scope('stddev'):
+            stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+        tf.summary.scalar('stddev', stddev)
+        tf.summary.scalar('max', tf.reduce_max(var))
+        tf.summary.scalar('min', tf.reduce_min(var))
+        tf.summary.histogram('histogram', var)
+
+
 # Set up a session and bind it to Keras.
 sess = tf.Session()
 tf.keras.backend.set_session(sess)
@@ -136,11 +151,25 @@ validation_init_op = iterator.make_initializer(validation_dataset)
 base_model = tf.keras.applications.InceptionV3(
     include_top=False, weights='imagenet', input_tensor=images, pooling='avg')
 
+# Add summary hooks to all variables in layers.
+for layer in base_model.layers[1:]:
+    with tf.name_scope(layer.scope_name):
+        for variable in layer.variables:
+            with tf.name_scope(re.split(r"[:/]", variable.name)[-2]):
+                variable_summaries(variable)
+        output = layer.output
+        with tf.name_scope(re.split(r"[:/]", output.name)[-2]):
+            variable_summaries(output)
+
 # Add dense layer with the same amount of neurons as labels.
-logits = tf.layers.dense(base_model.output, units=num_labels)
+with tf.name_scope('logits'):
+    logits = tf.layers.dense(base_model.output, units=num_labels)
+    variable_summaries(logits)
 
 # Get the predictions with a sigmoid activation function.
-predictions = tf.sigmoid(logits)
+with tf.name_scope('predictions'):
+    predictions = tf.sigmoid(logits)
+    variable_summaries(predictions)
 
 # Get the class predictions for labels.
 predictions_classes = tf.round(predictions)
@@ -165,6 +194,7 @@ if num_labels == 2:
 # Retrieve loss of network using cross entropy.
 mean_xentropy = tf.reduce_mean(
     tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=logits))
+tf.summary.scalar('mean_xentropy', mean_xentropy)
 
 # Define SGD optimizer with momentum and nesterov.
 global_step = tf.Variable(0, dtype=tf.int32)
@@ -197,10 +227,18 @@ confusion_matrix = metrics.confusion_matrix(
 brier, update_brier, reset_brier = metrics.create_reset_metric(
     tf.metrics.mean_squared_error, scope='brier',
     labels=y, predictions=predictions)
+tf.summary.scalar('brier', brier)
 
 auc, update_auc, reset_auc = metrics.create_reset_metric(
-    tf.metrics.auc, scope='auc', 
+    tf.metrics.auc, scope='auc',
     labels=y, predictions=predictions, num_thresholds=2)
+tf.summary.scalar('auc', auc)
+
+
+# Merge all the summaries and write them out.
+summaries_op = tf.summary.merge_all()
+train_writer = tf.summary.FileWriter(save_summaries_dir + "/train")
+test_writer = tf.summary.FileWriter(save_summaries_dir + "/test")
 
 
 def print_training_status(epoch, num_epochs, batch_num, xent):
@@ -237,11 +275,14 @@ for epoch in range(num_epochs):
     try:
         while True:
             # Optimize cross entropy.
-            i_global, batch_xent, _ = sess.run(
-                [global_step, mean_xentropy, train_op])
+            i_global, batch_xent, _, summaries = sess.run(
+                [global_step, mean_xentropy, train_op, summaries_op])
 
             # Print a nice training status.
             print_training_status(epoch, num_epochs, batch_num, batch_xent)
+
+            # Report summaries.
+            train_writer.add_summary(summaries, i_global)
             batch_num += 1
 
     except tf.errors.OutOfRangeError:
@@ -250,7 +291,7 @@ for epoch in range(num_epochs):
     # Validation.
     tf.keras.backend.set_learning_phase(False)
     sess.run(validation_init_op)
-    
+
     # Reset all streaming variables.
     sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
 
@@ -264,7 +305,8 @@ for epoch in range(num_epochs):
         pass
 
     # Retrieve confusion matrix and estimated roc auc score.
-    val_conf_matrix, val_brier, val_auc = sess.run([confusion_matrix, brier, auc])
+    val_conf_matrix, val_brier, val_auc, summaries = sess.run(
+        [confusion_matrix, brier, auc, summaries_op])
 
     # Print total roc auc score for validation.
     print(f"Val brier score: {val_brier:6.4}, Val auc: {val_auc:10.8}")
@@ -273,7 +315,10 @@ for epoch in range(num_epochs):
     for i in range(num_labels):
         print(f"Confusion matrix for label {i+1}:")
         print(val_conf_matrix[i])
-    
+
+    # Report summaries.
+    test_writer.add_summary(summaries)
+
     if val_auc < latest_peak_auc:
         # Stop early if peak of val auc has been reached.
         # If it is lower than the previous auc value, wait up to `wait_epochs`
