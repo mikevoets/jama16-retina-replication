@@ -24,7 +24,7 @@ save_model_path = "./tmp/model.ckpt"
 image_dim = 299
 num_channels = 3
 num_labels = 1
-wait_epochs = 5
+wait_epochs = 10
 num_workers = 16
 mode = 'train'
 
@@ -199,7 +199,8 @@ brier, update_brier, reset_brier = metrics.create_reset_metric(
     labels=y, predictions=predictions)
 
 auc, update_auc, reset_auc = metrics.create_reset_metric(
-    tf.metrics.auc, scope='auc', labels=y, predictions=predictions)
+    tf.metrics.auc, scope='auc', 
+    labels=y, predictions=predictions, num_thresholds=2)
 
 
 def print_training_status(epoch, num_epochs, batch_num, xent):
@@ -290,6 +291,9 @@ for epoch in range(num_epochs):
 
         # Save the model weights.
         saver.save(sess, save_model_path)
+
+        # Reset waited epochs.
+        waited_epochs = 0
 
 # Close the session.
 sess.close()
