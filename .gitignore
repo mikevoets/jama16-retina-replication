@@ -108,3 +108,4 @@ ENV/
 logs/
 logs*/
 *.hdf5
+*/tmp/
