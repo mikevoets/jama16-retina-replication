@@ -244,7 +244,7 @@ train_writer = tf.summary.FileWriter(save_summaries_dir + "/train")
 test_writer = tf.summary.FileWriter(save_summaries_dir + "/test")
 
 
-def print_training_status(epoch, num_epochs, batch_num, xent):
+def print_training_status(epoch, num_epochs, batch_num, xent, i_step=None):
     def length(x): return len(str(x))
 
     m = []
@@ -252,6 +252,9 @@ def print_training_status(epoch, num_epochs, batch_num, xent):
         f"Epoch: {{0:>{length(num_epochs)}}}/{{1:>{length(num_epochs)}}}"
         .format(epoch, num_epochs))
     m.append(f"Batch: {batch_num:>4}, Xent: {xent:6.4}")
+
+    if i_step is not None:
+        m.append(f"Step: {i_step:>10}")
 
     print(", ".join(m), end="\r")
 
@@ -287,7 +290,8 @@ for epoch in range(num_epochs):
                 train_writer.add_summary(summaries, i_global)
 
             # Print a nice training status.
-            print_training_status(epoch, num_epochs, batch_num, batch_xent)
+            print_training_status(
+                epoch, num_epochs, batch_num, batch_xent, i_global)
 
             # Report summaries.
             batch_num += 1
