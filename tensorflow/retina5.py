@@ -29,6 +29,8 @@ num_channels = 3
 num_labels = 1
 wait_epochs = 10
 num_workers = 1
+num_summarize_layers = 4
+report_per_step = 100
 mode = 'train'
 
 # Maximum number of epochs. Can be stopped early.
@@ -152,11 +154,12 @@ base_model = tf.keras.applications.InceptionV3(
     include_top=False, weights='imagenet', input_tensor=images, pooling='avg')
 
 # Add summary hooks to all variables in layers.
-for layer in base_model.layers[1:]:
+for layer in base_model.layers[1:num_summarize_layers]:
     with tf.name_scope(layer.scope_name):
         for variable in layer.variables:
             with tf.name_scope(re.split(r"[:/]", variable.name)[-2]):
                 variable_summaries(variable)
+
         output = layer.output
         with tf.name_scope(re.split(r"[:/]", output.name)[-2]):
             variable_summaries(output)
@@ -275,14 +278,18 @@ for epoch in range(num_epochs):
     try:
         while True:
             # Optimize cross entropy.
-            i_global, batch_xent, _, summaries = sess.run(
-                [global_step, mean_xentropy, train_op, summaries_op])
+            i_global, batch_xent, _, = sess.run(
+                [global_step, mean_xentropy, train_op])
+
+            # Report summaries every now and then.
+            if i_global % report_per_step == 0:
+                summaries = sess.run([summaries])
+                train_writer.add_summary(summaries, i_global)
 
             # Print a nice training status.
             print_training_status(epoch, num_epochs, batch_num, batch_xent)
 
             # Report summaries.
-            train_writer.add_summary(summaries, i_global)
             batch_num += 1
 
     except tf.errors.OutOfRangeError:
