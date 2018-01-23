@@ -28,21 +28,21 @@ image_dim = 299
 num_channels = 3
 num_labels = 1
 wait_epochs = 10
-num_workers = 1
-num_summarize_layers = 4
-report_per_step = 100
+num_workers = 8
+#num_summarize_layers = 4
+#report_per_step = 100
 mode = 'train'
 
 # Maximum number of epochs. Can be stopped early.
 num_epochs = 200
 
 # Batch sizes.
-training_batch_size = 2
-validation_batch_size = 2
+training_batch_size = 32
+validation_batch_size = 32
 
 # Buffer size for image shuffling.
-shuffle_buffer_size = 1
-prefetch_buffer_size = 1 * training_batch_size
+shuffle_buffer_size = 5000
+prefetch_buffer_size = 100 * training_batch_size
 
 # Various hyper-parameter variables.
 learning_rate = 3e-3
@@ -154,25 +154,25 @@ base_model = tf.keras.applications.InceptionV3(
     include_top=False, weights='imagenet', input_tensor=images, pooling='avg')
 
 # Add summary hooks to all variables in layers.
-for layer in base_model.layers[1:num_summarize_layers]:
-    with tf.name_scope(layer.scope_name):
-        for variable in layer.variables:
-            with tf.name_scope(re.split(r"[:/]", variable.name)[-2]):
-                variable_summaries(variable)
-
-        output = layer.output
-        with tf.name_scope(re.split(r"[:/]", output.name)[-2]):
-            variable_summaries(output)
+#for layer in base_model.layers[1:num_summarize_layers]:
+#    with tf.name_scope(layer.scope_name):
+#        for variable in layer.variables:
+#            with tf.name_scope(re.split(r"[:/]", variable.name)[-2]):
+#                variable_summaries(variable)
+#
+#        output = layer.output
+#        with tf.name_scope(re.split(r"[:/]", output.name)[-2]):
+#            variable_summaries(output)
 
 # Add dense layer with the same amount of neurons as labels.
 with tf.name_scope('logits'):
     logits = tf.layers.dense(base_model.output, units=num_labels)
-    variable_summaries(logits)
+    #variable_summaries(logits)
 
 # Get the predictions with a sigmoid activation function.
 with tf.name_scope('predictions'):
     predictions = tf.sigmoid(logits)
-    variable_summaries(predictions)
+    #variable_summaries(predictions)
 
 # Get the class predictions for labels.
 predictions_classes = tf.round(predictions)
@@ -197,7 +197,7 @@ if num_labels == 2:
 # Retrieve loss of network using cross entropy.
 mean_xentropy = tf.reduce_mean(
     tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=logits))
-tf.summary.scalar('mean_xentropy', mean_xentropy)
+#tf.summary.scalar('mean_xentropy', mean_xentropy)
 
 # Define SGD optimizer with momentum and nesterov.
 global_step = tf.Variable(0, dtype=tf.int32)
@@ -230,18 +230,18 @@ confusion_matrix = metrics.confusion_matrix(
 brier, update_brier, reset_brier = metrics.create_reset_metric(
     tf.metrics.mean_squared_error, scope='brier',
     labels=y, predictions=predictions)
-tf.summary.scalar('brier', brier)
+#tf.summary.scalar('brier', brier)
 
 auc, update_auc, reset_auc = metrics.create_reset_metric(
     tf.metrics.auc, scope='auc',
-    labels=y, predictions=predictions, num_thresholds=2)
-tf.summary.scalar('auc', auc)
+    labels=y, predictions=predictions)
+#tf.summary.scalar('auc', auc)
 
 
 # Merge all the summaries and write them out.
-summaries_op = tf.summary.merge_all()
-train_writer = tf.summary.FileWriter(save_summaries_dir + "/train")
-test_writer = tf.summary.FileWriter(save_summaries_dir + "/test")
+#summaries_op = tf.summary.merge_all()
+#train_writer = tf.summary.FileWriter(save_summaries_dir + "/train")
+#test_writer = tf.summary.FileWriter(save_summaries_dir + "/test")
 
 
 def print_training_status(epoch, num_epochs, batch_num, xent, i_step=None):
@@ -281,13 +281,8 @@ for epoch in range(num_epochs):
     try:
         while True:
             # Optimize cross entropy.
-            i_global, batch_xent, _, = sess.run(
+            i_global, batch_xent, _ = sess.run(
                 [global_step, mean_xentropy, train_op])
-
-            # Report summaries every now and then.
-            if i_global % report_per_step == 0:
-                summaries = sess.run([summaries])
-                train_writer.add_summary(summaries, i_global)
 
             # Print a nice training status.
             print_training_status(
@@ -316,8 +311,8 @@ for epoch in range(num_epochs):
         pass
 
     # Retrieve confusion matrix and estimated roc auc score.
-    val_conf_matrix, val_brier, val_auc, summaries = sess.run(
-        [confusion_matrix, brier, auc, summaries_op])
+    val_conf_matrix, val_brier, val_auc = sess.run(
+        [confusion_matrix, brier, auc])
 
     # Print total roc auc score for validation.
     print(f"Val brier score: {val_brier:6.4}, Val auc: {val_auc:10.8}")
@@ -326,9 +321,6 @@ for epoch in range(num_epochs):
     for i in range(num_labels):
         print(f"Confusion matrix for label {i+1}:")
         print(val_conf_matrix[i])
-
-    # Report summaries.
-    test_writer.add_summary(summaries)
 
     if val_auc < latest_peak_auc:
         # Stop early if peak of val auc has been reached.
