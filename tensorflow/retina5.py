@@ -3,8 +3,11 @@ import tensorflow as tf
 import pdb
 import os
 import random
+import re
 from glob import glob
 from math import ceil
+
+import metrics
 
 print(f"Numpy version: {np.__version__}")
 print(f"Tensorflow version: {tf.__version__}")
@@ -12,14 +15,23 @@ print(f"Tensorflow version: {tf.__version__}")
 tf.logging.set_verbosity(tf.logging.INFO)
 random.seed(432)
 
-# Various constants.
-training_images_dir = '../data/eyepacs/jama_dist/train'
-validation_images_dir = '../data/eyepacs/jama_dist/val'
+# Various loading and saving constants..
+training_records_dir = '../data/eyepacs/jama_dist_train'
+validation_records_dir = '../data/eyepacs/jama_dist_validation'
+test_records_dir = '../data/eyepacs/jama_dist_test'
 
-save_model_path = 'saved/model.ckpt'
+save_model_path = "./tmp/model.ckpt"
+save_summaries_dir = "./tmp/logs"
 
+# Various training and evaluation constants.
 image_dim = 299
 num_channels = 3
+num_labels = 1
+wait_epochs = 10
+num_workers = 8
+#num_summarize_layers = 4
+#report_per_step = 100
+mode = 'train'
 
 # Maximum number of epochs. Can be stopped early.
 num_epochs = 200
@@ -29,286 +41,227 @@ training_batch_size = 32
 validation_batch_size = 32
 
 # Buffer size for image shuffling.
-shuffle_buffer_size = 100 * training_batch_size
-
-# Training and predicting mode.
-mode = 'one_label'
+shuffle_buffer_size = 5000
+prefetch_buffer_size = 100 * training_batch_size
 
 # Various hyper-parameter variables.
 learning_rate = 3e-3
 
+# Set image datas format to channels first if GPU is available.
+if tf.test.is_gpu_available():
+    print("Found GPU! Using channels first as default image data format.")
+    image_data_format = 'channels_first'
+    image_shape = [num_channels, image_dim, image_dim]
+else:
+    image_data_format = 'channels_last'
+    image_shape = [image_dim, image_dim, num_channels]
+
+
+def _tfrecord_dataset_from_folder(folder, ext='.tfrecord'):
+    tfrecords = [os.path.join(folder, n)
+                 for n in os.listdir(folder) if n.endswith(ext)]
+    return tf.data.TFRecordDataset(tfrecords)
+
+
+def _parse_example(proto):
+    features = {"image/encoded": tf.FixedLenFeature((), tf.string),
+                "image/format": tf.FixedLenFeature((), tf.string),
+                "image/class/label": tf.FixedLenFeature((), tf.int64),
+                "image/height": tf.FixedLenFeature((), tf.int64),
+                "image/width": tf.FixedLenFeature((), tf.int64)}
+    parsed = tf.parse_single_example(proto, features)
+
+    # Rescale to 1./255.
+    image = tf.image.convert_image_dtype(
+        tf.image.decode_jpeg(parsed["image/encoded"]), tf.float32)
+
+    image = tf.reshape(image, image_shape)
+    label = tf.cast(parsed["image/class/label"], tf.int32)
+
+    return image, label
+
+
+def initialize_dataset(image_dir, batch_size, num_epochs=1,
+                       num_workers=None, prefetch_buffer_size=None,
+                       shuffle_buffer_size=None):
+    # Retrieve data set from pattern.
+    dataset = _tfrecord_dataset_from_folder(image_dir)
+    dataset = dataset.map(_parse_example, num_parallel_calls=num_workers)
+
+    if shuffle_buffer_size is not None:
+        dataset = dataset.shuffle(shuffle_buffer_size)
+
+    dataset = dataset.repeat(num_epochs)
+    dataset = dataset.batch(batch_size)
+
+    if prefetch_buffer_size is not None:
+        dataset = dataset.prefetch(prefetch_buffer_size)
+
+    return dataset
+
+
+def variable_summaries(var):
+    with tf.name_scope('summaries'):
+        mean = tf.reduce_mean(var)
+        tf.summary.scalar('mean', mean)
+        with tf.name_scope('stddev'):
+            stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+        tf.summary.scalar('stddev', stddev)
+        tf.summary.scalar('max', tf.reduce_max(var))
+        tf.summary.scalar('min', tf.reduce_min(var))
+        tf.summary.histogram('histogram', var)
+
+
+# Set up a session and bind it to Keras.
 sess = tf.Session()
 tf.keras.backend.set_session(sess)
-tf.keras.backend.set_learning_phase(False)
+tf.keras.backend.set_learning_phase(True)
+tf.keras.backend.set_image_data_format(image_data_format)
 
-# Other tensors.
-global_step = tf.Variable(
-    initial_value=0, name='global_step', trainable=False)
+if mode == 'test':
+    # Evaluate saved model.
+    test_dataset = initialize_dataset(
+        test_records_dir, test_batch_size, num_epochs,
+        num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+        shuffle_buffer_size=shuffle_buffer_size)
 
-# Input tensors.
-x = tf.placeholder(
-    tf.float32, shape=(None, image_dim, image_dim, num_channels), name='x')
-
-# Create placeholder for label classes.
-y_orig_cls = tf.placeholder(tf.float32, shape=(None), name='y_orig_cls')
-
-# Set variable according to specified mode.
-#  'one_label' creates an a one-label y_true.
-#  'two_labels' creates a two-label y_true.
-if mode == 'one_label':
-    num_labels = 1
-elif mode == 'two_labels':
-    num_labels = 2
-else:
-    TypeError('invalid mode: choose either one_label or two_labels')
-
-# The label classes are in a range of 0 to 4 (no DR towards proliferative DR).
-# Convert the classes to a binary label where class 0 and 1 is interpreted
-#  as 0; and class 2, 3 and 4 are interpreted as 1.
-y_true = tf.reshape(
-    tf.cast(
-        tf.greater_equal(y_orig_cls, tf.constant(2.0)), tf.float32,
-        name='y_true'),
-    shape=[-1, 1])
-
-# The optional second binary label is 0 if class is 0, 1 or 2; and 1 if higher.
-if mode == 'two_labels':
-    second_label = tf.reshape(
-        tf.cast(
-            tf.greater_equal(y_orig_cls, tf.constant(3.0)), tf.float32),
-        shape=[-1, 1])
-
-    # Add the second label to the first label.
-    y_true = tf.reshape(
-        tf.stack([y_true, second_label], axis=2), shape=[-1, 2])
-
-# Base model InceptionV3 without top and global average pooling.
-base_model = tf.keras.applications.InceptionV3(
-    include_top=False, weights='imagenet', input_tensor=x, pooling='avg')
-
-for layer in base_model.layers:
-    layer.trainable = True
-
-# Add dense layer with the same amount of neurons as labels.
-logits = tf.layers.dense(base_model.output, units=num_labels)
-
-# Get the predictions with a sigmoid activation function.
-y_pred = tf.sigmoid(logits, name='y_pred')
-
-# Predicted classes for labels.
-y_pred_cls = tf.round(y_pred, name='y_pred_cls')
-
-# Retrieve loss of network.
-loss = tf.reduce_mean(
-    tf.nn.sigmoid_cross_entropy_with_logits(labels=y_true, logits=logits))
-
-# Use stochastic gradient descent for optimizing.
-optimizer = tf.train.MomentumOptimizer(
-        learning_rate, momentum=0.9, use_nesterov=True) \
-                .minimize(loss, global_step)
-
-# Calculate metrics for training.
-accuracy = tf.reduce_mean(tf.cast(tf.equal(y_pred_cls, y_true), tf.float32))
-
-# Global constant for zeroed labels.
-zeroed_labels = tf.zeros(shape=(num_labels), dtype=tf.int64)
+    # TODO: Perform test.
+    sys.exit(0)
 
 
-def true_positives_each(labels, predictions):
-    tp = tf.Variable(
-        zeroed_labels, collections=[tf.GraphKeys.LOCAL_VARIABLES])
-    tp_op = tf.assign(
-        tp, tf.add(tp, tf.count_nonzero(labels * predictions, axis=0)))
-    return tp, tp_op
+# Initialize each data set.
+training_dataset = initialize_dataset(
+    training_records_dir, training_batch_size,
+    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+    shuffle_buffer_size=shuffle_buffer_size)
 
+validation_dataset = initialize_dataset(
+    validation_records_dir, validation_batch_size,
+    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+    shuffle_buffer_size=shuffle_buffer_size)
 
-def true_negatives_each(labels, predictions):
-    tn = tf.Variable(
-        zeroed_labels, collections=[tf.GraphKeys.LOCAL_VARIABLES])
-    tn_op = tf.assign(
-        tn, tf.add(tn, tf.count_nonzero((labels-1) * (predictions-1), axis=0)))
-    return tn, tn_op
-
-
-def false_positives_each(labels, predictions):
-    fp = tf.Variable(
-        zeroed_labels, collections=[tf.GraphKeys.LOCAL_VARIABLES])
-    fp_op = tf.assign(
-        fp, tf.add(fp, tf.count_nonzero(labels * (predictions-1), axis=0)))
-    return fp, fp_op
-
-
-def false_negatives_each(labels, predictions):
-    fn = tf.Variable(
-        zeroed_labels, collections=[tf.GraphKeys.LOCAL_VARIABLES])
-    fn_op = tf.assign(
-        fn, tf.add(fn, tf.count_nonzero((labels-1) * predictions, axis=0)))
-    return fn, fn_op
-
-
-def create_reset_metric(metric, scope='reset_metrics', **metric_args):
-    with tf.variable_scope(scope) as scope:
-        metric_op, update_op = metric(**metric_args)
-        vars = tf.contrib.framework.get_variables(
-            scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
-        reset_op = tf.variables_initializer(vars)
-    return metric_op, update_op, reset_op
-
-# Calculate metrics for validation.
-mse, update_mse_op, reset_mse_op = create_reset_metric(
-    tf.metrics.mean_squared_error, scope='mse',
-    labels=y_true, predictions=y_pred_cls)
-
-auc, update_auc_op, reset_auc_op = create_reset_metric(
-    tf.metrics.auc, scope='auc', labels=y_true, predictions=y_pred)
-
-tp, update_tp_op, reset_tp_op = create_reset_metric(
-    true_positives_each, scope='true_positives',
-    labels=y_true, predictions=y_pred_cls)
-
-tn, update_tn_op, reset_tn_op = create_reset_metric(
-    true_negatives_each, scope='true_negatives',
-    labels=y_true, predictions=y_pred_cls)
-
-fp, update_fp_op, reset_fp_op = create_reset_metric(
-    false_positives_each, scope='false_positives',
-    labels=y_true, predictions=y_pred_cls)
-
-fn, update_fn_op, reset_fn_op = create_reset_metric(
-    false_negatives_each, scope='false_negatives',
-    labels=y_true, predictions=y_pred_cls)
-
-# Operations for confusion matrix.
-confusion_matrix = tf.reshape(
-    tf.stack([tp, fp, fn, tn], axis=1), shape=[num_labels, 2, 2])
-
-
-# Data batcher.
-class ImageGenerator():
-    def __init__(self, images_dir, batch_size, shuffle=True,
-                 preprocess_py_fn=None, preprocess_tf_fn=None):
-        self.steps_set_by_user = False
-        self.images_dir = images_dir
-        self.batch_size = batch_size
-        self.do_shuffle = shuffle
-        self.preprocess_py_fn = preprocess_py_fn
-        self.preprocess_tf_fn = preprocess_tf_fn
-
-        self.classes = self._find_classes()
-        self.class_dict = self._generate_class_dict()
-        self.paths_to_images = self._paths_to_images()
-        self.path_tensor = self._path_tensor()
-        self.label_tensor = self._label_tensor()
-        self.dataset = self._generate_dataset()
-
-        self.steps = ceil(len(self) / self.batch_size)
-
-    def __len__(self):
-        if self.steps_set_by_user is True:
-            return self.batch_size * self.steps
-        else:
-            return len(self.paths_to_images)
-
-    def _paths_to_images(self):
-        paths = glob(os.path.join(self.images_dir, "*/*.jpeg"))
-        random.shuffle(paths)
-        return paths
-
-    def _find_classes(self):
-        return sorted(
-            [name for name in os.listdir(self.images_dir)
-             if os.path.isdir(os.path.join(self.images_dir, name))])
-
-    def _find_label(self, filename):
-        return self.class_dict[filename.split("/")[-2]]
-
-    def _generate_class_dict(self):
-        return dict(zip(self.classes, range(len(self.classes))))
-
-    def _generate_dataset(self):
-        def _read_image(filename, label):
-            image_string = tf.read_file(filename)
-            image = tf.image.convert_image_dtype(
-                tf.image.decode_image(image_string), tf.float32)
-            return image, label
-
-        dataset = tf.data.Dataset.from_tensor_slices(
-            (self.path_tensor, self.label_tensor))
-        dataset = dataset.map(_read_image, num_parallel_calls=8) \
-                            .prefetch(100 * self.batch_size)
-
-        if self.preprocess_py_fn is not None:
-            dataset = dataset.map(
-                lambda filename, label: tuple(tf.py_func(
-                    self.preprocess_py_fn, [filename, label],
-                    [tf.uint8, label.dtype])))
-
-        if self.preprocess_tf_fn is not None:
-            dataset = dataset.map(self.preprocess_tf_fn)
-
-        if self.do_shuffle is True:
-            dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
-
-        dataset = dataset.batch(self.batch_size)
-        return dataset
-
-    def _path_tensor(self):
-        return tf.constant(self.paths_to_images)
-
-    def _label_tensor(self):
-        return tf.constant(
-            [self._find_label(path) for path in self.paths_to_images],
-            tf.float32)
-
-    def set_steps(self, num):
-        self.steps = num
-        self.steps_set_by_user = True
-
-
-training_generator = ImageGenerator(
-    training_images_dir, batch_size=training_batch_size)
-validation_generator = ImageGenerator(
-    validation_images_dir, batch_size=validation_batch_size)
-
-training_dataset = training_generator.dataset
-validation_dataset = validation_generator.dataset
-
-print("Training: {0} images found of {1} classes."
-      .format(len(training_generator), len(training_generator.classes)))
-print("Validation: {0} images found of {1} classes."
-      .format(len(validation_generator), len(validation_generator.classes)))
-
+# Create an initialize iterators.
 iterator = tf.data.Iterator.from_structure(
     training_dataset.output_types, training_dataset.output_shapes)
 
-next_element = iterator.get_next()
+images, labels = iterator.get_next()
 
 training_init_op = iterator.make_initializer(training_dataset)
 validation_init_op = iterator.make_initializer(validation_dataset)
 
+# Base model InceptionV3 without top and global average pooling.
+base_model = tf.keras.applications.InceptionV3(
+    include_top=False, weights='imagenet', input_tensor=images, pooling='avg')
 
-def print_training_status(epoch, num_epochs, batch, num_batches, acc, loss):
+# Add summary hooks to all variables in layers.
+#for layer in base_model.layers[1:num_summarize_layers]:
+#    with tf.name_scope(layer.scope_name):
+#        for variable in layer.variables:
+#            with tf.name_scope(re.split(r"[:/]", variable.name)[-2]):
+#                variable_summaries(variable)
+#
+#        output = layer.output
+#        with tf.name_scope(re.split(r"[:/]", output.name)[-2]):
+#            variable_summaries(output)
+
+# Add dense layer with the same amount of neurons as labels.
+with tf.name_scope('logits'):
+    logits = tf.layers.dense(base_model.output, units=num_labels)
+    #variable_summaries(logits)
+
+# Get the predictions with a sigmoid activation function.
+with tf.name_scope('predictions'):
+    predictions = tf.sigmoid(logits)
+    #variable_summaries(predictions)
+
+# Get the class predictions for labels.
+predictions_classes = tf.round(predictions)
+
+# The label classes are in a range of 0 to 4 (no DR towards
+#  proliferative DR).
+# Convert the classes to a binary label where class 0 and 1 is interpreted
+#  as 0; and class 2, 3 and 4 are interpreted as 1.
+y = tf.cast(
+    tf.reshape(tf.greater_equal(labels, tf.constant(2)), [-1, 1]), tf.float32)
+
+if num_labels == 2:
+    # The optional second binary label is 0 if class is 0, 1 or 2;
+    #  and 1 if higher.
+    second_label = tf.cast(
+        tf.reshape(tf.greater_equal(labels, tf.constant(3)), [-1, 1]),
+        tf.float32)
+
+    # Add the second label to the first label.
+    y = tf.reshape(tf.stack([y, second_label], axis=2), shape=[-1, 2])
+
+# Retrieve loss of network using cross entropy.
+mean_xentropy = tf.reduce_mean(
+    tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=logits))
+#tf.summary.scalar('mean_xentropy', mean_xentropy)
+
+# Define SGD optimizer with momentum and nesterov.
+global_step = tf.Variable(0, dtype=tf.int32)
+
+train_op = tf.train.MomentumOptimizer(
+    learning_rate, momentum=0.9, use_nesterov=True) \
+        .minimize(loss=mean_xentropy, global_step=global_step)
+
+
+# Metrics for finding best validation set.
+tp, update_tp, reset_tp = metrics.create_reset_metric(
+    metrics.true_positives, scope='tp', labels=y,
+    predictions=predictions_classes, num_labels=num_labels)
+
+fp, update_fp, reset_fp = metrics.create_reset_metric(
+    metrics.false_positives, scope='fp', labels=y,
+    predictions=predictions_classes, num_labels=num_labels)
+
+fn, update_fn, reset_fn = metrics.create_reset_metric(
+    metrics.false_negatives, scope='fn', labels=y,
+    predictions=predictions_classes, num_labels=num_labels)
+
+tn, update_tn, reset_tn = metrics.create_reset_metric(
+    metrics.true_negatives, scope='tn', labels=y,
+    predictions=predictions_classes, num_labels=num_labels)
+
+confusion_matrix = metrics.confusion_matrix(
+    tp, fp, fn, tn, num_labels=num_labels)
+
+brier, update_brier, reset_brier = metrics.create_reset_metric(
+    tf.metrics.mean_squared_error, scope='brier',
+    labels=y, predictions=predictions)
+#tf.summary.scalar('brier', brier)
+
+auc, update_auc, reset_auc = metrics.create_reset_metric(
+    tf.metrics.auc, scope='auc',
+    labels=y, predictions=predictions)
+#tf.summary.scalar('auc', auc)
+
+
+# Merge all the summaries and write them out.
+#summaries_op = tf.summary.merge_all()
+#train_writer = tf.summary.FileWriter(save_summaries_dir + "/train")
+#test_writer = tf.summary.FileWriter(save_summaries_dir + "/test")
+
+
+def print_training_status(epoch, num_epochs, batch_num, xent, i_step=None):
     def length(x): return len(str(x))
-    end = "\r"
+
     m = []
     m.append(
         f"Epoch: {{0:>{length(num_epochs)}}}/{{1:>{length(num_epochs)}}}"
-        .format(epoch+1, num_epochs))
-    m.append(
-        f"Step: {{0:>{length(num_batches)}}}/{{1:>{length(num_batches)}}}"
-        .format(batch+1, num_batches))
-    m.append(f"Acc: {acc:6.4}, Xent: {loss:6.4}")
+        .format(epoch, num_epochs))
+    m.append(f"Batch: {batch_num:>4}, Xent: {xent:6.4}")
 
-    if batch == num_batches-1:
-        end = ", "
+    if i_step is not None:
+        m.append(f"Step: {i_step:>10}")
 
-    print(", ".join(m), end=end)
+    print(", ".join(m), end="\r")
 
 
+# Initialize session.
 sess.run(tf.global_variables_initializer())
 sess.run(tf.local_variables_initializer())
-
-tf.train.start_queue_runners(sess=sess)
 
 # Add ops for saving and restoring all variables.
 saver = tf.train.Saver()
@@ -316,68 +269,60 @@ saver = tf.train.Saver()
 # Train for the specified amount of epochs.
 # Can be stopped early if peak of validation auc (Area under curve)
 #  is reached.
-previous_auc = 0
+latest_peak_auc = 0
 waited_epochs = 0
 
 for epoch in range(num_epochs):
     # Start training.
-    sess.run(training_init_op)
     tf.keras.backend.set_learning_phase(True)
+    sess.run(training_init_op)
+    batch_num = 0
 
-    for step in range(training_generator.steps):
-        # Retrieve a batch of training data.
-        images, labels = sess.run(next_element)
+    try:
+        while True:
+            # Optimize cross entropy.
+            i_global, batch_xent, _ = sess.run(
+                [global_step, mean_xentropy, train_op])
 
-        # Create a feed dictionary for the input data.
-        feed_dict_training = {
-            x: images, y_orig_cls: labels}
+            # Print a nice training status.
+            print_training_status(
+                epoch, num_epochs, batch_num, batch_xent, i_global)
 
-        # Optimize loss.
-        i_global, _, batch_acc, batch_loss = sess.run(
-            [global_step, optimizer, accuracy, loss],
-            feed_dict=feed_dict_training)
+            # Report summaries.
+            batch_num += 1
 
-        # Print a nice training status.
-        print_training_status(
-            epoch, num_epochs, step, training_generator.steps,
-            batch_acc, batch_loss)
+    except tf.errors.OutOfRangeError:
+        print(f"\nEnd of epoch {epoch}!")
 
     # Validation.
-    sess.run(validation_init_op)
     tf.keras.backend.set_learning_phase(False)
+    sess.run(validation_init_op)
 
-    for _ in range(validation_generator.steps):
-        # Retrieve a batch of validation data.
-        images, labels = sess.run(next_element)
+    # Reset all streaming variables.
+    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
 
-        # Validate the current classifier against validation set.
-        feed_dict_validation = {x: images,
-                                y_orig_cls: labels}
+    try:
+        while True:
+            # Retrieve the validation set confusion metrics.
+            sess.run([update_tp, update_fp, update_fn,
+                      update_tn, update_brier, update_auc])
 
-        # Retrieve the validation set confusion metrics.
-        sess.run(
-            [logits, y_pred, loss, update_tp_op, update_tn_op, update_fp_op, 
-             update_fn_op, update_auc_op, update_mse_op],
-            feed_dict=feed_dict_validation)
+    except tf.errors.OutOfRangeError:
+        pass
 
     # Retrieve confusion matrix and estimated roc auc score.
-    val_confusion_matrix, val_mse, val_auc = sess.run(
-            [confusion_matrix, mse, auc])
+    val_conf_matrix, val_brier, val_auc = sess.run(
+        [confusion_matrix, brier, auc])
 
     # Print total roc auc score for validation.
-    print(f"Val mse: {val_mse:6.4}, Val auc: {val_auc:10.8}")
+    print(f"Val brier score: {val_brier:6.4}, Val auc: {val_auc:10.8}")
 
     # Print confusion matrix for each label.
     for i in range(num_labels):
         print(f"Confusion matrix for label {i+1}:")
-        print(val_confusion_matrix[i])
+        print(val_conf_matrix[i])
 
-    # Reset all streaming variables.
-    sess.run(
-        [reset_tp_op, reset_tn_op, reset_fp_op, reset_fn_op,
-         reset_mse_op, reset_auc_op])
-
-    if val_auc < previous_auc:
+    if val_auc < latest_peak_auc:
         # Stop early if peak of val auc has been reached.
         # If it is lower than the previous auc value, wait up to `wait_epochs`
         #  to see if it does not increase again.
@@ -391,9 +336,12 @@ for epoch in range(num_epochs):
     else:
         latest_peak_auc = val_auc
         print(f"New peak auc reached: {val_auc:10.8}")
-        
+
         # Save the model weights.
-        saver.save(sess, save_model_path) 
+        saver.save(sess, save_model_path)
+
+        # Reset waited epochs.
+        waited_epochs = 0
 
 # Close the session.
 sess.close()

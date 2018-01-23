@@ -109,3 +109,4 @@ logs/
 logs*/
 *.hdf5
 tensorflow/saved
+*/tmp/
