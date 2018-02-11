@@ -266,7 +266,7 @@ for epoch in range(num_epochs):
     try:
         while True:
             # Optimize cross entropy.
-            i_global, batch_xent, _, _ = sess.run(
+            i_global, batch_xent, _ = sess.run(
                 [global_step, mean_xentropy, train_op])
 
             # Print a nice training status.
