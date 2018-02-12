@@ -31,7 +31,7 @@ wait_epochs = 10
 num_workers = 8
 #num_summarize_layers = 4
 #report_per_step = 100
-mode = 'train'
+mode = 'test'
 
 # Maximum number of epochs. Can be stopped early.
 num_epochs = 200
@@ -39,6 +39,7 @@ num_epochs = 200
 # Batch sizes.
 training_batch_size = 32
 validation_batch_size = 32
+test_batch_size = 16
 
 # Buffer size for image shuffling.
 shuffle_buffer_size = 5000
@@ -121,11 +122,13 @@ tf.keras.backend.set_image_data_format(image_data_format)
 if mode == 'test':
     # Evaluate saved model.
     test_dataset = initialize_dataset(
-        test_records_dir, test_batch_size, num_epochs,
+        test_records_dir, test_batch_size,
         num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
         shuffle_buffer_size=shuffle_buffer_size)
 
-    # TODO: Perform test.
+    # Load variables.
+
+
     sys.exit(0)
 
 
