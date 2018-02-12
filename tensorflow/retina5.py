@@ -119,19 +119,6 @@ tf.keras.backend.set_session(sess)
 tf.keras.backend.set_learning_phase(True)
 tf.keras.backend.set_image_data_format(image_data_format)
 
-if mode == 'test':
-    # Evaluate saved model.
-    test_dataset = initialize_dataset(
-        test_records_dir, test_batch_size,
-        num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-        shuffle_buffer_size=shuffle_buffer_size)
-
-    # Load variables.
-
-
-    sys.exit(0)
-
-
 # Initialize each data set.
 training_dataset = initialize_dataset(
     training_records_dir, training_batch_size,
@@ -151,6 +138,15 @@ images, labels = iterator.get_next()
 
 training_init_op = iterator.make_initializer(training_dataset)
 validation_init_op = iterator.make_initializer(validation_dataset)
+
+if mode == 'test':
+    # Evaluate saved model.
+    test_dataset = initialize_dataset(
+        test_records_dir, test_batch_size,
+        num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+        shuffle_buffer_size=shuffle_buffer_size)
+
+    test_init_op = iterator.make_initializer(test_dataset)
 
 # Base model InceptionV3 without top and global average pooling.
 base_model = tf.keras.applications.InceptionV3(
@@ -247,12 +243,53 @@ def print_training_status(epoch, num_epochs, batch_num, xent, i_step=None):
     print(", ".join(m), end="\r")
 
 
-# Initialize session.
-sess.run(tf.global_variables_initializer())
-sess.run(tf.local_variables_initializer())
+def perform_test(init_op, summary_writer=None, epoch=None):
+    tf.keras.backend.set_learning_phase(False)
+    sess.run(init_op)
+
+    # Reset all streaming variables.
+    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
+
+    try:
+        while True:
+            # Retrieve the validation set confusion metrics.
+            sess.run([update_tp, update_fp, update_fn,
+                      update_tn, update_brier, update_auc])
+
+    except tf.errors.OutOfRangeError:
+        pass
+
+    # Retrieve confusion matrix and estimated roc auc score.
+    test_conf_matrix, test_brier, test_auc, summaries = sess.run(
+        [confusion_matrix, brier, auc, summaries_op])
+
+    # Write summary.
+    if summary_writer is not None:
+        summary_writer.add_summary(summaries, epoch)
+
+    # Print total roc auc score for validation.
+    print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
+
+    # Print confusion matrix for each label.
+    for i in range(num_labels):
+        print(f"Confusion matrix for label {i+1}:")
+        print(test_conf_matrix[i])
+
 
 # Add ops for saving and restoring all variables.
 saver = tf.train.Saver()
+
+# Initialize session.
+if mode == 'test':
+    saver.restore(sess, save_model_path)
+    perform_test(init_op=test_init_op)
+
+    sess.close()
+    sys.exit(0)
+else:
+    sess.run(tf.global_variables_initializer())
+    sess.run(tf.local_variables_initializer())
+
 
 # Train for the specified amount of epochs.
 # Can be stopped early if peak of validation auc (Area under curve)
@@ -282,36 +319,8 @@ for epoch in range(num_epochs):
     except tf.errors.OutOfRangeError:
         print(f"\nEnd of epoch {epoch}!")
 
-    # Validation.
-    tf.keras.backend.set_learning_phase(False)
-    sess.run(validation_init_op)
-
-    # Reset all streaming variables.
-    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
-
-    try:
-        while True:
-            # Retrieve the validation set confusion metrics.
-            sess.run([update_tp, update_fp, update_fn,
-                      update_tn, update_brier, update_auc])
-
-    except tf.errors.OutOfRangeError:
-        pass
-
-    # Retrieve confusion matrix and estimated roc auc score.
-    val_conf_matrix, val_brier, val_auc, summaries = sess.run(
-        [confusion_matrix, brier, auc, summaries_op])
-
-    # Write summary.
-    train_writer.add_summary(summaries, epoch)
-
-    # Print total roc auc score for validation.
-    print(f"Val brier score: {val_brier:6.4}, Val auc: {val_auc:10.8}")
-
-    # Print confusion matrix for each label.
-    for i in range(num_labels):
-        print(f"Confusion matrix for label {i+1}:")
-        print(val_conf_matrix[i])
+    perform_test(init_op=validation_init_op, summary_writer=train_writer,
+                 epoch=epoch)
 
     if val_auc < latest_peak_auc:
         # Stop early if peak of val auc has been reached.
