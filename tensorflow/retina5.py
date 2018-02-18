@@ -18,7 +18,7 @@ random.seed(432)
 # Various loading and saving constants..
 training_records_dir = '../data/eyepacs/jama_dist_train'
 validation_records_dir = '../data/eyepacs/jama_dist_validation'
-test_records_dir = '../data/eyepacs/jama_dist_test'
+test_records_dir = '/home/mvo010/Dropbox (Medsensio)/External data/Retinopathy/messidor2/conv/orig_dim' # '../data/eyepacs/jama_dist_test'
 
 save_model_path = "./tmp/model-2-labels-1.ckpt"
 save_summaries_dir = "./tmp/logs-2-labels"
@@ -61,7 +61,7 @@ def _tfrecord_dataset_from_folder(folder, ext='.tfrecord'):
     return tf.data.TFRecordDataset(tfrecords)
 
 
-def _parse_example(proto):
+def _parse_example(proto, image_dim):
     features = {"image/encoded": tf.FixedLenFeature((), tf.string),
                 "image/format": tf.FixedLenFeature((), tf.string),
                 "image/class/label": tf.FixedLenFeature((), tf.int64),
@@ -73,16 +73,7 @@ def _parse_example(proto):
     image = tf.image.convert_image_dtype(
         tf.image.decode_jpeg(parsed["image/encoded"]), tf.float32)
 
-    width = parsed["image/width"]
-    height = parsed["image/height"]
-
-    if image_data_format == 'channels_first':
-        image = tf.reshape(image, [num_channels, width, height])
-    elif image_data_format == 'channels_last':
-        image = tf.reshape(image, [width, height, num_channels])
-    else:
-        raise TypeError('invalid image data format')
-
+    image = tf.reshape(image, image_dim)
     label = tf.cast(parsed["image/class/label"], tf.int32)
 
     return image, label
@@ -93,7 +84,28 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
                        shuffle_buffer_size=None):
     # Retrieve data set from pattern.
     dataset = _tfrecord_dataset_from_folder(image_dir)
-    dataset = dataset.map(_parse_example, num_parallel_calls=num_workers)
+
+    # Find metadata file with image dimensions.
+    image_dim_fn = os.path.join(image_dir, 'dimensions.txt')
+    
+    with open(image_dim_fn, 'r') as f:
+        image_dims = list(filter(None, f.read().split('\n')))
+    
+        if len(image_dims) > 1:
+            raise TypeError(
+                "can't initialize dataset with multiple image dims")
+
+        image_dim = [int(x) for x in image_dims[0].split('x')]
+    
+    if image_data_format == 'channels_first':
+        image_dim = [num_channels, image_dim[0], image_dim[1]]
+    elif image_data_format == 'channels_last':
+        image_dim = [image_dim[0], image_dim[1], num_channels]
+    else:
+        raise TypeError('invalid image date format setting')
+
+    dataset = dataset.map(lambda e: _parse_example(e, image_dim), 
+                          num_parallel_calls=num_workers)
 
     if shuffle_buffer_size is not None:
         dataset = dataset.shuffle(shuffle_buffer_size)
@@ -152,11 +164,16 @@ if mode == 'test':
         num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
         shuffle_buffer_size=shuffle_buffer_size)
 
-    test_init_op = iterator.make_initializer(test_dataset)
+    test_iterator = tf.data.Iterator.from_structure(
+        test_dataset.output_types, test_dataset.output_shapes)
+
+    images, labels = test_iterator.get_next()
+
+    test_init_op = test_iterator.make_initializer(test_dataset)
 
 # Base model InceptionV3 without top and global average pooling.
 base_model = tf.keras.applications.InceptionV3(
-    include_top=False, weights='imagenet', input_tensor=images, pooling='avg')
+    include_top=False, weights='imagenet', pooling='avg', input_tensor=images)
 
 # Add dense layer with the same amount of neurons as labels.
 with tf.name_scope('logits'):
