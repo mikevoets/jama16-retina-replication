@@ -24,14 +24,13 @@ save_model_path = "./tmp/model-2-labels-1.ckpt"
 save_summaries_dir = "./tmp/logs-2-labels"
 
 # Various training and evaluation constants.
-image_dim = 299
 num_channels = 3
 num_labels = 2
 wait_epochs = 10
 num_workers = 8
-#num_summarize_layers = 4
-#report_per_step = 100
 mode = 'test'
+first_label_sep = 1
+second_label_sep = 2
 
 # Maximum number of epochs. Can be stopped early.
 num_epochs = 200
@@ -52,10 +51,8 @@ learning_rate = 3e-3
 if tf.test.is_gpu_available():
     print("Found GPU! Using channels first as default image data format.")
     image_data_format = 'channels_first'
-    image_shape = [num_channels, image_dim, image_dim]
 else:
     image_data_format = 'channels_last'
-    image_shape = [image_dim, image_dim, num_channels]
 
 
 def _tfrecord_dataset_from_folder(folder, ext='.tfrecord'):
@@ -76,7 +73,16 @@ def _parse_example(proto):
     image = tf.image.convert_image_dtype(
         tf.image.decode_jpeg(parsed["image/encoded"]), tf.float32)
 
-    image = tf.reshape(image, image_shape)
+    width = parsed["image/width"]
+    height = parsed["image/height"]
+
+    if image_data_format == 'channels_first':
+        image = tf.reshape(image, [num_channels, width, height])
+    elif image_data_format == 'channels_last':
+        image = tf.reshape(image, [width, height, num_channels])
+    else:
+        raise TypeError('invalid image data format')
+
     label = tf.cast(parsed["image/class/label"], tf.int32)
 
     return image, label
@@ -163,18 +169,16 @@ with tf.name_scope('predictions'):
 # Get the class predictions for labels.
 predictions_classes = tf.round(predictions)
 
-# The label classes are in a range of 0 to 4 (no DR towards
-#  proliferative DR).
-# Convert the classes to a binary label where class 0 and 1 is interpreted
-#  as 0; and class 2, 3 and 4 are interpreted as 1.
+# Convert the classes to a binary label.
 y = tf.cast(
-    tf.reshape(tf.greater_equal(labels, tf.constant(2)), [-1, 1]), tf.float32)
+    tf.reshape(tf.greater_equal(labels, tf.constant(first_label_sep)),
+                                [-1, 1]), tf.float32)
 
 if num_labels == 2:
-    # The optional second binary label is 0 if class is 0, 1 or 2;
-    #  and 1 if higher.
+    # The optional second binary label.
     second_label = tf.cast(
-        tf.reshape(tf.greater_equal(labels, tf.constant(3)), [-1, 1]),
+        tf.reshape(tf.greater_equal(labels, tf.constant(second_label_sep)),
+                   [-1, 1]),
         tf.float32)
 
     # Add the second label to the first label.
