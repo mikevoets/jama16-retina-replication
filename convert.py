@@ -1,24 +1,13 @@
 import os
 import sys
 import importlib
-import eyepacs.v3 as eye
 import csv
 from preprocess import scale_normalize, resize
 from distutils.dir_util import copy_tree
 
-
-def load_module(mod):
-    return importlib.import_module(mod.replace('/', '.').split('.py')[0])
+# TODO: Flags input/output directory
 
 
-# Get config and set directories.
-module = load_module('eyepacs/configs/299_iv3.py')
-config = module.config
-
-# Set locations of dataset.
-eye.data_path = "/media/mike/Elements/Retina/"
-eye.test_subpath = "orig_test/"
-eye.test_pre_subpath = "orig_test/512/"
 
 
 for pre_subpath in [eye.test_pre_subpath]:

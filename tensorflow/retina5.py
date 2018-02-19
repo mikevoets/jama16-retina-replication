@@ -18,7 +18,7 @@ random.seed(432)
 # Various loading and saving constants..
 training_records_dir = '../data/eyepacs/jama_dist_train'
 validation_records_dir = '../data/eyepacs/jama_dist_validation'
-test_records_dir = '/home/mvo010/Dropbox (Medsensio)/External data/Retinopathy/messidor2/conv/orig_dim' # '../data/eyepacs/jama_dist_test'
+test_records_dir = '/home/mvo010/Dropbox (Medsensio)/External data/Retinopathy/messidor2/conv/1440_dim' # '../data/eyepacs/jama_dist_test'
 
 save_model_path = "./tmp/model-2-labels-1.ckpt"
 save_summaries_dir = "./tmp/logs-2-labels"
@@ -38,7 +38,7 @@ num_epochs = 200
 # Batch sizes.
 training_batch_size = 32
 validation_batch_size = 32
-test_batch_size = 16
+test_batch_size = 4
 
 # Buffer size for image shuffling.
 shuffle_buffer_size = 5000
@@ -72,7 +72,7 @@ def _parse_example(proto, image_dim):
     # Rescale to 1./255.
     image = tf.image.convert_image_dtype(
         tf.image.decode_jpeg(parsed["image/encoded"]), tf.float32)
-
+   
     image = tf.reshape(image, image_dim)
     label = tf.cast(parsed["image/class/label"], tf.int32)
 
@@ -161,14 +161,14 @@ if mode == 'test':
     # Evaluate saved model.
     test_dataset = initialize_dataset(
         test_records_dir, test_batch_size,
-        num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-        shuffle_buffer_size=shuffle_buffer_size)
+        num_workers=num_workers, prefetch_buffer_size=20,
+        shuffle_buffer_size=20)
 
     test_iterator = tf.data.Iterator.from_structure(
         test_dataset.output_types, test_dataset.output_shapes)
 
     images, labels = test_iterator.get_next()
-
+    
     test_init_op = test_iterator.make_initializer(test_dataset)
 
 # Base model InceptionV3 without top and global average pooling.
