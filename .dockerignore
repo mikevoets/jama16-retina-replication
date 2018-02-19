@@ -1,8 +1,0 @@
-.git
-backup
-data
-data/inception
-.ipynb_checkpoints
-.gitignore
-README.md
-Dockerfile

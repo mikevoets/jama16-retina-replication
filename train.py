@@ -72,7 +72,7 @@ def _parse_example(proto, image_dim):
     # Rescale to 1./255.
     image = tf.image.convert_image_dtype(
         tf.image.decode_jpeg(parsed["image/encoded"]), tf.float32)
-   
+
     image = tf.reshape(image, image_dim)
     label = tf.cast(parsed["image/class/label"], tf.int32)
 
@@ -87,16 +87,16 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
 
     # Find metadata file with image dimensions.
     image_dim_fn = os.path.join(image_dir, 'dimensions.txt')
-    
+
     with open(image_dim_fn, 'r') as f:
         image_dims = list(filter(None, f.read().split('\n')))
-    
+
         if len(image_dims) > 1:
             raise TypeError(
                 "can't initialize dataset with multiple image dims")
 
         image_dim = [int(x) for x in image_dims[0].split('x')]
-    
+
     if image_data_format == 'channels_first':
         image_dim = [num_channels, image_dim[0], image_dim[1]]
     elif image_data_format == 'channels_last':
@@ -104,7 +104,7 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
     else:
         raise TypeError('invalid image date format setting')
 
-    dataset = dataset.map(lambda e: _parse_example(e, image_dim), 
+    dataset = dataset.map(lambda e: _parse_example(e, image_dim),
                           num_parallel_calls=num_workers)
 
     if shuffle_buffer_size is not None:
@@ -168,7 +168,7 @@ if mode == 'test':
         test_dataset.output_types, test_dataset.output_shapes)
 
     images, labels = test_iterator.get_next()
-    
+
     test_init_op = test_iterator.make_initializer(test_dataset)
 
 # Base model InceptionV3 without top and global average pooling.
