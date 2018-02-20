@@ -1,9 +1,22 @@
 import os
 import argparse
 import sys
-import eyepacs.v3 as eye
 from glob import glob
 from shutil import copyfile
+
+_cnt = 0
+
+
+def print_status(msg):
+    global _cnt
+    CURSOR_UP_ONE = '\x1b[1A'
+    ERASE_LINE = '\x1b[2K'
+    print(ERASE_LINE + CURSOR_UP_ONE)
+    msg = "\r[{0:>2}] - {1}".format(_cnt, msg)
+    sys.stdout.write(msg)
+    sys.stdout.flush()
+    _cnt += 1
+
 
 parser = argparse.ArgumentParser(description='Redistribute data set.')
 parser.add_argument("source", help="Pool to take from.")
@@ -61,13 +74,13 @@ for i in range(5):
     test_split = class_images[i][requested[i]:]
 
     for j in range(len(train_split)):
-        eye.print_status("Copying class {} (train): {} / {}"
-                         .format(i, j, len(train_split)))
+        print_status("Copying class {} (train): {} / {}"
+                     .format(i, j, len(train_split)))
         new_path = train_split[j].replace(pool, train_path)
         copyfile(train_split[j], new_path)
 
     for j in range(len(test_split)):
-        eye.print_status("Copying class {} (test): {} / {}"
-                         .format(i, j, len(test_split)))
+        print_status("Copying class {} (test): {} / {}"
+                     .format(i, j, len(test_split)))
         new_path = test_split[j].replace(pool, test_path)
         copyfile(test_split[j], new_path)
