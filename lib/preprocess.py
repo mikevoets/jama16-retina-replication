@@ -137,22 +137,24 @@ def _get_image_paths(images_path):
     return [os.path.join(images_path, fn) for fn in os.listdir(images_path)]
 
 
-def _scale_normalize_all(image_paths, save_path, diameter):
+def _scale_normalize_all(image_paths, save_path, diameter, verbosity):
     # Get the total amount of images.
     num_images = len(image_paths)
+    success = 0
 
     # For each image in the specified directory.
     for i, image_path in enumerate(image_paths):
-        # Status-message.
-        msg = "\r- Preprocessing image: {0:>6} / {1}".format(i + 1, num_images)
+        if verbosity > 0:
+            # Status-message.
+            msg = "\r- Preprocessing image: {0:>6} / {1}".format(i + 1, num_images)
 
-        # Print the status message.
-        sys.stdout.write(msg)
-        sys.stdout.flush()
+            # Print the status message.
+            sys.stdout.write(msg)
+            sys.stdout.flush()
 
         try:
             # Load the image and clone it for output.
-            image = cv2.imread(image_path)
+            image = cv2.imread(os.path.abspath(image_path), -1)
 
             # Scale normalize the image.
             processed = _scale_normalize(image, diameter=diameter)
@@ -163,21 +165,26 @@ def _scale_normalize_all(image_paths, save_path, diameter):
                 # Get the save path for the processed image.
                 image_filename = _get_filename(image_path)
                 image_jpeg_filename = "{0}.jpg".format(os.path.splitext(
-                                            os.path.basename(filename))[0])
+                                        os.path.basename(image_filename))[0])
                 output_path = os.path.join(save_path, image_jpeg_filename)
-
+                
                 # Save the image.
                 cv2.imwrite(output_path, processed,
                             [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-        except AttributeError:
+
+                success += 1
+        except AttributeError as e:
+            print(e)
             print("Could not preprocess {}...".format(image_path))
+
+    return success
 
 
 ########################################################################
 
 
 def scale_normalize(save_path=None, images_path=None, image_paths=None,
-                    diameter=512):
+                    image_path=None, diameter=512, verbosity=1):
     """
     Function for normalizing scale of images.
 
@@ -196,16 +203,25 @@ def scale_normalize(save_path=None, images_path=None, image_paths=None,
     if save_path is None:
         raise ValueError("Save path not specified!")
 
+    save_path = os.path.abspath(save_path)
+
     if image_paths is not None:
-        _scale_normalize_all(image_paths=image_paths, save_path=save_path,
-                             diameter=diameter)
+        return _scale_normalize_all(image_paths=image_paths, 
+                                    save_path=save_path, 
+                                    diameter=diameter, verbosity=verbosity)
 
     elif images_path is not None:
         # Get the paths to all images.
         image_paths = _get_image_paths(images_path)
         # Scale all images.
-        _scale_normalize_all(image_paths=image_paths, save_path=save_path,
-                             diameter=diameter)
+        return _scale_normalize_all(image_paths=image_paths, 
+                                    save_path=save_path, 
+                                    diameter=diameter, verbosity=verbosity)
+
+    elif image_path is not None:
+        return _scale_normalize_all(image_paths=[image_path],
+                                    save_path=save_path, 
+                                    diameter=diameter, verbosity=verbosity)
 
 
 def resize(images_paths, size=512):

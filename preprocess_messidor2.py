@@ -1,12 +1,13 @@
 import xlrd
 import zipfile
 import argparse
-import shutil
+import sys
+from shutil import rmtree
 from PIL import Image
 from glob import glob
 from os import makedirs, rename
 from os.path import join, splitext, basename, exists
-from lib.preprocess import scale_normalize, resize
+from lib.preprocess import scale_normalize
 
 parser = argparse.ArgumentParser(description='Preprocess Messidor-2 data set.')
 parser.add_argument("--data_dir", help="Directory where Messidor-2 resides.",
@@ -21,6 +22,8 @@ data_dir = str(args.data_dir)
 
 # Create a tmp directory for saving temporary preprocessing files.
 tmp_path = join(data_dir, 'tmp')
+if exists(tmp_path):
+    rmtree(tmp_path)
 makedirs(tmp_path)
 
 # Find shard zip files.
@@ -32,13 +35,12 @@ for shard in shards_paths:
 
     # Unzip shard.
     print(f"Unzipping {shard_name}...")
-    if not exists(shard_unpack_dir):
-        zip_ref = zipfile.ZipFile(shard, 'r')
-        zip_ref.extractall(shard_unpack_dir)
-        zip_ref.close()
-        print("Unzipped!")
-    else:
-        print("Already unzipped")
+    if exists(shard_unpack_dir):
+        rmtree(shard_unpack_dir)
+    
+    zip_ref = zipfile.ZipFile(shard, 'r')
+    zip_ref.extractall(shard_unpack_dir)
+    zip_ref.close()
 
     # Open annotations file for shard.
     annotations_path = join(
@@ -47,25 +49,37 @@ for shard in shards_paths:
     worksheet = workbook.sheet_by_index(0)
 
     # Parse annotations file.
-    for i in range(1, worksheet.nrows):
-        filename = worksheet.cell(i, 0).value
-        grade = worksheet.cell(i, 2).value
+    for num, row in enumerate(range(1, worksheet.nrows)):
+        filename = worksheet.cell(row, 0).value
+        grade = worksheet.cell(row, 2).value
 
-        im_path = join(shard_unpack_dir, filename)
+        im_path = glob(join(shard_unpack_dir, "**/{}".format(filename)),
+                       recursive=True)[0]
 
         # Find contour of eye fundus in image, and scale
         #  diameter of fundus to 299 pixels and crop the edges.
-        scale_normalize(save_path=tmp_path, image_paths=[im_path],
-                        diameter=299)
+        res = scale_normalize(save_path=tmp_path, image_path=im_path,
+                              diameter=299, verbosity=0)
+        
+        # Status-message.
+        msg = "\r- Preprocessing image: {0:>6} / {1}".format(
+                num+1, worksheet.nrows-1)
 
-        new_filename = "{0}.jpg".format(splitext(
-                                basename(filename))[0])
+        # Print the status message.
+        sys.stdout.write(msg)
+        sys.stdout.flush()
+
+        if res != 1:
+            continue
+
+        new_filename = "{0}.jpg".format(splitext(basename(im_path))[0])
 
         # Move the file from the tmp folder to the right grade folder.
-        os.rename(join(tmp_path, new_filename),
-                  join(data_dir, str(int(grade)), new_filename))
+        rename(join(tmp_path, new_filename),
+               join(data_dir, str(int(grade)), new_filename))
 
-    shutil.rmtree(shard_unpack_dir)
+    print()
+    rmtree(shard_unpack_dir)
 
 # Clean tmp folder.
-shutil.rmtree(tmp_path)
+rmtree(tmp_path)

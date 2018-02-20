@@ -6,8 +6,8 @@
 messidor2_dir="./data/messidor2"
 
 # Confirm the Basexx .zip files and annotations .xls files are present.
-xls_count=$(find "$messidor2_dir" -iname "Annotation_Base*.xls" | wc -l)
-zip_count=$(find "$messidor2_dir" -iname "Base*.zip" | wc -l)
+xls_count=$(find "$messidor2_dir" -maxdepth 1 -iname "Annotation_Base*.xls" | wc -l)
+zip_count=$(find "$messidor2_dir" -maxdepth 1 -iname "Base*.zip" | wc -l)
 
 if [ $xls_count -ne 12 ]; then
   echo "$messidor2_dir does not contain any all annotation files!"
@@ -19,38 +19,41 @@ if [ $zip_count -ne 12 ]; then
   exit 1
 fi
 
-exit
-
 # Preprocess the data set and categorize the images by labels into
 #  subdirectories.
-python preprocess_messidor2.py --data_dir="$messidor2_dir"
+python preprocess_messidor2.py --data_dir="$messidor2_dir" || exit 1 
 
 # According to [1], we have to correct some duplicate images and
 #  grades in the data set.
 
+echo "Correcting data set..."
 # 16 August 2017: Image duplicates in Base33
-echo "20051202_54744_0400_PP.tif 20051202_40508_0400_PP.jpg
+echo "20051202_54744_0400_PP.jpg 20051202_40508_0400_PP.jpg
 20051202_41238_0400_PP.jpg 20051202_41260_0400_PP.jpg
 20051202_54530_0400_PP.jpg 20051205_33025_0400_PP.jpg
 20051202_55607_0400_PP.jpg 20051202_41034_0400_PP.jpg
 20051205_35099_0400_PP.jpg 20051202_54555_0400_PP.jpg
 20051205_35110_0400_PP.jpg 20051202_54611_0400_PP.jpg
-20051202_55498_0400_PP.jpg " | find "$messidor2_dir" --delete
+20051202_55498_0400_PP.jpg " | xargs -d" " -I% find "$messidor2_dir" -iname % -delete
 
 # 31 August 2016: Erratum in Base11 Excel file
-find "$messidor2_dir/3" -name "20051020_63045_0100_PP.jpg" --exec mv {} 0/. \;
+find "$messidor2_dir/3" -name "20051020_63045_0100_PP.jpg" -exec mv {} "$messidor2_dir/0/." \;
 
 # 24 October 2016: Erratum in Base11 and Base 13 Excel files
-find "$messidor2_dir/1" -name "20051020_64007_0100_PP.jpg" --exec mv {} 3/. \;
-find "$messidor2_dir/3" -name "20051020_63936_0100_PP.jpg" --exec mv {} 1/. \;
-find "$messidor2_dir/2" -name "20060523_48477_0100_PP.jpg" --exec mv {} 3/. \;
+find "$messidor2_dir/1" -name "20051020_64007_0100_PP.jpg" -exec mv {} "$messidor2_dir/3/." \;
+find "$messidor2_dir/3" -name "20051020_63936_0100_PP.jpg" -exec mv {} "$messidor2_dir/1/." \;
+find "$messidor2_dir/2" -name "20060523_48477_0100_PP.jpg" -exec mv {} "$messidor2_dir/3/." \;
 
 # Convert the data set to tfrecords.
-python ./create_tfrecords/create_tfrecord.py --dataset_dir="$messidor2" \
-       --tfrecord_filename=messidor2 --num_shards=2 || \
-       { echo "Submodule not initialized. Run git submodule update --init"; 
-         exit 1; }
+echo "Converting data set to tfrecords..."
+git submodule update --init
 
+python ./create_tfrecords/create_tfrecord.py --dataset_dir="$messidor2_dir" \
+       --tfrecord_filename=messidor2 --num_shards=2 || \
+    { echo "Submodule not initialized. Run git submodule update --init"; 
+      exit 1; }
+
+echo "Done!"
 exit
 
 # References:
