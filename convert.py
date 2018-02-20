@@ -9,32 +9,6 @@ from distutils.dir_util import copy_tree
 
 
 
-
-for pre_subpath in [eye.test_pre_subpath]:
-    eye.print_status("Converting images in {}.".format(pre_subpath))
-
-    for size in [299, 256, 128]:
-        eye.print_status("Converting images to {} pixels.".format(size))
-
-        path = os.path.join(eye.data_path, pre_subpath)
-        new_path = path.replace('512', str(size))
-
-        if os.path.exists(new_path):
-            eye.print_status("Already converted.")
-            next
-
-        # Copy files to new path.
-        copy_tree(path, new_path)
-
-        # Convert the images to size.
-        old_images_paths = eye._get_image_paths(path)
-        images_paths = eye._get_image_paths(images_dir=new_path)
-        resize(images_paths, size=size)
-
-
-sys.exit(0)
-
-
 def _maybe_create(images_dir, labels_path):
     # Helper function for creating subdirectories.
     eye.print_status("Creating subdirectories...")
@@ -83,8 +57,6 @@ test_labels_path = os.path.join(eye.data_path, eye.test_labels_filename)
 # Create all subdirectories.
 _maybe_create(test_images_path, test_labels_path)
 
-
-sys.exit(0)
 
 # Find the path where processed images should be uploaded to.
 save_path = os.path.join(eye.data_path, eye.test_pre_subpath)

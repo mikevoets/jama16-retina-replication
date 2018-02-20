@@ -3,20 +3,7 @@ import argparse
 import sys
 from glob import glob
 from shutil import copyfile
-
-_cnt = 0
-
-
-def print_status(msg):
-    global _cnt
-    CURSOR_UP_ONE = '\x1b[1A'
-    ERASE_LINE = '\x1b[2K'
-    print(ERASE_LINE + CURSOR_UP_ONE)
-    msg = "\r[{0:>2}] - {1}".format(_cnt, msg)
-    sys.stdout.write(msg)
-    sys.stdout.flush()
-    _cnt += 1
-
+from lib.common import print_status
 
 parser = argparse.ArgumentParser(description='Redistribute data set.')
 parser.add_argument("source", help="Pool to take from.")
