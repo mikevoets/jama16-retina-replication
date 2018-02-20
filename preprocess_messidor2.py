@@ -37,7 +37,7 @@ for shard in shards_paths:
     print(f"Unzipping {shard_name}...")
     if exists(shard_unpack_dir):
         rmtree(shard_unpack_dir)
-    
+
     zip_ref = zipfile.ZipFile(shard, 'r')
     zip_ref.extractall(shard_unpack_dir)
     zip_ref.close()
@@ -60,7 +60,7 @@ for shard in shards_paths:
         #  diameter of fundus to 299 pixels and crop the edges.
         res = scale_normalize(save_path=tmp_path, image_path=im_path,
                               diameter=299, verbosity=0)
-        
+
         # Status-message.
         msg = "\r- Preprocessing image: {0:>6} / {1}".format(
                 num+1, worksheet.nrows-1)

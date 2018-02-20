@@ -21,7 +21,7 @@ fi
 
 # Preprocess the data set and categorize the images by labels into
 #  subdirectories.
-python preprocess_messidor2.py --data_dir="$messidor2_dir" || exit 1 
+python preprocess_messidor2.py --data_dir="$messidor2_dir" || exit 1
 
 # According to [1], we have to correct some duplicate images and
 #  grades in the data set.
@@ -50,7 +50,7 @@ git submodule update --init
 
 python ./create_tfrecords/create_tfrecord.py --dataset_dir="$messidor2_dir" \
        --tfrecord_filename=messidor2 --num_shards=2 || \
-    { echo "Submodule not initialized. Run git submodule update --init"; 
+    { echo "Submodule not initialized. Run git submodule update --init";
       exit 1; }
 
 echo "Done!"

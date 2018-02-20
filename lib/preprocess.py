@@ -146,7 +146,8 @@ def _scale_normalize_all(image_paths, save_path, diameter, verbosity):
     for i, image_path in enumerate(image_paths):
         if verbosity > 0:
             # Status-message.
-            msg = "\r- Preprocessing image: {0:>6} / {1}".format(i + 1, num_images)
+            msg = "\r- Preprocessing image: {0:>6} / {1}".format(
+                    i+1, num_images)
 
             # Print the status message.
             sys.stdout.write(msg)
@@ -167,7 +168,7 @@ def _scale_normalize_all(image_paths, save_path, diameter, verbosity):
                 image_jpeg_filename = "{0}.jpg".format(os.path.splitext(
                                         os.path.basename(image_filename))[0])
                 output_path = os.path.join(save_path, image_jpeg_filename)
-                
+
                 # Save the image.
                 cv2.imwrite(output_path, processed,
                             [int(cv2.IMWRITE_JPEG_QUALITY), 100])
@@ -206,21 +207,21 @@ def scale_normalize(save_path=None, images_path=None, image_paths=None,
     save_path = os.path.abspath(save_path)
 
     if image_paths is not None:
-        return _scale_normalize_all(image_paths=image_paths, 
-                                    save_path=save_path, 
+        return _scale_normalize_all(image_paths=image_paths,
+                                    save_path=save_path,
                                     diameter=diameter, verbosity=verbosity)
 
     elif images_path is not None:
         # Get the paths to all images.
         image_paths = _get_image_paths(images_path)
         # Scale all images.
-        return _scale_normalize_all(image_paths=image_paths, 
-                                    save_path=save_path, 
+        return _scale_normalize_all(image_paths=image_paths,
+                                    save_path=save_path,
                                     diameter=diameter, verbosity=verbosity)
 
     elif image_path is not None:
         return _scale_normalize_all(image_paths=[image_path],
-                                    save_path=save_path, 
+                                    save_path=save_path,
                                     diameter=diameter, verbosity=verbosity)
 
 
