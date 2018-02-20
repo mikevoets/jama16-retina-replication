@@ -63,7 +63,9 @@ for shard in shards_paths:
 
         # Move the file from the tmp folder to the right grade folder.
         os.rename(join(tmp_path, new_filename),
-                  join(data_dir, str(int(grade)), new_filename)
+                  join(data_dir, str(int(grade)), new_filename))
+
+    shutil.rmtree(shard_unpack_dir)
 
 # Clean tmp folder.
 shutil.rmtree(tmp_path)
