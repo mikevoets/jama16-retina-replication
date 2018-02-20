@@ -6,18 +6,20 @@
 messidor2_dir="./data/messidor2"
 
 # Confirm the Basexx .zip files and annotations .xls files are present.
-$xls_count="$(find "$messidor2_dir" -iname "Annotation_Base*.xls" | wc -l)"
-$zip_count="$(find "$messidor2_dir" -iname "Base*.zip" | wc -l)"
+xls_count=$(find "$messidor2_dir" -iname "Annotation_Base*.xls" | wc -l)
+zip_count=$(find "$messidor2_dir" -iname "Base*.zip" | wc -l)
 
 if [ $xls_count -ne 12 ]; then
   echo "$messidor2_dir does not contain any all annotation files!"
-  exit -1
+  exit 1
 fi
 
 if [ $zip_count -ne 12 ]; then
   echo "$messidor2_dir does not contain all Basexx zip files!"
-  exit -1
+  exit 1
 fi
+
+exit
 
 # Preprocess the data set and categorize the images by labels into
 #  subdirectories.
@@ -45,7 +47,9 @@ find "$messidor2_dir/2" -name "20060523_48477_0100_PP.jpg" --exec mv {} 3/. \;
 
 # Convert the data set to tfrecords.
 python ./create_tfrecords/create_tfrecord.py --dataset_dir="$messidor2" \
-       --tfrecord_filename=messidor2 --num_shards=2
+       --tfrecord_filename=messidor2 --num_shards=2 || \
+       { echo "Submodule not initialized. Run git submodule update --init"; 
+         exit 1; }
 
 exit
 
