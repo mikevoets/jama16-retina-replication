@@ -16,9 +16,9 @@ tf.logging.set_verbosity(tf.logging.INFO)
 random.seed(432)
 
 # Various loading and saving constants..
-training_records_dir = '../data/eyepacs/jama_dist_train'
-validation_records_dir = '../data/eyepacs/jama_dist_validation'
-test_records_dir = '/home/mvo010/Dropbox (Medsensio)/External data/Retinopathy/messidor2/conv/1440_dim' # '../data/eyepacs/jama_dist_test'
+training_records_dir = 'data/eyepacs/jama_dist_train'
+validation_records_dir = 'data/eyepacs/jama_dist_validation'
+test_records_dir = 'data/messidor2' # '../data/eyepacs/jama_dist_test'
 
 save_model_path = "./tmp/model-2-labels-1.ckpt"
 save_summaries_dir = "./tmp/logs-2-labels"
@@ -38,7 +38,7 @@ num_epochs = 200
 # Batch sizes.
 training_batch_size = 32
 validation_batch_size = 32
-test_batch_size = 4
+test_batch_size = 32
 
 # Buffer size for image shuffling.
 shuffle_buffer_size = 5000
