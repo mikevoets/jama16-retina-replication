@@ -44,11 +44,18 @@ find "$messidor2_dir/1" -name "20051020_64007_0100_PP.jpg" -exec mv {} "$messido
 find "$messidor2_dir/3" -name "20051020_63936_0100_PP.jpg" -exec mv {} "$messidor2_dir/1/." \;
 find "$messidor2_dir/2" -name "20060523_48477_0100_PP.jpg" -exec mv {} "$messidor2_dir/3/." \;
 
+echo "Preparing data set..."
+mkdir -p "$messidor2_dir/bin2/0" "$messidor2_dir/bin2/1"
+
+echo "Copying to new directories..."
+find "$messidor2_dir/"[0-1] -iname "*.jpg" -exec mv {} "$messidor2_dir/bin2/0/." \;
+find "$messidor2_dir/"[2-3] -iname "*.jpg" -exec mv {} "$messidor2_dir/bin2/1/." \;
+
 # Convert the data set to tfrecords.
 echo "Converting data set to tfrecords..."
 git submodule update --init
 
-python ./create_tfrecords/create_tfrecord.py --dataset_dir="$messidor2_dir" \
+python ./create_tfrecords/create_tfrecord.py --dataset_dir="$messidor2_dir/bin2" \
        --tfrecord_filename=messidor2 --num_shards=2 || \
     { echo "Submodule not initialized. Run git submodule update --init";
       exit 1; }
