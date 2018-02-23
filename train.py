@@ -29,8 +29,8 @@ num_labels = 2
 wait_epochs = 10
 num_workers = 8
 mode = 'test'
-first_label_sep = 1
-second_label_sep = 2
+first_label_sep = 2
+second_label_sep = 3
 
 # Maximum number of epochs. Can be stopped early.
 num_epochs = 200
