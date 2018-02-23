@@ -47,9 +47,12 @@ find "$messidor2_dir/2" -name "20060523_48477_0100_PP.jpg" -exec mv {} "$messido
 echo "Preparing data set..."
 mkdir -p "$messidor2_dir/bin2/0" "$messidor2_dir/bin2/1"
 
-echo "Copying to new directories..."
+echo "Moving images to new directories..."
 find "$messidor2_dir/"[0-1] -iname "*.jpg" -exec mv {} "$messidor2_dir/bin2/0/." \;
 find "$messidor2_dir/"[2-3] -iname "*.jpg" -exec mv {} "$messidor2_dir/bin2/1/." \;
+
+echo "Removing old directories..."
+rmdir "$messidor2_dir/"[0-3]
 
 # Convert the data set to tfrecords.
 echo "Converting data set to tfrecords..."
