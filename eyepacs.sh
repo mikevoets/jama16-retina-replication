@@ -42,16 +42,12 @@ strip_params=$(echo "$@" | sed "s/--\([a-z]\+\)\(=\([0-9]\+\)\)\?/\1/g")
 check_parameters "$#" "$strip_params" "redistribute seed"
 
 # Get seed from parameters.
-shuffle_seed=$(echo "$@" | sed "s/.*?--seed=\([0-9]\+\).*?/\1/")
+shuffle_seed=$(echo "$@" | sed "s/.*--seed=\([0-9]\+\).*/\1/g")
 
-echo $shuffle_seed
-"$shuffle_seed" -eq "$shuffle_seed" 2>/dev/null
-if [ $? -ne 0 ]; then
+# Replace seed with default seed number if no seed number.
+if ! [[ "$shuffle_seed" =~ ^-?[0-9]+$ ]]; then
   shuffle_seed=42 
 fi
-
-echo $shuffle_seed
-exit 1
 
 # Skip unpacking if --redistribute parameter is defined.
 if [ $(echo "$@" | grep -c -- "--redistribute") -eq 0 ]; then  
