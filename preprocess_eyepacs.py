@@ -31,7 +31,7 @@ makedirs(tmp_path)
 failed_images = []
 
 for labels in [train_labels, test_labels]:
-    with open(train_labels, 'r') as f:
+    with open(labels, 'r') as f:
         reader = csv.reader(f, delimiter=',')
         next(reader)
 
