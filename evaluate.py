@@ -13,7 +13,7 @@ tf.logging.set_verbosity(tf.logging.INFO)
 random.seed(432)
 
 # Default settings.
-default_eyepacs_dir = "./data/eyepacs"
+default_eyepacs_dir = "./data/eyepacs/bin2/test"
 default_messidor2_dir = "./data/messidor2"
 default_load_model_path = "./tmp/model"
 default_batch_size = 32
