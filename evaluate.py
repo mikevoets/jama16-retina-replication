@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 import random
@@ -9,12 +10,12 @@ import lib.evaluation
 print(f"Numpy version: {np.__version__}")
 print(f"Tensorflow version: {tf.__version__}")
 
-tf.logging.set_verbosity(tf.logging.INFO)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 random.seed(432)
 
 # Default settings.
 default_eyepacs_dir = "./data/eyepacs/bin2/test"
-default_messidor2_dir = "./data/messidor2"
+default_messidor2_dir = "./data/messidor2/bin2"
 default_load_model_path = "./tmp/model"
 default_batch_size = 32
 
@@ -29,7 +30,7 @@ parser.add_argument("-e", "--eyepacs", action="store_true",
 parser.add_argument("-o", "--other", action="store_true",
                     help="evaluate performance on your own dataset")
 parser.add_argument("--data_dir", help="directory where data set resides")
-parser.add_argument("-m", "--load_model_path",
+parser.add_argument("-lm", "--load_model_path",
                     help="path to where graph model should be loaded from",
                     default=default_load_model_path)
 parser.add_argument("-b", "--batch_size",

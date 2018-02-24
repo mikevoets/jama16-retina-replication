@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+import os
 import pdb
 import random
 import sys
@@ -12,7 +13,7 @@ import lib.evaluation
 print(f"Numpy version: {np.__version__}")
 print(f"Tensorflow version: {tf.__version__}")
 
-tf.logging.set_verbosity(tf.logging.INFO)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 random.seed(432)
 
 # Various loading and saving constants.
