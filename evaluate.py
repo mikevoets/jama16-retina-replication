@@ -106,7 +106,7 @@ def get_feed_dict():
 
 
 # Perform the evaluation.
-lib.evaluation.perform_test(sess=sess, init_op=test_init_op, 
+lib.evaluation.perform_test(sess=sess, init_op=test_init_op,
                             feed_dict_fn=get_feed_dict)
 
 sess.close()

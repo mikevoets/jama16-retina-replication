@@ -9,7 +9,7 @@ def _get_tensors_by_names(graph, names):
     return [graph.get_tensor_by_name(name) for name in names]
 
 
-def perform_test(sess, init_op, summary_writer=None, epoch=None, 
+def perform_test(sess, init_op, summary_writer=None, epoch=None,
                  feed_dict_fn=None):
     tf.keras.backend.set_learning_phase(False)
     sess.run(init_op)
@@ -34,7 +34,7 @@ def perform_test(sess, init_op, summary_writer=None, epoch=None,
 
     # Reset all streaming variables.
     sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
-    
+
     try:
         while True:
             if feed_dict_fn is not None:
