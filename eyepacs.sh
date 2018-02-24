@@ -112,6 +112,7 @@ echo "Creating directories for data sets"
 rm -rf "$eyepacs_dir/bin2"
 mkdir -p "$eyepacs_dir/bin2/train/0" "$eyepacs_dir/bin2/train/1"
 mkdir -p "$eyepacs_dir/bin2/test/0" "$eyepacs_dir/bin2/test/1"
+mkdir -p "$eyepacs_dir/bin2/validation"
 
 # Define images for binary (2) class 0.
 bin2_0_cnt=48784
@@ -154,6 +155,9 @@ python ./create_tfrecords/create_tfrecord.py --dataset_dir="$eyepacs_dir/bin2/tr
        --tfrecord_filename=eyepacs --num_shards=8 --validation_size=0.2 || \
     { echo "Submodule not initialized. Run git submodule update --init";
       exit 1; }
+
+echo "Moving validation tfrecords to separate folder."
+find "$eyepacs_dir/bin2/train" -name "*eyepacs_validation*.tfrecord" -exec mv {} "$eyepacs_dir/bin2/validation/." \;
 
 python ./create_tfrecords/create_tfrecord.py --dataset_dir="$eyepacs_dir/bin2/test" \
        --tfrecord_filename=eyepacs --num_shards=4 || exit 1
