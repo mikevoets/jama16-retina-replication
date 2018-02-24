@@ -89,18 +89,20 @@ val_dataset = lib.dataset.initialize_dataset(
     shuffle_buffer_size=shuffle_buffer_size,
     image_data_format=image_data_format, num_channels=num_channels)
 
-# Create an initialize iterators.
+# Create initializable iterators.
 iterator = tf.data.Iterator.from_structure(
     train_dataset.output_types, train_dataset.output_shapes)
 
 images, labels = iterator.get_next()
+x = tf.placeholder_with_default(images, images.shape, name='x')
+y = tf.placeholder_with_default(labels, labels.shape, name='y')
 
 train_init_op = iterator.make_initializer(train_dataset)
 val_init_op = iterator.make_initializer(val_dataset)
 
 # Base model InceptionV3 without top and global average pooling.
 base_model = tf.keras.applications.InceptionV3(
-    include_top=False, weights='imagenet', pooling='avg', input_tensor=images)
+    include_top=False, weights='imagenet', pooling='avg', input_tensor=x)
 
 # Add dense layer with the same amount of neurons as labels.
 with tf.name_scope('logits'):
@@ -115,7 +117,7 @@ predictions_classes = tf.round(predictions)
 
 # Retrieve loss of network using cross entropy.
 mean_xentropy = tf.reduce_mean(
-    tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits))
+    tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=logits))
 
 # Define SGD optimizer with momentum and nesterov.
 global_step = tf.Variable(0, dtype=tf.int32)
@@ -126,19 +128,19 @@ train_op = tf.train.MomentumOptimizer(
 
 # Metrics for finding best validation set.
 tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
-    lib.metrics.true_positives, scope='tp', labels=labels,
+    lib.metrics.true_positives, scope='tp', labels=y,
     predictions=predictions_classes)
 
 fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
-    lib.metrics.false_positives, scope='fp', labels=labels,
+    lib.metrics.false_positives, scope='fp', labels=y,
     predictions=predictions_classes)
 
 fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
-    lib.metrics.false_negatives, scope='fn', labels=labels,
+    lib.metrics.false_negatives, scope='fn', labels=y,
     predictions=predictions_classes)
 
 tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
-    lib.metrics.true_negatives, scope='tn', labels=labels,
+    lib.metrics.true_negatives, scope='tn', labels=y,
     predictions=predictions_classes)
 
 confusion_matrix = lib.metrics.confusion_matrix(
@@ -146,11 +148,11 @@ confusion_matrix = lib.metrics.confusion_matrix(
 
 brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
     tf.metrics.mean_squared_error, scope='brier',
-    labels=labels, predictions=predictions)
+    labels=y, predictions=predictions)
 
 auc, update_auc, reset_auc = lib.metrics.create_reset_metric(
     tf.metrics.auc, scope='auc',
-    labels=labels, predictions=predictions)
+    labels=y, predictions=predictions)
 tf.summary.scalar('auc', auc)
 
 # Merge all the summaries and write them out.

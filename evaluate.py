@@ -91,10 +91,23 @@ test_dataset = lib.dataset.initialize_dataset(
 iterator = tf.data.Iterator.from_structure(
     test_dataset.output_types, test_dataset.output_shapes)
 
+test_images, test_labels = iterator.get_next()
+
 test_init_op = iterator.make_initializer(test_dataset)
 
+graph = tf.get_default_graph()
+x = graph.get_tensor_by_name("x:0")
+y = graph.get_tensor_by_name("y:0")
+
+
+def get_feed_dict():
+    x_test, y_test = sess.run([test_images, test_labels])
+    return {x: x_test, y: y_test}
+
+
 # Perform the evaluation.
-lib.evaluation.perform_test(sess=sess, init_op=test_init_op)
+lib.evaluation.perform_test(sess=sess, init_op=test_init_op, 
+                            feed_dict_fn=get_feed_dict)
 
 sess.close()
 sys.exit(0)
