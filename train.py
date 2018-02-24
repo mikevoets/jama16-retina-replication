@@ -48,6 +48,15 @@ save_model_path = str(args.save_model_path)
 save_summaries_dir = str(args.save_summaries_dir)
 use_sgd = bool(args.vanilla_sgd)
 
+print("""
+      Training images folder: {},
+      Validation images folder: {},
+      Saving model and graph checkpoints at: {},
+      Saving summaries at: {},
+      Use SGD: {}
+      """
+      .format(train_dir, val_dir, save_model_path, save_summaries_dir, use_sgd))
+
 # Various constants.
 num_channels = 3
 num_workers = 8
@@ -126,7 +135,7 @@ mean_xentropy = tf.reduce_mean(
 # Define SGD optimizer with momentum and nesterov.
 global_step = tf.Variable(0, dtype=tf.int32)
 
-if use_sgd
+if use_sgd:
     train_op = tf.train.GradientDescentOptimizer(learning_rate) \
         .minimize(loss=mean_xentropy, global_step=global_step)
 else:
