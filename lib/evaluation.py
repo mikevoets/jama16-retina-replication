@@ -24,10 +24,10 @@ def perform_test(sess, init_op, summary_writer=None, epoch=None):
     brier, auc, confusion_matrix, summaries_op = \
         _get_tensors_by_names(
             graph, ['tp/op:0', 'fp/op:0', 'fn/op:0', 'tn/op:0',
-                    'brier/mean_squared_error/update_op:0', 
-                    'auc/auc/update_op:0', 
-                    'brier/mean_squared_error/value:0', 
-                    'auc/auc/value:0', 
+                    'brier/mean_squared_error/update_op:0',
+                    'auc/auc/update_op:0',
+                    'brier/mean_squared_error/value:0',
+                    'auc/auc/value:0',
                     'confusion_matrix/confusion_matrix:0',
                     'Merge/MergeSummary:0'])
 

@@ -209,7 +209,7 @@ for epoch in range(num_epochs):
 
     # Perform validation.
     val_auc = lib.evaluation.perform_test(
-        sess=sess, init_op=val_init_op, 
+        sess=sess, init_op=val_init_op,
         summary_writer=train_writer, epoch=epoch)
 
     if val_auc < latest_peak_auc:
