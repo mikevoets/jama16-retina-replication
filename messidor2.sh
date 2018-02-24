@@ -34,7 +34,7 @@ echo "20051202_54744_0400_PP.jpg 20051202_40508_0400_PP.jpg
 20051202_55607_0400_PP.jpg 20051202_41034_0400_PP.jpg
 20051205_35099_0400_PP.jpg 20051202_54555_0400_PP.jpg
 20051205_35110_0400_PP.jpg 20051202_54611_0400_PP.jpg
-20051202_55498_0400_PP.jpg " | xargs -d" " -I% find "$messidor2_dir" -iname % -delete
+20051202_55498_0400_PP.jpg" | tr " " "\n" | xargs -I% find "$messidor2_dir" -name % -delete
 
 # 31 August 2016: Erratum in Base11 Excel file
 find "$messidor2_dir/3" -name "20051020_63045_0100_PP.jpg" -exec mv {} "$messidor2_dir/0/." \;
