@@ -1,12 +1,12 @@
 import numpy as np
 import tensorflow as tf
 import pdb
-import os
 import random
 import sys
 from glob import glob
-
-import metrics
+import lib.metrics
+import lib.dataset
+import lib.evaluation
 
 print(f"Numpy version: {np.__version__}")
 print(f"Tensorflow version: {tf.__version__}")
@@ -17,7 +17,7 @@ random.seed(432)
 # Various loading and saving constants.
 default_train_dir = "./data/eyepacs/bin2/train"
 default_val_dir = "./data/eyepacs/bin2/validation"
-default_save_model_path = "./tmp/model.ckpt"
+default_save_model_path = "./tmp/model"
 default_save_summaries_dir = "./tmp/logs"
 
 parser = argparse.ArgumentParser(
@@ -42,7 +42,7 @@ val_dir = str(args.val_dir)
 save_model_path = str(args.save_model_path)
 save_summaries_dir = str(args.save_summaries_dir)
 
-# Various training and evaluation constants.
+# Various constants.
 num_channels = 3
 num_workers = 8
 
@@ -68,73 +68,6 @@ if tf.test.is_gpu_available():
 else:
     image_data_format = 'channels_last'
 
-
-def _tfrecord_dataset_from_folder(folder, ext='.tfrecord'):
-    tfrecords = [os.path.join(folder, n)
-                 for n in os.listdir(folder) if n.endswith(ext)]
-    return tf.data.TFRecordDataset(tfrecords)
-
-
-def _parse_example(proto, image_dim):
-    features = {"image/encoded": tf.FixedLenFeature((), tf.string),
-                "image/format": tf.FixedLenFeature((), tf.string),
-                "image/class/label": tf.FixedLenFeature((), tf.int64),
-                "image/height": tf.FixedLenFeature((), tf.int64),
-                "image/width": tf.FixedLenFeature((), tf.int64)}
-    parsed = tf.parse_single_example(proto, features)
-
-    # Rescale to 1./255.
-    image = tf.image.convert_image_dtype(
-        tf.image.decode_jpeg(parsed["image/encoded"]), tf.float32)
-
-    image = tf.reshape(image, image_dim)
-    label = tf.cast(parsed["image/class/label"], tf.int32)
-
-    return image, label
-
-
-def initialize_dataset(image_dir, batch_size, num_epochs=1,
-                       num_workers=None, prefetch_buffer_size=None,
-                       shuffle_buffer_size=None):
-    # Retrieve data set from pattern.
-    dataset = _tfrecord_dataset_from_folder(image_dir)
-
-    # Find metadata file with image dimensions.
-    image_dim_fn = os.path.join(image_dir, 'dimensions.txt')
-
-    # Parse dimensions.txt file in data set folder for image dimensions.
-    with open(image_dim_fn, 'r') as f:
-        image_dims = list(filter(None, f.read().split('\n')))
-
-        if len(image_dims) > 1:
-            raise TypeError(
-                "can't initialize dataset with multiple image dims")
-
-        image_dim = [int(x) for x in image_dims[0].split('x')]
-
-    # Specify image shape.
-    if image_data_format == 'channels_first':
-        image_dim = [num_channels, image_dim[0], image_dim[1]]
-    elif image_data_format == 'channels_last':
-        image_dim = [image_dim[0], image_dim[1], num_channels]
-    else:
-        raise TypeError('invalid image date format setting')
-
-    dataset = dataset.map(lambda e: _parse_example(e, image_dim),
-                          num_parallel_calls=num_workers)
-
-    if shuffle_buffer_size is not None:
-        dataset = dataset.shuffle(shuffle_buffer_size)
-
-    dataset = dataset.repeat(num_epochs)
-    dataset = dataset.batch(batch_size)
-
-    if prefetch_buffer_size is not None:
-        dataset = dataset.prefetch(prefetch_buffer_size)
-
-    return dataset
-
-
 # Set up a session and bind it to Keras.
 sess = tf.Session()
 tf.keras.backend.set_session(sess)
@@ -142,15 +75,17 @@ tf.keras.backend.set_learning_phase(True)
 tf.keras.backend.set_image_data_format(image_data_format)
 
 # Initialize each data set.
-train_dataset = initialize_dataset(
+train_dataset = lib.initialize_dataset(
     train_dir, train_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-    shuffle_buffer_size=shuffle_buffer_size)
+    shuffle_buffer_size=shuffle_buffer_size,
+    image_data_format=image_data_format, num_channels=num_channels)
 
-val_dataset = initialize_dataset(
+val_dataset = lib.initialize_dataset(
     val_dir, val_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-    shuffle_buffer_size=shuffle_buffer_size)
+    shuffle_buffer_size=shuffle_buffer_size,
+    image_data_format=image_data_format, num_channels=num_channels)
 
 # Create an initialize iterators.
 iterator = tf.data.Iterator.from_structure(
@@ -167,7 +102,7 @@ base_model = tf.keras.applications.InceptionV3(
 
 # Add dense layer with the same amount of neurons as labels.
 with tf.name_scope('logits'):
-    logits = tf.layers.dense(base_model.output, units=num_labels)
+    logits = tf.layers.dense(base_model.output, units=1)
 
 # Get the predictions with a sigmoid activation function.
 with tf.name_scope('predictions'):
@@ -188,30 +123,30 @@ train_op = tf.train.MomentumOptimizer(
         .minimize(loss=mean_xentropy, global_step=global_step)
 
 # Metrics for finding best validation set.
-tp, update_tp, reset_tp = metrics.create_reset_metric(
-    metrics.true_positives, scope='tp', labels=y,
-    predictions=predictions_classes, num_labels=num_labels)
+tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
+    lib.metrics.true_positives, scope='tp', labels=y,
+    predictions=predictions_classes)
 
-fp, update_fp, reset_fp = metrics.create_reset_metric(
-    metrics.false_positives, scope='fp', labels=y,
-    predictions=predictions_classes, num_labels=num_labels)
+fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
+    lib.metrics.false_positives, scope='fp', labels=y,
+    predictions=predictions_classes)
 
-fn, update_fn, reset_fn = metrics.create_reset_metric(
-    metrics.false_negatives, scope='fn', labels=y,
-    predictions=predictions_classes, num_labels=num_labels)
+fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
+    lib.metrics.false_negatives, scope='fn', labels=y,
+    predictions=predictions_classes)
 
-tn, update_tn, reset_tn = metrics.create_reset_metric(
-    metrics.true_negatives, scope='tn', labels=y,
-    predictions=predictions_classes, num_labels=num_labels)
+tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
+    lib.metrics.true_negatives, scope='tn', labels=y,
+    predictions=predictions_classes)
 
-confusion_matrix = metrics.confusion_matrix(
-    tp, fp, fn, tn, num_labels=num_labels)
+confusion_matrix = lib.metrics.confusion_matrix(
+    tp, fp, fn, tn)
 
-brier, update_brier, reset_brier = metrics.create_reset_metric(
+brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
     tf.metrics.mean_squared_error, scope='brier',
     labels=y, predictions=predictions)
 
-auc, update_auc, reset_auc = metrics.create_reset_metric(
+auc, update_auc, reset_auc = lib.metrics.create_reset_metric(
     tf.metrics.auc, scope='auc',
     labels=y, predictions=predictions)
 tf.summary.scalar('auc', auc)
@@ -235,39 +170,6 @@ def print_training_status(epoch, num_epochs, batch_num, xent, i_step=None):
         m.append(f"Step: {i_step:>10}")
 
     print(", ".join(m), end="\r")
-
-
-def perform_test(init_op, summary_writer=None, epoch=None):
-    tf.keras.backend.set_learning_phase(False)
-    sess.run(init_op)
-
-    # Reset all streaming variables.
-    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
-
-    try:
-        while True:
-            # Retrieve the validation set confusion metrics.
-            sess.run([update_tp, update_fp, update_fn,
-                      update_tn, update_brier, update_auc])
-
-    except tf.errors.OutOfRangeError:
-        pass
-
-    # Retrieve confusion matrix and estimated roc auc score.
-    test_conf_matrix, test_brier, test_auc, summaries = sess.run(
-        [confusion_matrix, brier, auc, summaries_op])
-
-    # Write summary.
-    if summary_writer is not None:
-        summary_writer.add_summary(summaries, epoch)
-
-    # Print total roc auc score for validation.
-    print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
-
-    # Print confusion matrix for each label.
-    for i in range(num_labels):
-        print(f"Confusion matrix for label {i+1}:")
-        print(test_conf_matrix[i])
 
 
 # Add ops for saving and restoring all variables.
@@ -305,8 +207,8 @@ for epoch in range(num_epochs):
     except tf.errors.OutOfRangeError:
         print(f"\nEnd of epoch {epoch}!")
 
-    perform_test(init_op=val_init_op, summary_writer=train_writer,
-                 epoch=epoch)
+    lib.evaluation.perform_test(sess=sess, init_op=val_init_op,
+                                summary_writer=train_writer, epoch=epoch)
 
     if val_auc < latest_peak_auc:
         # Stop early if peak of val auc has been reached.
