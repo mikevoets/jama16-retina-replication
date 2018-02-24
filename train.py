@@ -3,9 +3,8 @@ import tensorflow as tf
 import pdb
 import os
 import random
-import re
+import sys
 from glob import glob
-from math import ceil
 
 import metrics
 
@@ -15,37 +14,52 @@ print(f"Tensorflow version: {tf.__version__}")
 tf.logging.set_verbosity(tf.logging.INFO)
 random.seed(432)
 
-# Various loading and saving constants..
-training_records_dir = 'data/eyepacs/jama_dist_train'
-validation_records_dir = 'data/eyepacs/jama_dist_validation'
-test_records_dir = 'data/messidor2' # '../data/eyepacs/jama_dist_test'
+# Various loading and saving constants.
+default_train_dir = "./data/eyepacs/bin2/train"
+default_val_dir = "./data/eyepacs/bin2/validation"
+default_save_model_path = "./tmp/model.ckpt"
+default_save_summaries_dir = "./tmp/logs"
 
-save_model_path = "./tmp/model-2-labels-1.ckpt"
-save_summaries_dir = "./tmp/logs-2-labels"
+parser = argparse.ArgumentParser(
+                    description="Trains and saves neural network for "
+                                "detection of diabetic retinopathy.")
+parser.add_argument("-t", "--train_dir",
+                    help="path to folder that contains training tfrecords",
+                    default=default_train_dir)
+parser.add_argument("-v", "--val_dir",
+                    help="path to folder that contains validation tfrecords",
+                    default=default_val_dir)
+parser.add_argument("-m", "--save_model_path",
+                    help="path to where graph model should be saved",
+                    default=default_save_model_path)
+parser.add_argument("-s", "--save_summaries_dir",
+                    help="path to folder where summaries should be saved",
+                    default=default_save_summaries_dir)
+
+args = parser.parse_args()
+train_dir = str(args.train_dir)
+val_dir = str(args.val_dir)
+save_model_path = str(args.save_model_path)
+save_summaries_dir = str(args.save_summaries_dir)
 
 # Various training and evaluation constants.
 num_channels = 3
-num_labels = 2
-wait_epochs = 10
 num_workers = 8
-mode = 'test'
-first_label_sep = 2
-second_label_sep = 3
 
-# Maximum number of epochs. Can be stopped early.
+# Hyper-parameters.
 num_epochs = 200
+wait_epochs = 10
+learning_rate = 3e-3
+momentum = 0.9
+use_nesterov = True
 
 # Batch sizes.
-training_batch_size = 32
-validation_batch_size = 32
-test_batch_size = 32
+train_batch_size = 32
+val_batch_size = 32
 
 # Buffer size for image shuffling.
 shuffle_buffer_size = 5000
-prefetch_buffer_size = 100 * training_batch_size
-
-# Various hyper-parameter variables.
-learning_rate = 3e-3
+prefetch_buffer_size = 100 * train_batch_size
 
 # Set image datas format to channels first if GPU is available.
 if tf.test.is_gpu_available():
@@ -88,6 +102,7 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
     # Find metadata file with image dimensions.
     image_dim_fn = os.path.join(image_dir, 'dimensions.txt')
 
+    # Parse dimensions.txt file in data set folder for image dimensions.
     with open(image_dim_fn, 'r') as f:
         image_dims = list(filter(None, f.read().split('\n')))
 
@@ -97,6 +112,7 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
 
         image_dim = [int(x) for x in image_dims[0].split('x')]
 
+    # Specify image shape.
     if image_data_format == 'channels_first':
         image_dim = [num_channels, image_dim[0], image_dim[1]]
     elif image_data_format == 'channels_last':
@@ -119,18 +135,6 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
     return dataset
 
 
-def variable_summaries(var):
-    with tf.name_scope('summaries'):
-        mean = tf.reduce_mean(var)
-        tf.summary.scalar('mean', mean)
-        with tf.name_scope('stddev'):
-            stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
-        tf.summary.scalar('stddev', stddev)
-        tf.summary.scalar('max', tf.reduce_max(var))
-        tf.summary.scalar('min', tf.reduce_min(var))
-        tf.summary.histogram('histogram', var)
-
-
 # Set up a session and bind it to Keras.
 sess = tf.Session()
 tf.keras.backend.set_session(sess)
@@ -138,38 +142,24 @@ tf.keras.backend.set_learning_phase(True)
 tf.keras.backend.set_image_data_format(image_data_format)
 
 # Initialize each data set.
-training_dataset = initialize_dataset(
-    training_records_dir, training_batch_size,
+train_dataset = initialize_dataset(
+    train_dir, train_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size)
 
-validation_dataset = initialize_dataset(
-    validation_records_dir, validation_batch_size,
+val_dataset = initialize_dataset(
+    val_dir, val_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size)
 
 # Create an initialize iterators.
 iterator = tf.data.Iterator.from_structure(
-    training_dataset.output_types, training_dataset.output_shapes)
+    train_dataset.output_types, train_dataset.output_shapes)
 
 images, labels = iterator.get_next()
 
-training_init_op = iterator.make_initializer(training_dataset)
-validation_init_op = iterator.make_initializer(validation_dataset)
-
-if mode == 'test':
-    # Evaluate saved model.
-    test_dataset = initialize_dataset(
-        test_records_dir, test_batch_size,
-        num_workers=num_workers, prefetch_buffer_size=20,
-        shuffle_buffer_size=20)
-
-    test_iterator = tf.data.Iterator.from_structure(
-        test_dataset.output_types, test_dataset.output_shapes)
-
-    images, labels = test_iterator.get_next()
-
-    test_init_op = test_iterator.make_initializer(test_dataset)
+train_init_op = iterator.make_initializer(train_dataset)
+val_init_op = iterator.make_initializer(val_dataset)
 
 # Base model InceptionV3 without top and global average pooling.
 base_model = tf.keras.applications.InceptionV3(
@@ -186,32 +176,16 @@ with tf.name_scope('predictions'):
 # Get the class predictions for labels.
 predictions_classes = tf.round(predictions)
 
-# Convert the classes to a binary label.
-y = tf.cast(
-    tf.reshape(tf.greater_equal(labels, tf.constant(first_label_sep)),
-                                [-1, 1]), tf.float32)
-
-if num_labels == 2:
-    # The optional second binary label.
-    second_label = tf.cast(
-        tf.reshape(tf.greater_equal(labels, tf.constant(second_label_sep)),
-                   [-1, 1]),
-        tf.float32)
-
-    # Add the second label to the first label.
-    y = tf.reshape(tf.stack([y, second_label], axis=2), shape=[-1, 2])
-
 # Retrieve loss of network using cross entropy.
 mean_xentropy = tf.reduce_mean(
-    tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=logits))
+    tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits))
 
 # Define SGD optimizer with momentum and nesterov.
 global_step = tf.Variable(0, dtype=tf.int32)
 
 train_op = tf.train.MomentumOptimizer(
-    learning_rate, momentum=0.9, use_nesterov=True) \
+    learning_rate, momentum=momentum, use_nesterov=use_nesterov) \
         .minimize(loss=mean_xentropy, global_step=global_step)
-
 
 # Metrics for finding best validation set.
 tp, update_tp, reset_tp = metrics.create_reset_metric(
@@ -241,7 +215,6 @@ auc, update_auc, reset_auc = metrics.create_reset_metric(
     tf.metrics.auc, scope='auc',
     labels=y, predictions=predictions)
 tf.summary.scalar('auc', auc)
-
 
 # Merge all the summaries and write them out.
 summaries_op = tf.summary.merge_all()
@@ -300,17 +273,9 @@ def perform_test(init_op, summary_writer=None, epoch=None):
 # Add ops for saving and restoring all variables.
 saver = tf.train.Saver()
 
-# Initialize session.
-if mode == 'test':
-    saver.restore(sess, save_model_path)
-    perform_test(init_op=test_init_op)
-
-    sess.close()
-    sys.exit(0)
-else:
-    sess.run(tf.global_variables_initializer())
-    sess.run(tf.local_variables_initializer())
-
+# Initialize variables.
+sess.run(tf.global_variables_initializer())
+sess.run(tf.local_variables_initializer())
 
 # Train for the specified amount of epochs.
 # Can be stopped early if peak of validation auc (Area under curve)
@@ -321,7 +286,7 @@ waited_epochs = 0
 for epoch in range(num_epochs):
     # Start training.
     tf.keras.backend.set_learning_phase(True)
-    sess.run(training_init_op)
+    sess.run(train_init_op)
     batch_num = 0
 
     try:
@@ -340,7 +305,7 @@ for epoch in range(num_epochs):
     except tf.errors.OutOfRangeError:
         print(f"\nEnd of epoch {epoch}!")
 
-    perform_test(init_op=validation_init_op, summary_writer=train_writer,
+    perform_test(init_op=val_init_op, summary_writer=train_writer,
                  epoch=epoch)
 
     if val_auc < latest_peak_auc:
@@ -366,3 +331,4 @@ for epoch in range(num_epochs):
 
 # Close the session.
 sess.close()
+sys.exit(0)
