@@ -1,8 +1,22 @@
 import sys
 import argparse
+import random
+import tensorflow as tf
+import numpy as np
+import lib.dataset
+import lib.evaluation
 
+print(f"Numpy version: {np.__version__}")
+print(f"Tensorflow version: {tf.__version__}")
+
+tf.logging.set_verbosity(tf.logging.INFO)
+random.seed(432)
+
+# Default settings.
 default_eyepacs_dir = "./data/eyepacs"
 default_messidor2_dir = "./data/messidor2"
+default_load_model_path = "./tmp/model"
+default_batch_size = 32
 
 parser = argparse.ArgumentParser(
                     description="Evaluate performance of trained graph "
@@ -15,6 +29,11 @@ parser.add_argument("-e", "--eyepacs", action="store_true",
 parser.add_argument("-o", "--other", action="store_true",
                     help="evaluate performance on your own dataset")
 parser.add_argument("--data_dir", help="directory where data set resides")
+parser.add_argument("-m", "--load_model_path",
+                    help="path to where graph model should be loaded from",
+                    default=default_load_model_path)
+parser.add_argument("-b", "--batch_size",
+                    help="batch size", default=default_batch_size)
 
 args = parser.parse_args()
 
@@ -33,3 +52,48 @@ elif args.other and args.data_dir is None:
     print("Please specify --data_dir.")
     parser.print_help()
     sys.exit(2)
+
+load_model_path = str(args.load_model_path)
+batch_size = int(args.batch_size)
+
+# Other setting variables.
+num_channels = 3
+num_workers = 8
+shuffle_buffer_size = 5000
+prefetch_buffer_size = 100 * batch_size
+
+# Set image datas format to channels first if GPU is available.
+if tf.test.is_gpu_available():
+    print("Found GPU! Using channels first as default image data format.")
+    image_data_format = 'channels_first'
+else:
+    image_data_format = 'channels_last'
+
+# Start session.
+sess = tf.Session()
+tf.keras.backend.set_session(sess)
+tf.keras.backend.set_learning_phase(False)
+tf.keras.backend.set_image_data_format(image_data_format)
+
+# Load the meta graph and restore variables from training.
+saver = tf.train.import_meta_graph("{}.meta".format(load_model_path))
+saver.restore(sess, load_model_path)
+
+# Initialize the test set.
+test_dataset = lib.initialize_dataset(
+    data_dir, batch_size,
+    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+    shuffle_buffer_size=shuffle_buffer_size,
+    image_data_format=image_data_format, num_channels=num_channels)
+
+# Create an initialize iterators.
+iterator = tf.data.Iterator.from_structure(
+    test_dataset.output_types, test_dataset.output_shapes)
+
+test_init_op = iterator.make_initializer(test_dataset)
+
+# Perform the evaluation.
+lib.evaluation.perform_test(sess=sess, init_op=test_init_op)
+
+sess.close()
+sys.exit(0)
