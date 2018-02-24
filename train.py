@@ -31,18 +31,22 @@ parser.add_argument("-t", "--train_dir",
 parser.add_argument("-v", "--val_dir",
                     help="path to folder that contains validation tfrecords",
                     default=default_val_dir)
-parser.add_argument("-m", "--save_model_path",
+parser.add_argument("-sm", "--save_model_path",
                     help="path to where graph model should be saved",
                     default=default_save_model_path)
-parser.add_argument("-s", "--save_summaries_dir",
+parser.add_argument("-ss", "--save_summaries_dir",
                     help="path to folder where summaries should be saved",
                     default=default_save_summaries_dir)
+parser.add_argument("-sgd", "--vanilla_sgd", action="store_true",
+                    help="use vanilla stochastic gradient descent instead of "
+                         "nesterov accelerated gradient descent")
 
 args = parser.parse_args()
 train_dir = str(args.train_dir)
 val_dir = str(args.val_dir)
 save_model_path = str(args.save_model_path)
 save_summaries_dir = str(args.save_summaries_dir)
+use_sgd = bool(args.vanilla_sgd)
 
 # Various constants.
 num_channels = 3
@@ -52,8 +56,8 @@ num_workers = 8
 num_epochs = 200
 wait_epochs = 10
 learning_rate = 3e-3
-momentum = 0.9
-use_nesterov = True
+momentum = 0.9  # Only used if use_sgd is False
+use_nesterov = True  # Only used if use_sgd is False
 
 # Batch sizes.
 train_batch_size = 32
@@ -122,9 +126,13 @@ mean_xentropy = tf.reduce_mean(
 # Define SGD optimizer with momentum and nesterov.
 global_step = tf.Variable(0, dtype=tf.int32)
 
-train_op = tf.train.MomentumOptimizer(
-    learning_rate, momentum=momentum, use_nesterov=use_nesterov) \
+if use_sgd
+    train_op = tf.train.GradientDescentOptimizer(learning_rate) \
         .minimize(loss=mean_xentropy, global_step=global_step)
+else:
+    train_op = tf.train.MomentumOptimizer(
+        learning_rate, momentum=momentum, use_nesterov=use_nesterov) \
+            .minimize(loss=mean_xentropy, global_step=global_step)
 
 # Metrics for finding best validation set.
 tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
