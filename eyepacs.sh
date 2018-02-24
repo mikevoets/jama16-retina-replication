@@ -158,6 +158,7 @@ python ./create_tfrecords/create_tfrecord.py --dataset_dir="$eyepacs_dir/bin2/tr
 
 echo "Moving validation tfrecords to separate folder."
 find "$eyepacs_dir/bin2/train" -name "*eyepacs_validation*.tfrecord" -exec mv {} "$eyepacs_dir/bin2/validation/." \;
+find "$eyepacs_dir/bin2/train" -maxdepth 1 -iname "*.txt" -exec cp {} "$eyepacs_dir/bin2/validation/." \;
 
 python ./create_tfrecords/create_tfrecord.py --dataset_dir="$eyepacs_dir/bin2/test" \
        --tfrecord_filename=eyepacs --num_shards=4 || exit 1
