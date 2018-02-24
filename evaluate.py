@@ -80,7 +80,7 @@ saver = tf.train.import_meta_graph("{}.meta".format(load_model_path))
 saver.restore(sess, load_model_path)
 
 # Initialize the test set.
-test_dataset = lib.initialize_dataset(
+test_dataset = lib.dataset.initialize_dataset(
     data_dir, batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size,

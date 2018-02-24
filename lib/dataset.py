@@ -21,7 +21,9 @@ def _parse_example(proto, image_dim):
         tf.image.decode_jpeg(parsed["image/encoded"]), tf.float32)
 
     image = tf.reshape(image, image_dim)
-    label = tf.cast(parsed["image/class/label"], tf.int32)
+    label = tf.cast(
+                tf.reshape(parsed["image/class/label"], [-1]),
+                tf.float32)
 
     return image, label
 

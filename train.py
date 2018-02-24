@@ -3,6 +3,7 @@ import tensorflow as tf
 import pdb
 import random
 import sys
+import argparse
 from glob import glob
 import lib.metrics
 import lib.dataset
@@ -58,8 +59,8 @@ train_batch_size = 32
 val_batch_size = 32
 
 # Buffer size for image shuffling.
-shuffle_buffer_size = 5000
-prefetch_buffer_size = 100 * train_batch_size
+shuffle_buffer_size = 500
+prefetch_buffer_size = 10 * train_batch_size
 
 # Set image datas format to channels first if GPU is available.
 if tf.test.is_gpu_available():
@@ -75,13 +76,13 @@ tf.keras.backend.set_learning_phase(True)
 tf.keras.backend.set_image_data_format(image_data_format)
 
 # Initialize each data set.
-train_dataset = lib.initialize_dataset(
+train_dataset = lib.dataset.initialize_dataset(
     train_dir, train_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size,
     image_data_format=image_data_format, num_channels=num_channels)
 
-val_dataset = lib.initialize_dataset(
+val_dataset = lib.dataset.initialize_dataset(
     val_dir, val_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size,
@@ -124,38 +125,37 @@ train_op = tf.train.MomentumOptimizer(
 
 # Metrics for finding best validation set.
 tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
-    lib.metrics.true_positives, scope='tp', labels=y,
+    lib.metrics.true_positives, scope='tp', labels=labels,
     predictions=predictions_classes)
 
 fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
-    lib.metrics.false_positives, scope='fp', labels=y,
+    lib.metrics.false_positives, scope='fp', labels=labels,
     predictions=predictions_classes)
 
 fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
-    lib.metrics.false_negatives, scope='fn', labels=y,
+    lib.metrics.false_negatives, scope='fn', labels=labels,
     predictions=predictions_classes)
 
 tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
-    lib.metrics.true_negatives, scope='tn', labels=y,
+    lib.metrics.true_negatives, scope='tn', labels=labels,
     predictions=predictions_classes)
 
 confusion_matrix = lib.metrics.confusion_matrix(
-    tp, fp, fn, tn)
+    tp, fp, fn, tn, scope='confusion_matrix')
 
 brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
     tf.metrics.mean_squared_error, scope='brier',
-    labels=y, predictions=predictions)
+    labels=labels, predictions=predictions)
 
 auc, update_auc, reset_auc = lib.metrics.create_reset_metric(
     tf.metrics.auc, scope='auc',
-    labels=y, predictions=predictions)
+    labels=labels, predictions=predictions)
 tf.summary.scalar('auc', auc)
 
 # Merge all the summaries and write them out.
 summaries_op = tf.summary.merge_all()
 train_writer = tf.summary.FileWriter(save_summaries_dir + "/train")
 test_writer = tf.summary.FileWriter(save_summaries_dir + "/test")
-
 
 def print_training_status(epoch, num_epochs, batch_num, xent, i_step=None):
     def length(x): return len(str(x))
@@ -207,8 +207,10 @@ for epoch in range(num_epochs):
     except tf.errors.OutOfRangeError:
         print(f"\nEnd of epoch {epoch}!")
 
-    lib.evaluation.perform_test(sess=sess, init_op=val_init_op,
-                                summary_writer=train_writer, epoch=epoch)
+    # Perform validation.
+    val_auc = lib.evaluation.perform_test(
+        sess=sess, init_op=val_init_op, 
+        summary_writer=train_writer, epoch=epoch)
 
     if val_auc < latest_peak_auc:
         # Stop early if peak of val auc has been reached.
