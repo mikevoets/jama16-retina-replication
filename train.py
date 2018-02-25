@@ -49,13 +49,12 @@ save_summaries_dir = str(args.save_summaries_dir)
 use_sgd = bool(args.vanilla_sgd)
 
 print("""
-      Training images folder: {},
-      Validation images folder: {},
-      Saving model and graph checkpoints at: {},
-      Saving summaries at: {},
-      Use SGD: {}
-      """
-      .format(train_dir, val_dir, save_model_path, save_summaries_dir, use_sgd))
+Training images folder: {},
+Validation images folder: {},
+Saving model and graph checkpoints at: {},
+Saving summaries at: {},
+Use SGD: {}
+""".format(train_dir, val_dir, save_model_path, save_summaries_dir, use_sgd))
 
 # Various constants.
 num_channels = 3
@@ -69,7 +68,7 @@ momentum = 0.9  # Only used if use_sgd is False
 use_nesterov = True  # Only used if use_sgd is False
 
 # Batch sizes.
-train_batch_size = 32
+train_batch_size = 64
 val_batch_size = 32
 
 # Buffer size for image shuffling.
