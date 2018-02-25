@@ -15,3 +15,6 @@ data/*/*
 !data/*/.keep
 logs/
 tmp/
+
+# Grading tool
+.gt/
