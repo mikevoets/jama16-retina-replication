@@ -73,8 +73,8 @@ min_delta_auc = 0.01
 val_batch_size = 32
 
 # Buffer size for image shuffling.
-shuffle_buffer_size = 500
-prefetch_buffer_size = 10 * train_batch_size
+shuffle_buffer_size = 256
+prefetch_buffer_size = 2 * train_batch_size
 
 # Set image datas format to channels first if GPU is available.
 if tf.test.is_gpu_available():
