@@ -60,15 +60,16 @@ Use SGD: {}
 num_channels = 3
 num_workers = 8
 
-# Hyper-parameters.
-num_epochs = 200
-wait_epochs = 10
+# Hyper-parameters for training.
 learning_rate = 3e-3
 momentum = 0.9  # Only used if use_sgd is False
 use_nesterov = True  # Only used if use_sgd is False
-
-# Batch sizes.
 train_batch_size = 64
+
+# Hyper-parameters for validation.
+num_epochs = 200
+wait_epochs = 10
+min_delta_auc = 0.01
 val_batch_size = 32
 
 # Buffer size for image shuffling.
@@ -231,7 +232,7 @@ for epoch in range(num_epochs):
         sess=sess, init_op=val_init_op,
         summary_writer=train_writer, epoch=epoch)
 
-    if val_auc < latest_peak_auc:
+    if val_auc < latest_peak_auc + min_delta_auc:
         # Stop early if peak of val auc has been reached.
         # If it is lower than the previous auc value, wait up to `wait_epochs`
         #  to see if it does not increase again.
