@@ -5,7 +5,7 @@
 
 messidor2_dir="./data/messidor2"
 default_output_dir="$messidor2_dir/bin2"
-grad_grades="./vendor/messidor2/messidor2_gradability_grades.csv" 
+grad_grades="./vendor/messidor2/messidor2_gradability_grades.csv"
 
 check_parameters()
 {

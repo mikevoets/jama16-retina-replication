@@ -146,7 +146,7 @@ if ! echo "$@" | grep -c -- "--redistribute" >/dev/null; then
 
   # Remove images in pool.
   find "$pool_dir" -maxdepth 1 -iname "*.jpeg" -delete
-  
+
   # Remove ungradable images if needed.
   if echo "$@" | grep -c -- "--only_gradable" >/dev/null; then
     echo "Remove ungradable images."
