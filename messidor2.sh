@@ -4,6 +4,42 @@
 # Assumes that the data set resides in ./data/messidor2.
 
 messidor2_dir="./data/messidor2"
+default_output_dir="$messidor2_dir/bin2"
+grad_grades="./vendor/messidor2/messidor2_gradability_grades.csv" 
+
+check_parameters()
+{
+  if [ "$1" -ge 3 ]; then
+    echo "Illegal number of parameters".
+    exit 1
+  fi
+  if [ "$1" -ge 1 ]; then
+    for param in $2; do
+      if [ $(echo "$3" | grep -c -- "$param") -eq 0 ]; then
+        echo "Unknown parameter $param."
+        exit 1
+      fi
+    done
+  fi
+  return 0
+}
+
+strip_params=$(echo "$@" | sed "s/--\([a-z]\+\)\(=\(.\+\)\)\?/\1/g")
+check_parameters "$#" "$strip_params" "output only_gradable"
+
+# Get output directory from parameters.
+output_dir=$(echo "$@" | sed "s/.*--output=\([^ ]\+\).*/\1/g")
+
+# Check if output directory is valid.
+if ! [[ "$output_dir" =~ ^[^-]+$ ]]; then
+  output_dir=$default_output_dir
+fi
+
+if ls "$output_dir" >/dev/null 2>&1; then
+  echo "Dataset is already located in $output_dir."
+  echo "Specify another output directory with the --output flag."
+  exit 1
+fi
 
 # Confirm the Basexx .zip files and annotations .xls files are present.
 xls_count=$(find "$messidor2_dir" -maxdepth 1 -iname "Annotation_Base*.xls" | wc -l)
@@ -11,17 +47,28 @@ zip_count=$(find "$messidor2_dir" -maxdepth 1 -iname "Base*.zip" | wc -l)
 
 if [ $xls_count -ne 12 ]; then
   echo "$messidor2_dir does not contain any all annotation files!"
-  exit 1
+  #exit 1
 fi
 
 if [ $zip_count -ne 12 ]; then
   echo "$messidor2_dir does not contain all Basexx zip files!"
-  exit 1
+  #exit 1
 fi
 
 # Preprocess the data set and categorize the images by labels into
 #  subdirectories.
-python preprocess_messidor2.py --data_dir="$messidor2_dir" || exit 1
+# python preprocess_messidor2.py --data_dir="$messidor2_dir" || exit 1
+
+if echo "$@" | grep -F -c -- "--only_gradable" >/dev/null; then
+  echo "Remove ungradable images"
+  cat "$grad_grades" | while read tbl; do
+    if [[ "$tbl" =~ ^.*0$ ]]; then
+      file=$(echo "$tbl" | sed "s/\(.*\) 0/\1/")
+      find "$messidor2_dir"/[0-3] -iname "$file*"
+    fi
+  done
+fi
+exit
 
 # According to [1], we have to correct some duplicate images and
 #  grades in the data set.
@@ -45,11 +92,11 @@ find "$messidor2_dir/3" -name "20051020_63936_0100_PP.jpg" -exec mv {} "$messido
 find "$messidor2_dir/2" -name "20060523_48477_0100_PP.jpg" -exec mv {} "$messidor2_dir/3/." \;
 
 echo "Preparing data set..."
-mkdir -p "$messidor2_dir/bin2/0" "$messidor2_dir/bin2/1"
+mkdir -p "$output_dir/0" "$output_dir/1"
 
 echo "Moving images to new directories..."
-find "$messidor2_dir/"[0-1] -iname "*.jpg" -exec mv {} "$messidor2_dir/bin2/0/." \;
-find "$messidor2_dir/"[2-3] -iname "*.jpg" -exec mv {} "$messidor2_dir/bin2/1/." \;
+find "$messidor2_dir/"[0-1] -iname "*.jpg" -exec mv {} "$output_dir/0/." \;
+find "$messidor2_dir/"[2-3] -iname "*.jpg" -exec mv {} "$output_dir/1/." \;
 
 echo "Removing old directories..."
 rmdir "$messidor2_dir/"[0-3]
@@ -58,7 +105,7 @@ rmdir "$messidor2_dir/"[0-3]
 echo "Converting data set to tfrecords..."
 git submodule update --init
 
-python ./create_tfrecords/create_tfrecord.py --dataset_dir="$messidor2_dir/bin2" \
+python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir" \
        --tfrecord_filename=messidor2 --num_shards=2 || \
     { echo "Submodule not initialized. Run git submodule update --init";
       exit 1; }
