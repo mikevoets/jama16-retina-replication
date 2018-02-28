@@ -47,28 +47,28 @@ zip_count=$(find "$messidor2_dir" -maxdepth 1 -iname "Base*.zip" | wc -l)
 
 if [ $xls_count -ne 12 ]; then
   echo "$messidor2_dir does not contain any all annotation files!"
-  #exit 1
+  exit 1
 fi
 
 if [ $zip_count -ne 12 ]; then
   echo "$messidor2_dir does not contain all Basexx zip files!"
-  #exit 1
+  exit 1
 fi
 
 # Preprocess the data set and categorize the images by labels into
 #  subdirectories.
-# python preprocess_messidor2.py --data_dir="$messidor2_dir" || exit 1
+python preprocess_messidor2.py --data_dir="$messidor2_dir" || exit 1
 
+# Remove ungradable images if needed.
 if echo "$@" | grep -F -c -- "--only_gradable" >/dev/null; then
   echo "Remove ungradable images"
   cat "$grad_grades" | while read tbl; do
     if [[ "$tbl" =~ ^.*0$ ]]; then
       file=$(echo "$tbl" | sed "s/\(.*\) 0/\1/")
-      find "$messidor2_dir"/[0-3] -iname "$file*"
+      find "$messidor2_dir"/[0-3] -iname "$file*" -delete
     fi
   done
 fi
-exit
 
 # According to [1], we have to correct some duplicate images and
 #  grades in the data set.
