@@ -146,23 +146,25 @@ if ! echo "$@" | grep -c -- "--redistribute" >/dev/null; then
 
   # Remove images in pool.
   find "$pool_dir" -maxdepth 1 -iname "*.jpeg" -delete
+  
+  # Remove ungradable images if needed.
+  if echo "$@" | grep -c -- "--only_gradable" >/dev/null; then
+    echo "Remove ungradable images."
+    cat "$grad_grades" | while read tbl; do
+      if [[ "$tbl" =~ ^.*0$ ]]; then
+        file=$(echo "$tbl" | sed "s/\(.*\) 0/\1/")
+        find "$pool_dir" -iname "$file*" -delete
+      fi
+    done
+  fi
 fi
 
-# Remove ungradable images if needed.
-if echo "$@" | grep -c -- "--only_gradable"; then
-  echo "Remove ungradable images."
-  cat "$grad_grades" | while read tbl; do
-    if [[ "$tbl" =~ ^.*0$ ]]; then
-      file=$(echo "$tbl" | sed "s/\(.*\) 0/\1/")
-      find "$pool_dir" -iname "$file*" -delete
-    fi
-  done
-
+# Distribution numbers for data sets with ungradable images.
+if echo "$@" | grep -c -- "--only_gradable" >/dev/null; then
   bin2_0_cnt=39202
   bin2_0_tr_cnt=31106
   bin2_1_tr_cnt=12582
 else
-  # Distribution numbers for data sets with ungradable images.
   bin2_0_cnt=48784
   bin2_0_tr_cnt=40688
   bin2_1_tr_cnt=16458
