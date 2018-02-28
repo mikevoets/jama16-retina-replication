@@ -4,7 +4,10 @@
 # Assumes that the data set resides in ./data/eyepacs.
 
 eyepacs_dir="./data/eyepacs"
-pool_dir="$eyepacs_dir/pool"
+default_pool_dir="$eyepacs_dir/pool"
+default_shuffle_seed=42
+default_output_dir="$eyepacs_dir/bin2"
+grad_grades="./vendor/eyepacs/eyepacs_gradability_grades.csv"
 
 # From [1].
 get_seeded_random()
@@ -15,15 +18,21 @@ get_seeded_random()
 
 print_usage()
 {
-  echo "Unpacking and preprocessing script for EyePACS."
-  echo "Run with --redistribute if you have ran this before,"
-  echo "and only want to redistribute the data set."
+  echo ""
+  echo "Extracting and preprocessing script for Kaggle EyePACS."
+  echo ""
+  echo "Optional parameters: --redistribute, --pool_dir, --seed, --only_gradable"
+  echo "--redistribute	Redistribute the data set from pool (default: false)"
+  echo "--pool_dir	Path to pool folder (default: $default_pool_dir)"
+  echo "--seed		Seed number for shuffling before distributing the data set (default: $default_shuffle_seed)"
+  echo "--only_gradable Skip ungradable images. (default: false)"
+  echo "--output_dir 	Path to output directory (default: $default_output_dir)"
   exit 1
 }
 
 check_parameters()
 {
-  if [ "$1" -ge 3 ]; then
+  if [ "$1" -ge 6 ]; then
     echo "Illegal number of parameters".
     print_usage
   fi
@@ -38,20 +47,57 @@ check_parameters()
   return 0
 }
 
-strip_params=$(echo "$@" | sed "s/--\([a-z]\+\)\(=\([0-9]\+\)\)\?/\1/g")
-check_parameters "$#" "$strip_params" "redistribute seed"
+if echo "$@" | grep -c -- "-h" >/dev/null; then
+  print_usage
+fi
+
+strip_params=$(echo "$@" | sed "s/--\([a-z_]\+\)\(=\([^ ]\+\)\)\?/\1/g")
+check_parameters "$#" "$strip_params" "redistribute seed pool_dir only_gradable output_dir"
 
 # Get seed from parameters.
-shuffle_seed=$(echo "$@" | sed "s/.*--seed=\([0-9]\+\).*/\1/g")
+shuffle_seed=$(echo "$@" | sed "s/.*--seed=\([0-9]\+\).*/\1/")
 
 # Replace seed with default seed number if no seed number.
 if ! [[ "$shuffle_seed" =~ ^-?[0-9]+$ ]]; then
-  shuffle_seed=42
+  shuffle_seed=$default_shuffle_seed
+fi
+
+# Get pool directory from parameters.
+pool_dir=$(echo "$@" | sed "s/.*--pool_dir=\([^ ]\+\).*/\1/")
+
+# Check if output directory is valid.
+if ! [[ "$pool_dir" =~ ^[^-]+$ ]]; then
+  pool_dir=$default_pool_dir
+fi
+
+# Get output directory from parameters.
+output_dir=$(echo "$@" | sed "s/.*--output_dir=\([^ ]\+\).*/\1/")
+
+if ! [[ "$output_dir" =~ ^[^-]+$ ]]; then
+  output_dir=$default_output_dir
+fi
+
+if ls "$pool_dir" >/dev/null 2>&1 && ! echo "$@" | grep -c -- "--redistribute" >/dev/null; then
+  echo "Path already exists: $pool_dir."
+  echo ""
+  echo "If you want to redistribute data sets from the pool, run this "
+  echo " with the --redistribute flag."
+  echo "If you want to extract and preprocess the images to another pool "
+  echo " directory, specify --pool_dir with a non-existing directory."
+  exit 1
+fi
+
+if ls "$output_dir" >/dev/null 2>&1; then
+  echo "Path already exists: $output_dir."
+  echo ""
+  echo "Specify a non-existing --output_dir if you want to redistribute"
+  echo " from the existing pool to another directory, along with "
+  echo " the --redistribute flag."
+  exit 1
 fi
 
 # Skip unpacking if --redistribute parameter is defined.
-if [ $(echo "$@" | grep -c -- "--redistribute") -eq 0 ]; then
-
+if ! echo "$@" | grep -c -- "--redistribute" >/dev/null; then
   # Confirm the Basexx .zip files and annotations .xls files are present.
   train_zip_count=$(find "$eyepacs_dir" -maxdepth 1 -iname "train.zip.00*" | wc -l)
   test_zip_count=$(find "$eyepacs_dir" -maxdepth 1 -iname "test.zip.00*" | wc -l)
@@ -102,31 +148,46 @@ if [ $(echo "$@" | grep -c -- "--redistribute") -eq 0 ]; then
   find "$pool_dir" -maxdepth 1 -iname "*.jpeg" -delete
 fi
 
+# Remove ungradable images if needed.
+if echo "$@" | grep -c -- "--only_gradable"; then
+  echo "Remove ungradable images."
+  cat "$grad_grades" | while read tbl; do
+    if [[ "$tbl" =~ ^.*0$ ]]; then
+      file=$(echo "$tbl" | sed "s/\(.*\) 0/\1/")
+      find "$pool_dir" -iname "$file*" -delete
+    fi
+  done
+
+  echo "Define distribution numbers!"
+  exit 1
+
+else
+  # Distribution numbers for data sets with ungradable images.
+  bin2_0_cnt=48784
+  bin2_0_tr_cnt=40688
+  bin2_1_tr_cnt=16458
+fi
+
 echo "Finding images..."
 for i in {0..4}; do
   k=$(find "$pool_dir/$i" -iname "*.jpg" | wc -l)
   echo "Found $k images in class $i."
 done
 
-echo "Creating directories for data sets"
-rm -rf "$eyepacs_dir/bin2"
-mkdir -p "$eyepacs_dir/bin2/train/0" "$eyepacs_dir/bin2/train/1"
-mkdir -p "$eyepacs_dir/bin2/test/0" "$eyepacs_dir/bin2/test/1"
-mkdir -p "$eyepacs_dir/bin2/validation"
-
-# Define images for binary (2) class 0.
-bin2_0_cnt=48784
-bin2_0_tr_cnt=40688
+# Define distributions for data sets.
 bin2_0=$(
 find "$pool_dir/"[0-1] -iname "*.jpg" |
 shuf --random-source=<(get_seeded_random "$shuffle_seed") |
 head -n "$bin2_0_cnt"
 )
 
-# Define images for binary (2) class 1.
 bin2_1=$(find "$pool_dir/"[2-4] -iname "*.jpg")
 bin2_1_cnt=$(echo $bin2_1 | tr " " "\n" | wc -l)
-bin2_1_tr_cnt=16458
+
+echo "Creating directories for data sets"
+mkdir -p "$output_dir/train/0" "$output_dir/train/1"
+mkdir -p "$output_dir/test/0" "$output_dir/test/1"
+mkdir -p "$output_dir/validation"
 
 distribute_images()
 {
@@ -137,30 +198,30 @@ distribute_images()
 }
 
 echo "Gathering images for train set (0/2)"
-distribute_images "$bin2_0" head "$bin2_0_tr_cnt" "$eyepacs_dir/bin2/train/0/."
+distribute_images "$bin2_0" head "$bin2_0_tr_cnt" "$output_dir/train/0/."
 
 echo "Gathering images for train set (1/2)"
-distribute_images "$bin2_1" head "$bin2_1_tr_cnt" "$eyepacs_dir/bin2/train/1/."
+distribute_images "$bin2_1" head "$bin2_1_tr_cnt" "$output_dir/train/1/."
 
 echo "Gathering images for test set (0/2)"
-distribute_images "$bin2_0" tail "$(expr $bin2_0_cnt - $bin2_0_tr_cnt)" "$eyepacs_dir/bin2/test/0/."
+distribute_images "$bin2_0" tail "$(expr $bin2_0_cnt - $bin2_0_tr_cnt)" "$output_dir/test/0/."
 
 echo "Gathering images for test set (1/2)"
-distribute_images "$bin2_1" tail "$(expr $bin2_1_cnt - $bin2_1_tr_cnt)" "$eyepacs_dir/bin2/test/1/."
+distribute_images "$bin2_1" tail "$(expr $bin2_1_cnt - $bin2_1_tr_cnt)" "$output_dir/test/1/."
 
 echo "Converting data set to tfrecords..."
 git submodule update --init
 
-python ./create_tfrecords/create_tfrecord.py --dataset_dir="$eyepacs_dir/bin2/train" \
+python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir/train" \
        --tfrecord_filename=eyepacs --num_shards=8 --validation_size=0.2 || \
     { echo "Submodule not initialized. Run git submodule update --init";
       exit 1; }
 
 echo "Moving validation tfrecords to separate folder."
-find "$eyepacs_dir/bin2/train" -name "*eyepacs_validation*.tfrecord" -exec mv {} "$eyepacs_dir/bin2/validation/." \;
-find "$eyepacs_dir/bin2/train" -maxdepth 1 -iname "*.txt" -exec cp {} "$eyepacs_dir/bin2/validation/." \;
+find "$output_dir/train" -name "*eyepacs_validation*.tfrecord" -exec mv {} "$output_dir/validation/." \;
+find "$output_dir/train" -maxdepth 1 -iname "*.txt" -exec cp {} "$output_dir/validation/." \;
 
-python ./create_tfrecords/create_tfrecord.py --dataset_dir="$eyepacs_dir/bin2/test" \
+python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir/test" \
        --tfrecord_filename=eyepacs --num_shards=4 || exit 1
 
 echo "Done!"
