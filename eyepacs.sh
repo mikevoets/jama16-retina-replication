@@ -158,9 +158,9 @@ if echo "$@" | grep -c -- "--only_gradable"; then
     fi
   done
 
-  echo "Define distribution numbers!"
-  exit 1
-
+  bin2_0_cnt=39202
+  bin2_0_tr_cnt=31106
+  bin2_1_tr_cnt=12582
 else
   # Distribution numbers for data sets with ungradable images.
   bin2_0_cnt=48784
