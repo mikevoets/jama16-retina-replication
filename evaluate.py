@@ -66,7 +66,7 @@ if "," in load_model_path:
     load_model_paths = load_model_path.split(",")
 # Check if the model path has a regexp character.
 elif any(char in load_model_path for char in '*+?'):
-    load_model_paths = [x.split(load_model_path)[0]
+    load_model_paths = [".".join(x.split(".")[:-1])
                         for x in glob("{}*".format(load_model_path))]
     load_model_paths = list(set(load_model_paths))
 else:

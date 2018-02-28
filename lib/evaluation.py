@@ -66,8 +66,8 @@ def perform_test(sess, init_op, summary_writer=None, epoch=None,
         sess.run(tensors, feed_dict)
 
     # Yield the result if custom tensors were defined.
-    if batch_mode && len(custom_tensors) > 0:
-        return [np.vstack(x) for x in zip(*batch_results]
+    if batch_mode and len(custom_tensors) > 0:
+        return [np.vstack(x) for x in zip(*batch_results)]
 
     # Retrieve confusion matrix and estimated roc auc score.
     test_conf_matrix, test_brier, test_auc, summaries = sess.run(
