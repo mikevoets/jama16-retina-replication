@@ -1,3 +1,4 @@
+import re
 import os
 import sys
 import argparse
@@ -6,6 +7,7 @@ import tensorflow as tf
 import numpy as np
 import lib.dataset
 import lib.evaluation
+from glob import glob
 
 print(f"Numpy version: {np.__version__}")
 print(f"Tensorflow version: {tf.__version__}")
@@ -31,7 +33,9 @@ parser.add_argument("-o", "--other", action="store_true",
                     help="evaluate performance on your own dataset")
 parser.add_argument("--data_dir", help="directory where data set resides")
 parser.add_argument("-lm", "--load_model_path",
-                    help="path to where graph model should be loaded from",
+                    help="path to where graph model should be loaded from "
+                         "creates an ensemble if paths are comma separated "
+                         "or a regexp",
                     default=default_load_model_path)
 parser.add_argument("-b", "--batch_size",
                     help="batch size", default=default_batch_size)
@@ -57,11 +61,23 @@ elif args.other and args.data_dir is None:
 load_model_path = str(args.load_model_path)
 batch_size = int(args.batch_size)
 
+# Check if the model path has comma-separated entries.
+if "," in load_model_path:
+    load_model_paths = load_model_path.split(",")
+# Check if the model path has a regexp character.
+elif any(char in load_model_path for char in '*+?'):
+    load_model_paths = [x.split(load_model_path)[0]
+                        for x in glob("{}*".format(load_model_path))]
+    load_model_paths = list(set(load_model_paths))
+else:
+    load_model_paths = [load_model_paths]
+
+print("Found model(s):\n{}".format("\n".join(load_model_paths)))
+
 # Other setting variables.
 num_channels = 3
 num_workers = 8
-shuffle_buffer_size = 5000
-prefetch_buffer_size = 100 * batch_size
+prefetch_buffer_size = 2 * batch_size
 
 # Set image datas format to channels first if GPU is available.
 if tf.test.is_gpu_available():
@@ -76,15 +92,10 @@ tf.keras.backend.set_session(sess)
 tf.keras.backend.set_learning_phase(False)
 tf.keras.backend.set_image_data_format(image_data_format)
 
-# Load the meta graph and restore variables from training.
-saver = tf.train.import_meta_graph("{}.meta".format(load_model_path))
-saver.restore(sess, load_model_path)
-
 # Initialize the test set.
 test_dataset = lib.dataset.initialize_dataset(
     data_dir, batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-    shuffle_buffer_size=shuffle_buffer_size,
     image_data_format=image_data_format, num_channels=num_channels)
 
 # Create an initialize iterators.
@@ -98,16 +109,38 @@ test_init_op = iterator.make_initializer(test_dataset)
 graph = tf.get_default_graph()
 x = graph.get_tensor_by_name("x:0")
 y = graph.get_tensor_by_name("y:0")
+predictions = graph.get_tensor_by_name("predictions:0")
+avg_pred = graph.get_tensor_by_name("avg_pred:0")
 
-
-def get_feed_dict():
+def feed_images():
     x_test, y_test = sess.run([test_images, test_labels])
     return {x: x_test, y: y_test}
 
+all_predictions = []
 
-# Perform the evaluation.
-lib.evaluation.perform_test(sess=sess, init_op=test_init_op,
-                            feed_dict_fn=get_feed_dict)
+for model_path in load_model_paths:
+    # Load the meta graph and restore variables from training.
+    saver = tf.train.import_meta_graph("{}.meta".format(model_path))
+    saver.restore(sess, model_path)
+
+    # Perform the evaluation.
+    test_predictions = lib.evaluation.perform_test(
+        sess=sess, init_op=test_init_op, feed_dict_fn=feed_images,
+        custom_tensors=predictions)
+
+    all_predictions.append(test_predictions)
+
+# Convert the predictions to a numpy array.
+all_predictions = np.array(all_predictions)
+
+# Calculate the linear average of all predictions.
+average_predictions = np.mean(all_predictions, axis=0)
+
+# Use these predictions for printing evaluation results.
+lib.evaluation.perform_test(
+    sess=sess, init_op=test_init_op,
+    feed_dict_fn=lambda f: {avg_pred: average_predictions},
+    batch_mode=False)
 
 sess.close()
 sys.exit(0)

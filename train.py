@@ -118,12 +118,12 @@ base_model = tf.keras.applications.InceptionV3(
     include_top=False, weights='imagenet', pooling='avg', input_tensor=x)
 
 # Add dense layer with the same amount of neurons as labels.
-with tf.name_scope('logits'):
-    logits = tf.layers.dense(base_model.output, units=1)
+logits = tf.layers.dense(base_model.output, units=1)
 
 # Get the predictions with a sigmoid activation function.
-with tf.name_scope('predictions'):
-    predictions = tf.sigmoid(logits)
+predictions = tf.sigmoid(logits, name='predictions')
+avg_predictions = tf. \
+    placeholder_with_default(predictions, predictions.shape, name='avg_pred')
 
 # Get the class predictions for labels.
 predictions_classes = tf.round(predictions)
