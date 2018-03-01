@@ -92,7 +92,7 @@ all_y = []
 
 
 def feed_images(sess, x_tensor, y_tensor, x_batcher, y_batcher):
-    _x, _y = sess.run([test_x, test_y])
+    _x, _y = sess.run([x_batcher, y_batcher])
     if not got_all_y:
         all_y.append(_y)
     return {x_tensor: _x, y_tensor: _y}
@@ -172,12 +172,12 @@ for model_path in load_model_paths:
 
         test_init_op = iterator.make_initializer(test_dataset)
 
-	    # Perform the evaluation.
+	# Perform the evaluation.
         test_predictions = lib.evaluation.perform_test(
             sess=sess, init_op=test_init_op,
             feed_dict_fn=feed_images,
-            feed_dict_args={"sess": sess, "x": x, "y": y,
-                            "test_x": test_images, "test_y": test_labels},
+            feed_dict_args={"sess": sess, "x_tensor": x, "y_tensor": y,
+                            "x_batcher": test_images, "y_batcher": test_labels},
             custom_tensors=[predictions])
 
         all_predictions.append(test_predictions[0])
@@ -192,7 +192,7 @@ all_predictions = np.array(all_predictions)
 avg_pred = np.mean(all_predictions, axis=0)
 
 # Convert all labels to numpy array.
-all_labels = np.vstack(all_y)
+all_y = np.vstack(all_y)
 
 # Use these predictions for printing evaluation results.
 with tf.Session(graph=eval_graph) as sess:
@@ -202,8 +202,7 @@ with tf.Session(graph=eval_graph) as sess:
     # Update all streaming variables with predictions.
     sess.run([update_tp, update_fp, update_fn,
               update_tn, update_brier, update_auc],
-              feed_dict={average_predictions: avg_predictions,
-                         all_labels: all_y})
+              feed_dict={average_predictions: avg_pred, all_labels: all_y})
 
     # Retrieve confusion matrix and estimated roc auc score.
     test_conf_matrix, test_brier, test_auc = sess.run(
