@@ -8,6 +8,8 @@ import numpy as np
 import lib.dataset
 import lib.evaluation
 import lib.metrics
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 from glob import glob
 
@@ -213,15 +215,15 @@ with tf.Session(graph=eval_graph) as sess:
               feed_dict={average_predictions: avg_pred, all_labels: all_y})
 
     # Retrieve confusion matrix and estimated roc auc score.
-    test_conf_matrix, test_brier, test_auc, *test_sensitivies = sess.run(
+    test_conf_matrix, test_brier, test_auc, *test_sensitivities = sess.run(
         [confusion_matrix, brier, auc] + sens)
 
     fig = plt.figure()
-    plt.plot(np.array([1.0 - n for n in sens]), np.arange(0.0, 1.0, 0.005),
-             color="darkorange")
+    plt.plot(np.array([(1.0 - n) for n in test_sensitivities]), np.arange(0.0, 1.0, 0.005),
+             color="darkorange", lw=2, label="ROC curve (area = {:0.2f})".format(test_auc))
     plt.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
-    plt.xlim[[0.0, 1.0]]
-    plt.ylim[[0.0, 1.05]]
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
     plt.xlabel("1 - Sensitivity")
     plt.ylabel("Specificity")
     plt.title("Receiver operating curve")
