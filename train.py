@@ -61,7 +61,7 @@ num_channels = 3
 num_workers = 8
 
 # Hyper-parameters for training.
-learning_rate = 3e-3
+learning_rate = 3e-2
 momentum = 0.9  # Only used if use_sgd is False
 use_nesterov = True  # Only used if use_sgd is False
 train_batch_size = 64
@@ -126,7 +126,7 @@ avg_predictions = tf. \
     placeholder_with_default(predictions, predictions.shape, name='avg_pred')
 
 # Get the class predictions for labels.
-predictions_classes = tf.round(predictions)
+predictions_classes = tf.round(avg_predictions)
 
 # Retrieve loss of network using cross entropy.
 mean_xentropy = tf.reduce_mean(
@@ -165,11 +165,11 @@ confusion_matrix = lib.metrics.confusion_matrix(
 
 brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
     tf.metrics.mean_squared_error, scope='brier',
-    labels=y, predictions=predictions)
+    labels=y, predictions=avg_predictions)
 
 auc, update_auc, reset_auc = lib.metrics.create_reset_metric(
     tf.metrics.auc, scope='auc',
-    labels=y, predictions=predictions)
+    labels=y, predictions=avg_predictions)
 tf.summary.scalar('auc', auc)
 
 # Merge all the summaries and write them out.

@@ -70,7 +70,7 @@ elif any(char in load_model_path for char in '*+?'):
                         for x in glob("{}*".format(load_model_path))]
     load_model_paths = list(set(load_model_paths))
 else:
-    load_model_paths = [load_model_paths]
+    load_model_paths = [load_model_path]
 
 print("Found model(s):\n{}".format("\n".join(load_model_paths)))
 
@@ -86,11 +86,7 @@ if tf.test.is_gpu_available():
 else:
     image_data_format = 'channels_last'
 
-# Start session.
-sess = tf.Session()
-tf.keras.backend.set_session(sess)
-tf.keras.backend.set_learning_phase(False)
-tf.keras.backend.set_image_data_format(image_data_format)
+
 
 # Initialize the test set.
 test_dataset = lib.dataset.initialize_dataset(
@@ -106,29 +102,37 @@ test_images, test_labels = iterator.get_next()
 
 test_init_op = iterator.make_initializer(test_dataset)
 
-graph = tf.get_default_graph()
-x = graph.get_tensor_by_name("x:0")
-y = graph.get_tensor_by_name("y:0")
-predictions = graph.get_tensor_by_name("predictions:0")
-avg_pred = graph.get_tensor_by_name("avg_pred:0")
 
-def feed_images():
-    x_test, y_test = sess.run([test_images, test_labels])
+def feed_images(x, y):
+    x_test, y_test = eval_sess.run([test_images, test_labels])
     return {x: x_test, y: y_test}
+
 
 all_predictions = []
 
 for model_path in load_model_paths:
-    # Load the meta graph and restore variables from training.
-    saver = tf.train.import_meta_graph("{}.meta".format(model_path))
-    saver.restore(sess, model_path)
+    # Start session.
+    with tf.Session(graph=tf.Graph()) as sess:
+        tf.keras.backend.set_session(sess)
+        tf.keras.backend.set_learning_phase(False)
+        tf.keras.backend.set_image_data_format(image_data_format)   
+	
+        # Load the meta graph and restore variables from training.
+        saver = tf.train.import_meta_graph("{}.meta".format(model_path))
+        saver.restore(sess, model_path)
 
-    # Perform the evaluation.
-    test_predictions = lib.evaluation.perform_test(
-        sess=sess, init_op=test_init_op, feed_dict_fn=feed_images,
-        custom_tensors=predictions)
+        graph = tf.get_default_graph()
+        x = graph.get_tensor_by_name("x:0")
+        y = graph.get_tensor_by_name("y:0")
+        predictions = graph.get_tensor_by_name("predictions:0")
 
-    all_predictions.append(test_predictions)
+	# Perform the evaluation.
+        test_predictions = lib.evaluation.perform_test(
+            sess=sess, init_op=test_init_op, 
+            feed_dict_fn=lambda f: feed_images,
+            custom_tensors=predictions)
+
+        all_predictions.append(test_predictions)
 
 # Convert the predictions to a numpy array.
 all_predictions = np.array(all_predictions)
