@@ -135,6 +135,11 @@ with eval_graph.as_default() as g:
         tf.metrics.auc, scope='auc',
         labels=all_labels, predictions=average_predictions)
 
+    roc_measurements = [lib.metrics.create_reset_metric(
+                            tf.metrics.sensitivity_at_specificity, scope='sas',
+                            labels=all_labels, predictions=average_predictions))
+                        for i in np.arange(0.0, 1.0, 0.005)]
+    roc, update_roc, reset_roc = [list(x) for x in zip(*roc_measurements)]
 
 all_predictions = []
 
@@ -197,16 +202,19 @@ all_y = np.vstack(all_y)
 # Use these predictions for printing evaluation results.
 with tf.Session(graph=eval_graph) as sess:
     # Reset all streaming variables.
-    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
+    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier,
+              reset_auc] + reset_roc)
 
     # Update all streaming variables with predictions.
     sess.run([update_tp, update_fp, update_fn,
-              update_tn, update_brier, update_auc],
+              update_tn, update_brier, update_auc] + update_roc,
               feed_dict={average_predictions: avg_pred, all_labels: all_y})
 
     # Retrieve confusion matrix and estimated roc auc score.
-    test_conf_matrix, test_brier, test_auc = sess.run(
-        [confusion_matrix, brier, auc])
+    test_conf_matrix, test_brier, test_auc, test_roc = sess.run(
+        [confusion_matrix, brier, auc] + roc)
+
+    import pdb; pdb.set_trace()
 
     # Print total roc auc score for validation.
     print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
