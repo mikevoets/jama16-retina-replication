@@ -93,7 +93,7 @@ all_labels = []
 
 def feed_images(sess, x, y, test_x, test_y):
     _test_x, _test_y = sess.run([test_x, test_y])
-    all_labels.append(_test_y)  
+    all_labels.append(_test_y)
     return {x: _test_x, y: _test_y}
 
 
@@ -191,7 +191,7 @@ all_predictions = np.array(all_predictions)
 average_predictions = np.mean(all_predictions, axis=0)
 
 # Convert all labels to numpy array.
-all_labels = np.vstack(all_labels)
+all_labels = np.vstack(all_labels)[:len(average_predictions)]
 
 # Use these predictions for printing evaluation results.
 with tf.Session(graph=eval_graph) as sess:
