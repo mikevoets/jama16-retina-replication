@@ -93,7 +93,7 @@ all_labels = []
 
 def feed_images(sess, x, y, test_x, test_y):
     _test_x, _test_y = sess.run([test_x, test_y])
-    all_labels.append(_test_y)
+    all_labels.append(_test_y)  
     return {x: _test_x, y: _test_y}
 
 
@@ -180,7 +180,7 @@ for model_path in load_model_paths:
                             "test_x": test_images, "test_y": test_labels},
             custom_tensors=[predictions])
 
-        all_predictions.append(test_predictions)
+        all_predictions.append(test_predictions[0])
 
     tf.reset_default_graph()
 
@@ -198,7 +198,7 @@ with tf.Session(graph=eval_graph) as sess:
 
     # Reset all streaming variables.
     sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
-
+    import pdb; pdb.set_trace()
     # Update all streaming variables with predictions.
     sess.run([update_tp, update_fp, update_fn,
               update_tn, update_brier, update_auc],
@@ -206,8 +206,8 @@ with tf.Session(graph=eval_graph) as sess:
                          all_y: all_labels})
 
     # Retrieve confusion matrix and estimated roc auc score.
-    test_conf_matrix, test_brier, test_auc, summaries = sess.run(
-        [confusion_matrix, brier, auc, summaries_op])
+    test_conf_matrix, test_brier, test_auc = sess.run(
+        [confusion_matrix, brier, auc])
 
     # Print total roc auc score for validation.
     print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
