@@ -138,7 +138,7 @@ with eval_graph.as_default() as g:
 
     sensitivities = [lib.metrics.create_reset_metric(
                      tf.metrics.sensitivity_at_specificity, scope='sas',
-                     labels=all_labels, predictions=average_predictions))
+                     labels=all_labels, predictions=average_predictions)
                      for i in np.arange(0.0, 1.0, 0.005)]
     sens, update_sens, reset_sens = [list(x) for x in zip(*sensitivities)]
 
@@ -212,7 +212,7 @@ with tf.Session(graph=eval_graph) as sess:
               feed_dict={average_predictions: avg_pred, all_labels: all_y})
 
     # Retrieve confusion matrix and estimated roc auc score.
-    test_conf_matrix, test_brier, test_auc, test_sensitivies = sess.run(
+    test_conf_matrix, test_brier, test_auc, *test_sensitivies = sess.run(
         [confusion_matrix, brier, auc] + sens)
 
     fig = plt.figure()
