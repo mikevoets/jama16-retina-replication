@@ -7,6 +7,7 @@ import tensorflow as tf
 import numpy as np
 import lib.dataset
 import lib.evaluation
+import lib.metrics
 from glob import glob
 
 print(f"Numpy version: {np.__version__}")
@@ -87,25 +88,52 @@ else:
     image_data_format = 'channels_last'
 
 
-
-# Initialize the test set.
-test_dataset = lib.dataset.initialize_dataset(
-    data_dir, batch_size,
-    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-    image_data_format=image_data_format, num_channels=num_channels)
-
-# Create an initialize iterators.
-iterator = tf.data.Iterator.from_structure(
-    test_dataset.output_types, test_dataset.output_shapes)
-
-test_images, test_labels = iterator.get_next()
-
-test_init_op = iterator.make_initializer(test_dataset)
+all_labels = []
 
 
-def feed_images(x, y):
-    x_test, y_test = eval_sess.run([test_images, test_labels])
-    return {x: x_test, y: y_test}
+def feed_images(sess, x, y, test_x, test_y):
+    _test_x, _test_y = sess.run([test_x, test_y])
+    all_labels.append(_test_y)
+    return {x: _test_x, y: _test_y}
+
+
+eval_graph = tf.Graph()
+with eval_graph.as_default() as g:
+    # Variable for average predictions.
+    avg_predictions = tf.placeholder(
+        tf.float32, shape=[None, 1], name='avg_predictions')
+    all_y = tf.placeholder(tf.float32, shape=[None, 1], name='all_y')
+
+    # Get the class predictions for labels.
+    predictions_classes = tf.round(avg_predictions)
+
+    # Metrics for finding best validation set.
+    tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
+        lib.metrics.true_positives, scope='tp', labels=all_y,
+        predictions=predictions_classes)
+
+    fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
+        lib.metrics.false_positives, scope='fp', labels=all_y,
+        predictions=predictions_classes)
+
+    fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
+        lib.metrics.false_negatives, scope='fn', labels=all_y,
+        predictions=predictions_classes)
+
+    tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
+        lib.metrics.true_negatives, scope='tn', labels=all_y,
+        predictions=predictions_classes)
+
+    confusion_matrix = lib.metrics.confusion_matrix(
+        tp, fp, fn, tn, scope='confusion_matrix')
+
+    brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
+        tf.metrics.mean_squared_error, scope='brier',
+        labels=all_y, predictions=avg_predictions)
+
+    auc, update_auc, reset_auc = lib.metrics.create_reset_metric(
+        tf.metrics.auc, scope='auc',
+        labels=all_y, predictions=avg_predictions)
 
 
 all_predictions = []
@@ -115,8 +143,8 @@ for model_path in load_model_paths:
     with tf.Session(graph=tf.Graph()) as sess:
         tf.keras.backend.set_session(sess)
         tf.keras.backend.set_learning_phase(False)
-        tf.keras.backend.set_image_data_format(image_data_format)   
-	
+        tf.keras.backend.set_image_data_format(image_data_format)
+
         # Load the meta graph and restore variables from training.
         saver = tf.train.import_meta_graph("{}.meta".format(model_path))
         saver.restore(sess, model_path)
@@ -124,15 +152,37 @@ for model_path in load_model_paths:
         graph = tf.get_default_graph()
         x = graph.get_tensor_by_name("x:0")
         y = graph.get_tensor_by_name("y:0")
-        predictions = graph.get_tensor_by_name("predictions:0")
 
-	# Perform the evaluation.
+        try:
+            predictions = graph.get_tensor_by_name("predictions:0")
+        except KeyError:
+            predictions = graph.get_tensor_by_name("predictions/Sigmoid:0")
+
+        # Initialize the test set.
+        test_dataset = lib.dataset.initialize_dataset(
+            data_dir, batch_size,
+            num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+            image_data_format=image_data_format, num_channels=num_channels)
+
+        # Create an iterator.
+        iterator = tf.data.Iterator.from_structure(
+            test_dataset.output_types, test_dataset.output_shapes)
+
+        test_images, test_labels = iterator.get_next()
+
+        test_init_op = iterator.make_initializer(test_dataset)
+
+	    # Perform the evaluation.
         test_predictions = lib.evaluation.perform_test(
-            sess=sess, init_op=test_init_op, 
-            feed_dict_fn=lambda f: feed_images,
-            custom_tensors=predictions)
+            sess=sess, init_op=test_init_op,
+            feed_dict_fn=feed_images,
+            feed_dict_args={"sess": sess, "x": x, "y": y,
+                            "test_x": test_images, "test_y": test_labels},
+            custom_tensors=[predictions])
 
         all_predictions.append(test_predictions)
+
+    tf.reset_default_graph()
 
 # Convert the predictions to a numpy array.
 all_predictions = np.array(all_predictions)
@@ -140,11 +190,30 @@ all_predictions = np.array(all_predictions)
 # Calculate the linear average of all predictions.
 average_predictions = np.mean(all_predictions, axis=0)
 
-# Use these predictions for printing evaluation results.
-lib.evaluation.perform_test(
-    sess=sess, init_op=test_init_op,
-    feed_dict_fn=lambda f: {avg_pred: average_predictions},
-    batch_mode=False)
+# Convert all labels to numpy array.
+all_labels = np.vstack(all_labels)
 
-sess.close()
+# Use these predictions for printing evaluation results.
+with tf.Session(graph=eval_graph) as sess:
+
+    # Reset all streaming variables.
+    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
+
+    # Update all streaming variables with predictions.
+    sess.run([update_tp, update_fp, update_fn,
+              update_tn, update_brier, update_auc],
+              feed_dict={avg_predictions: average_predictions,
+                         all_y: all_labels})
+
+    # Retrieve confusion matrix and estimated roc auc score.
+    test_conf_matrix, test_brier, test_auc, summaries = sess.run(
+        [confusion_matrix, brier, auc, summaries_op])
+
+    # Print total roc auc score for validation.
+    print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
+
+    # Print confusion matrix.
+    print(f"Confusion matrix:")
+    print(test_conf_matrix[0])
+
 sys.exit(0)

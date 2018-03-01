@@ -122,11 +122,9 @@ logits = tf.layers.dense(base_model.output, units=1)
 
 # Get the predictions with a sigmoid activation function.
 predictions = tf.sigmoid(logits, name='predictions')
-avg_predictions = tf. \
-    placeholder_with_default(predictions, predictions.shape, name='avg_pred')
 
 # Get the class predictions for labels.
-predictions_classes = tf.round(avg_predictions)
+predictions_classes = tf.round(predictions)
 
 # Retrieve loss of network using cross entropy.
 mean_xentropy = tf.reduce_mean(
@@ -165,11 +163,11 @@ confusion_matrix = lib.metrics.confusion_matrix(
 
 brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
     tf.metrics.mean_squared_error, scope='brier',
-    labels=y, predictions=avg_predictions)
+    labels=y, predictions=predictions)
 
 auc, update_auc, reset_auc = lib.metrics.create_reset_metric(
     tf.metrics.auc, scope='auc',
-    labels=y, predictions=avg_predictions)
+    labels=y, predictions=predictions)
 tf.summary.scalar('auc', auc)
 
 # Merge all the summaries and write them out.

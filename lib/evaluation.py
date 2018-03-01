@@ -10,7 +10,7 @@ def _get_tensors_by_names(graph, names):
 
 
 def perform_test(sess, init_op, summary_writer=None, epoch=None,
-                 feed_dict_fn=None, custom_tensors=[], batch_mode=True):
+                 feed_dict_fn=None, feed_dict_args={}, custom_tensors=[]):
     tf.keras.backend.set_learning_phase(False)
     sess.run(init_op)
 
@@ -42,31 +42,22 @@ def perform_test(sess, init_op, summary_writer=None, epoch=None,
     else:
         tensors = custom_tensors
 
-    if batch_mode:
-        try:
-            batch_results = []
-            while True:
-                if feed_dict_fn is not None:
-                    feed_dict = feed_dict_fn()
-                else:
-                    feed_dict = None
+    try:
+        batch_results = []
+        while True:
+            if feed_dict_fn is not None:
+                feed_dict = feed_dict_fn(**feed_dict_args)
+            else:
+                feed_dict = None
 
-                # Retrieve the validation set confusion metrics.
-                batch_results.append(sess.run(tensors, feed_dict))
+            # Retrieve the validation set confusion metrics.
+            batch_results.append(sess.run(tensors, feed_dict))
 
-        except tf.errors.OutOfRangeError:
-            pass
-    else:
-        if feed_dict_fn is not None:
-            feed_dict = feed_dict_fn()
-        else:
-            feed_dict = None
-
-        # Retrieve the validation set confusion metrics.
-        sess.run(tensors, feed_dict)
+    except tf.errors.OutOfRangeError:
+        pass
 
     # Yield the result if custom tensors were defined.
-    if batch_mode and len(custom_tensors) > 0:
+    if len(custom_tensors) > 0:
         return [np.vstack(x) for x in zip(*batch_results)]
 
     # Retrieve confusion matrix and estimated roc auc score.
