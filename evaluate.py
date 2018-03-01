@@ -87,41 +87,41 @@ if tf.test.is_gpu_available():
 else:
     image_data_format = 'channels_last'
 
+got_all_y = False
+all_y = []
 
-all_labels = []
 
-
-def feed_images(sess, x, y, test_x, test_y):
-    _test_x, _test_y = sess.run([test_x, test_y])
-    all_labels.append(_test_y)
-    return {x: _test_x, y: _test_y}
+def feed_images(sess, x_tensor, y_tensor, x_batcher, y_batcher):
+    _x, _y = sess.run([test_x, test_y])
+    if not got_all_y:
+        all_y.append(_y)
+    return {x_tensor: _x, y_tensor: _y}
 
 
 eval_graph = tf.Graph()
 with eval_graph.as_default() as g:
     # Variable for average predictions.
-    avg_predictions = tf.placeholder(
-        tf.float32, shape=[None, 1], name='avg_predictions')
-    all_y = tf.placeholder(tf.float32, shape=[None, 1], name='all_y')
+    average_predictions = tf.placeholder(tf.float32, shape=[None, 1])
+    all_labels = tf.placeholder(tf.float32, shape=[None, 1])
 
     # Get the class predictions for labels.
-    predictions_classes = tf.round(avg_predictions)
+    predictions_classes = tf.round(average_predictions)
 
     # Metrics for finding best validation set.
     tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
-        lib.metrics.true_positives, scope='tp', labels=all_y,
+        lib.metrics.true_positives, scope='tp', labels=all_labels,
         predictions=predictions_classes)
 
     fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
-        lib.metrics.false_positives, scope='fp', labels=all_y,
+        lib.metrics.false_positives, scope='fp', labels=all_labels,
         predictions=predictions_classes)
 
     fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
-        lib.metrics.false_negatives, scope='fn', labels=all_y,
+        lib.metrics.false_negatives, scope='fn', labels=all_labels,
         predictions=predictions_classes)
 
     tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
-        lib.metrics.true_negatives, scope='tn', labels=all_y,
+        lib.metrics.true_negatives, scope='tn', labels=all_labels,
         predictions=predictions_classes)
 
     confusion_matrix = lib.metrics.confusion_matrix(
@@ -129,11 +129,11 @@ with eval_graph.as_default() as g:
 
     brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
         tf.metrics.mean_squared_error, scope='brier',
-        labels=all_y, predictions=avg_predictions)
+        labels=all_labels, predictions=average_predictions)
 
     auc, update_auc, reset_auc = lib.metrics.create_reset_metric(
         tf.metrics.auc, scope='auc',
-        labels=all_y, predictions=avg_predictions)
+        labels=all_labels, predictions=average_predictions)
 
 
 all_predictions = []
@@ -183,28 +183,27 @@ for model_path in load_model_paths:
         all_predictions.append(test_predictions[0])
 
     tf.reset_default_graph()
+    got_all_y = True
 
 # Convert the predictions to a numpy array.
 all_predictions = np.array(all_predictions)
 
 # Calculate the linear average of all predictions.
-average_predictions = np.mean(all_predictions, axis=0)
+avg_pred = np.mean(all_predictions, axis=0)
 
 # Convert all labels to numpy array.
-# TODO: Needs to get fixed.
-all_labels = np.vstack(all_labels)[:len(average_predictions)]
+all_labels = np.vstack(all_y)
 
 # Use these predictions for printing evaluation results.
 with tf.Session(graph=eval_graph) as sess:
-
     # Reset all streaming variables.
     sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
-    import pdb; pdb.set_trace()
+
     # Update all streaming variables with predictions.
     sess.run([update_tp, update_fp, update_fn,
               update_tn, update_brier, update_auc],
-              feed_dict={avg_predictions: average_predictions,
-                         all_y: all_labels})
+              feed_dict={average_predictions: avg_predictions,
+                         all_labels: all_y})
 
     # Retrieve confusion matrix and estimated roc auc score.
     test_conf_matrix, test_brier, test_auc = sess.run(
