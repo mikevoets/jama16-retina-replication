@@ -191,6 +191,7 @@ all_predictions = np.array(all_predictions)
 average_predictions = np.mean(all_predictions, axis=0)
 
 # Convert all labels to numpy array.
+# TODO: Needs to get fixed.
 all_labels = np.vstack(all_labels)[:len(average_predictions)]
 
 # Use these predictions for printing evaluation results.
