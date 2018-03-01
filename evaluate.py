@@ -8,6 +8,9 @@ import numpy as np
 import lib.dataset
 import lib.evaluation
 import lib.metrics
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
 from glob import glob
 
 print(f"Numpy version: {np.__version__}")
@@ -92,7 +95,7 @@ all_y = []
 
 
 def feed_images(sess, x_tensor, y_tensor, x_batcher, y_batcher):
-    _x, _y = sess.run([test_x, test_y])
+    _x, _y = sess.run([x_batcher, y_batcher])
     if not got_all_y:
         all_y.append(_y)
     return {x_tensor: _x, y_tensor: _y}
@@ -135,6 +138,12 @@ with eval_graph.as_default() as g:
         tf.metrics.auc, scope='auc',
         labels=all_labels, predictions=average_predictions)
 
+    sensitivities = [lib.metrics.create_reset_metric(
+                     tf.metrics.sensitivity_at_specificity, scope='sas',
+                     labels=all_labels, predictions=average_predictions,
+                     specificity=i)
+                     for i in np.arange(0.0, 1.0, 0.005)]
+    sens, update_sens, reset_sens = [list(x) for x in zip(*sensitivities)]
 
 all_predictions = []
 
@@ -172,12 +181,12 @@ for model_path in load_model_paths:
 
         test_init_op = iterator.make_initializer(test_dataset)
 
-	    # Perform the evaluation.
+	# Perform the evaluation.
         test_predictions = lib.evaluation.perform_test(
             sess=sess, init_op=test_init_op,
             feed_dict_fn=feed_images,
-            feed_dict_args={"sess": sess, "x": x, "y": y,
-                            "test_x": test_images, "test_y": test_labels},
+            feed_dict_args={"sess": sess, "x_tensor": x, "y_tensor": y,
+                            "x_batcher": test_images, "y_batcher": test_labels},
             custom_tensors=[predictions])
 
         all_predictions.append(test_predictions[0])
@@ -192,22 +201,34 @@ all_predictions = np.array(all_predictions)
 avg_pred = np.mean(all_predictions, axis=0)
 
 # Convert all labels to numpy array.
-all_labels = np.vstack(all_y)
+all_y = np.vstack(all_y)
 
 # Use these predictions for printing evaluation results.
 with tf.Session(graph=eval_graph) as sess:
     # Reset all streaming variables.
-    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
+    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier,
+              reset_auc] + reset_sens)
 
     # Update all streaming variables with predictions.
     sess.run([update_tp, update_fp, update_fn,
-              update_tn, update_brier, update_auc],
-              feed_dict={average_predictions: avg_predictions,
-                         all_labels: all_y})
+              update_tn, update_brier, update_auc] + update_sens,
+              feed_dict={average_predictions: avg_pred, all_labels: all_y})
 
     # Retrieve confusion matrix and estimated roc auc score.
-    test_conf_matrix, test_brier, test_auc = sess.run(
-        [confusion_matrix, brier, auc])
+    test_conf_matrix, test_brier, test_auc, *test_sensitivities = sess.run(
+        [confusion_matrix, brier, auc] + sens)
+
+    fig = plt.figure()
+    plt.plot(np.array([(1.0 - n) for n in test_sensitivities]), np.arange(0.0, 1.0, 0.005),
+             color="darkorange", lw=2, label="ROC curve (area = {:0.2f})".format(test_auc))
+    plt.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel("1 - Sensitivity")
+    plt.ylabel("Specificity")
+    plt.title("Receiver operating curve")
+    plt.legend(loc="lower right")
+    fig.savefig('roc.png')
 
     # Print total roc auc score for validation.
     print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
@@ -215,5 +236,7 @@ with tf.Session(graph=eval_graph) as sess:
     # Print confusion matrix.
     print(f"Confusion matrix:")
     print(test_conf_matrix[0])
+
+
 
 sys.exit(0)
