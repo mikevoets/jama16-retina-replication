@@ -61,7 +61,7 @@ num_channels = 3
 num_workers = 8
 
 # Hyper-parameters for training.
-learning_rate = 3e-2
+learning_rate = 3e-1
 momentum = 0.9  # Only used if use_sgd is False
 use_nesterov = True  # Only used if use_sgd is False
 train_batch_size = 64
@@ -73,7 +73,7 @@ min_delta_auc = 0.01
 val_batch_size = 32
 
 # Buffer size for image shuffling.
-shuffle_buffer_size = 256
+shuffle_buffer_size = 1024
 prefetch_buffer_size = 2 * train_batch_size
 
 # Set image datas format to channels first if GPU is available.
