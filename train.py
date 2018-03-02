@@ -74,7 +74,7 @@ train_batch_size = 64
 num_epochs = 200
 wait_epochs = 25
 min_delta_auc = 0.01
-val_batch_size = 32
+val_batch_size = 64
 
 # Buffer size for image shuffling.
 shuffle_buffer_size = 1024
@@ -303,14 +303,23 @@ with open(save_operating_points_path, 'w') as csvfile:
                             y: all_labels})
 
         # Retrieve metrics variables.
-        _tp, _fp, _fn, _tn = sess.run([tp, fp, fn, tn])
-
+        _tp, _fp, _fn, _tn = [np.asscalar(x) 
+                              for x in sess.run([tp, fp, fn, tn])]
+        
         # Calculate specificity and sensitivity.
-        spec = _tn/(_tn + _fp)
-        sens = _tp/(_tp + _fn)
+        try:
+            spec = _tn/(_tn + _fp)
+        except ZeroDivisionError:
+            spec = 0
+
+        try:
+            sens = _tp/(_tp + _fn)
+        except ZeroDivisionError:
+            sens = 0
 
         # Write to result file.
-        writer.writerow([t, _tp, _fp, _fn, _tp, spec, sens])
+        writer.writerow(["{:0.4f}".format(x)
+                         for x in [t, _tp, _fp, _fn, _tp, spec, sens]])
 
 # Close the session.
 sess.close()
