@@ -211,9 +211,12 @@ for epoch in range(num_epochs):
 
     try:
         while True:
+            # Track brier score for an indication on convergance.
+            sess.run(reset_brier)
+
             # Optimize cross entropy.
-            i_global, batch_xent, _ = sess.run(
-                [global_step, mean_xentropy, train_op])
+            i_global, batch_xent, *_ = sess.run(
+                [global_step, mean_xentropy, train_op, update_brier])
 
             # Print a nice training status.
             print_training_status(
@@ -223,7 +226,9 @@ for epoch in range(num_epochs):
             batch_num += 1
 
     except tf.errors.OutOfRangeError:
-        print(f"\nEnd of epoch {epoch}!")
+        # Retrieve training brier score.
+        train_brier = sess.run(brier)
+        print("\nEnd of epoch {0}! (Brier: {1:8.6})".format(epoch, train_brier))
 
     # Perform validation.
     val_auc = lib.evaluation.perform_test(
