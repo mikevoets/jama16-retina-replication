@@ -68,8 +68,6 @@ num_workers = 8
 
 # Hyper-parameters for training.
 learning_rate = 3e-1
-momentum = 0.9  # Only used if use_sgd is False
-use_nesterov = True  # Only used if use_sgd is False
 train_batch_size = 64
 
 # Hyper-parameters for validation.
@@ -138,16 +136,15 @@ thresholded_predictions_classes = \
 mean_xentropy = tf.reduce_mean(
     tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=logits))
 
-# Define SGD optimizer with momentum and nesterov.
+# Define optimizer.
 global_step = tf.Variable(0, dtype=tf.int32)
 
 if use_sgd:
     train_op = tf.train.GradientDescentOptimizer(learning_rate) \
         .minimize(loss=mean_xentropy, global_step=global_step)
 else:
-    train_op = tf.train.MomentumOptimizer(
-        learning_rate, momentum=momentum, use_nesterov=use_nesterov) \
-            .minimize(loss=mean_xentropy, global_step=global_step)
+    train_op = tf.train.AdamOptimizer(learning_rate) \
+        .minimize(loss=mean_xentropy, global_step=global_step)
 
 # Metrics for finding best validation set.
 tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
