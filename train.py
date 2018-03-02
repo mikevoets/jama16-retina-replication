@@ -304,9 +304,9 @@ with open(save_operating_points_path, 'w') as csvfile:
                             y: all_labels})
 
         # Retrieve metrics variables.
-        _tp, _fp, _fn, _tn = [np.asscalar(x) 
+        _tp, _fp, _fn, _tn = [np.asscalar(x)
                               for x in sess.run([tp, fp, fn, tn])]
-        
+
         # Calculate specificity and sensitivity.
         try:
             spec = _tn/(_tn + _fp)
