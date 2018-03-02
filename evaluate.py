@@ -41,6 +41,8 @@ parser.add_argument("-lm", "--load_model_path",
                          "creates an ensemble if paths are comma separated "
                          "or a regexp",
                     default=default_load_model_path)
+parser.add_argument("-sr", "--save_roc_plot_path",
+                    help="path to where roc plot should be saved")
 parser.add_argument("-b", "--batch_size",
                     help="batch size", default=default_batch_size)
 
@@ -64,6 +66,7 @@ elif args.other and args.data_dir is None:
 
 load_model_path = str(args.load_model_path)
 batch_size = int(args.batch_size)
+save_roc_plot_path = str(args.save_roc_plot_path)
 
 # Check if the model path has comma-separated entries.
 if "," in load_model_path:
@@ -89,6 +92,23 @@ if tf.test.is_gpu_available():
     image_data_format = 'channels_first'
 else:
     image_data_format = 'channels_last'
+
+
+def save_roc_plot(specificities, sensitivities, auc):
+    fig = plt.figure()
+    plt.plot(np.array([(1.0 - n) for n in sensitivities]),
+             sensitivities,
+             color="darkorange", lw=2,
+             label="ROC curve (area = {:0.2f})".format(auc))
+    plt.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel("1 - Sensitivity")
+    plt.ylabel("Specificity")
+    plt.title("Receiver operating curve")
+    plt.legend(loc="lower right")
+    fig.savefig(save_roc_plot_path)
+
 
 got_all_y = False
 all_y = []
@@ -218,17 +238,9 @@ with tf.Session(graph=eval_graph) as sess:
     test_conf_matrix, test_brier, test_auc, *test_sensitivities = sess.run(
         [confusion_matrix, brier, auc] + sens)
 
-    fig = plt.figure()
-    plt.plot(np.array([(1.0 - n) for n in test_sensitivities]), np.arange(0.0, 1.0, 0.005),
-             color="darkorange", lw=2, label="ROC curve (area = {:0.2f})".format(test_auc))
-    plt.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel("1 - Sensitivity")
-    plt.ylabel("Specificity")
-    plt.title("Receiver operating curve")
-    plt.legend(loc="lower right")
-    fig.savefig('roc.png')
+    # Plot and save ROC curve figure to a specified path.
+    if save_roc_plot_path is not None:
+        save_roc_plot(np.arange(0.0, 1.0, 0.005), test_sensitivities, auc)
 
     # Print total roc auc score for validation.
     print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
@@ -236,7 +248,5 @@ with tf.Session(graph=eval_graph) as sess:
     # Print confusion matrix.
     print(f"Confusion matrix:")
     print(test_conf_matrix[0])
-
-
 
 sys.exit(0)
