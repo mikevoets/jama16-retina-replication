@@ -67,12 +67,12 @@ num_channels = 3
 num_workers = 8
 
 # Hyper-parameters for training.
-learning_rate = 3e-1
+learning_rate = 3e-3
 train_batch_size = 64
 
 # Hyper-parameters for validation.
 num_epochs = 200
-wait_epochs = 10
+wait_epochs = 25
 min_delta_auc = 0.01
 val_batch_size = 32
 
