@@ -61,7 +61,8 @@ Saving model and graph checkpoints at: {},
 Saving summaries at: {},
 Saving operating points at: {},
 Use SGD: {}
-""".format(train_dir, val_dir, save_model_path, save_summaries_dir, use_sgd))
+""".format(train_dir, val_dir, save_model_path, save_summaries_dir, 
+           save_operating_points_path, use_sgd))
 
 # Various constants.
 num_channels = 3
