@@ -5,6 +5,7 @@ import pdb
 import random
 import sys
 import argparse
+import csv
 from glob import glob
 import lib.metrics
 import lib.dataset
@@ -21,6 +22,7 @@ default_train_dir = "./data/eyepacs/bin2/train"
 default_val_dir = "./data/eyepacs/bin2/validation"
 default_save_model_path = "./tmp/model"
 default_save_summaries_dir = "./tmp/logs"
+default_save_operating_points_path = "./tmp/op_pts.csv"
 
 parser = argparse.ArgumentParser(
                     description="Trains and saves neural network for "
@@ -37,6 +39,9 @@ parser.add_argument("-sm", "--save_model_path",
 parser.add_argument("-ss", "--save_summaries_dir",
                     help="path to folder where summaries should be saved",
                     default=default_save_summaries_dir)
+parser.add_argument("-so", "--save_operating_points_path",
+                    help="path to where operating points should be saved",
+                    default=default_save_operating_points_path)
 parser.add_argument("-sgd", "--vanilla_sgd", action="store_true",
                     help="use vanilla stochastic gradient descent instead of "
                          "nesterov accelerated gradient descent")
@@ -46,6 +51,7 @@ train_dir = str(args.train_dir)
 val_dir = str(args.val_dir)
 save_model_path = str(args.save_model_path)
 save_summaries_dir = str(args.save_summaries_dir)
+save_operating_points_path = str(args.save_operating_points_path)
 use_sgd = bool(args.vanilla_sgd)
 
 print("""
@@ -125,6 +131,8 @@ predictions = tf.sigmoid(logits, name='predictions')
 
 # Get the class predictions for labels.
 predictions_classes = tf.round(predictions)
+thresholded_predictions_classes = \
+    tf.placeholder_with_default(predictions_classes, predictions_classes.shape)
 
 # Retrieve loss of network using cross entropy.
 mean_xentropy = tf.reduce_mean(
@@ -144,19 +152,19 @@ else:
 # Metrics for finding best validation set.
 tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
     lib.metrics.true_positives, scope='tp', labels=y,
-    predictions=predictions_classes)
+    predictions=thresholded_predictions_classes)
 
 fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
     lib.metrics.false_positives, scope='fp', labels=y,
-    predictions=predictions_classes)
+    predictions=thresholded_predictions_classes)
 
 fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
     lib.metrics.false_negatives, scope='fn', labels=y,
-    predictions=predictions_classes)
+    predictions=thresholded_predictions_classes)
 
 tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
     lib.metrics.true_negatives, scope='tn', labels=y,
-    predictions=predictions_classes)
+    predictions=thresholded_predictions_classes)
 
 confusion_matrix = lib.metrics.confusion_matrix(
     tp, fp, fn, tn, scope='confusion_matrix')
@@ -255,6 +263,57 @@ for epoch in range(num_epochs):
 
         # Reset waited epochs.
         waited_epochs = 0
+
+all_predictions = []
+all_labels = []
+thresholds = 200
+# Get predictions of all data of our training set.
+tf.keras.backend.set_learning_phase(False)
+sess.run(train_init_op)
+batch_num = 0
+
+try:
+    while True:
+        train_pred, train_y = sess.run([predictions, labels])
+        all_predictions.append(train_pred)
+        all_labels.append(train_y)
+
+        print(f"Getting predictions for batch no. {batch_num}", end="\r")
+
+        # Report summaries.
+        batch_num += 1
+
+except tf.errors.OutOfRangeError:
+    print("\nDone! Thresholding predictions...")
+
+# Stack all predictions and labels.
+all_predictions = np.vstack(all_predictions)
+all_labels = np.vstack(all_labels)
+
+with open(save_operating_points_path, 'w') as csvfile:
+    writer = csv.writer(csvfile, delimiter=' ')
+    writer.writerow(['threshold', 'tp', 'fp', 'fn', 'tp', 'spec', 'sens'])
+
+    for t in np.arange(0.0, 1.0, 1.0/thresholds):
+        t_cls = (all_predictions > t).astype(int)
+
+        # Reset metrics variables.
+        sess.run([reset_tp, reset_fp, reset_fn, reset_tn])
+
+        # Update metrics variables with thresholded predictions.
+        sess.run([update_tp, update_fp, update_fn, update_tn],
+                 feed_dict={thresholded_predictions_classes: t_cls,
+                            y: all_labels})
+
+        # Retrieve metrics variables.
+        _tp, _fp, _fn, _tn = sess.run([tp, fp, fn, tn])
+
+        # Calculate specificity and sensitivity.
+        spec = _tn/(_tn + _fp)
+        sens = _tp/(_tp + _fn)
+
+        # Write to result file.
+        writer.writerow([t, _tp, _fp, _fn, _tp, spec, sens])
 
 # Close the session.
 sess.close()
