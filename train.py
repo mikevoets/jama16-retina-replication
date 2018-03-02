@@ -209,11 +209,11 @@ for epoch in range(num_epochs):
     sess.run(train_init_op)
     batch_num = 0
 
+    # Track brier score for an indication on convergance.
+    sess.run(reset_brier)
+
     try:
         while True:
-            # Track brier score for an indication on convergance.
-            sess.run(reset_brier)
-
             # Optimize cross entropy.
             i_global, batch_xent, *_ = sess.run(
                 [global_step, mean_xentropy, train_op, update_brier])
