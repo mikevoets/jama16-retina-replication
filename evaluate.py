@@ -46,7 +46,7 @@ parser.add_argument("-sr", "--save_roc_plot_path",
 parser.add_argument("-b", "--batch_size",
                     help="batch size", default=default_batch_size)
 parser.add_argument("-op", "--operating_threshold",
-                    help="Operating threshold", default=0.5)
+                    help="operating threshold", default=0.5)
 
 args = parser.parse_args()
 
@@ -69,6 +69,7 @@ elif args.other and args.data_dir is None:
 load_model_path = str(args.load_model_path)
 batch_size = int(args.batch_size)
 save_roc_plot_path = str(args.save_roc_plot_path)
+operating_threshold = float(args.operating_threshold)
 
 # Check if the model path has comma-separated entries.
 if "," in load_model_path:
@@ -239,8 +240,9 @@ with tf.Session(graph=eval_graph) as sess:
               feed_dict={average_predictions: avg_pred, all_labels: all_y})
 
     # Retrieve confusion matrix and estimated roc auc score.
-    test_conf_matrix, test_brier, test_auc, *test_sensitivities = sess.run(
-        [confusion_matrix, brier, auc] + sens)
+    _tp, _fp, _fn, _tn, test_conf_matrix, test_brier, \
+        test_auc, *test_sensitivities = sess.run(
+            [tp, fp, fn, tn, confusion_matrix, brier, auc] + sens)
 
     # Plot and save ROC curve figure to a specified path.
     if save_roc_plot_path is not None:
@@ -252,5 +254,23 @@ with tf.Session(graph=eval_graph) as sess:
     # Print confusion matrix.
     print(f"Confusion matrix:")
     print(test_conf_matrix[0])
+
+    # Calculate specificity and sensitivity.
+    test_tp, test_fp, test_fn, test_tn = \
+        [np.asscalar(x) for x in [_tp, _fp, _fn, _tn]]
+    
+    try:
+        spec = test_tn/(test_tn + test_fp)
+    except ZeroDivisionError:
+        spec = 0
+
+    try:
+        sens = test_tp/(test_tp + test_fn)
+    except ZeroDivisionError:
+        sens = 0
+
+    # Print these metrics.
+    print(f"Specificity: {spec:0.4f}, Sensitivity: {sens:0.4f} at "
+          f"operating threshold {operating_threshold:0.3f}.")
 
 sys.exit(0)
