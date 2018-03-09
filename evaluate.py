@@ -45,6 +45,8 @@ parser.add_argument("-sr", "--save_roc_plot_path",
                     help="path to where roc plot should be saved")
 parser.add_argument("-b", "--batch_size",
                     help="batch size", default=default_batch_size)
+parser.add_argument("-op", "--operating_threshold",
+                    help="Operating threshold", default=0.5)
 
 args = parser.parse_args()
 
@@ -128,7 +130,9 @@ with eval_graph.as_default() as g:
     all_labels = tf.placeholder(tf.float32, shape=[None, 1])
 
     # Get the class predictions for labels.
-    predictions_classes = tf.round(average_predictions)
+    predictions_classes = tf.cast(
+            tf.reshape(tf.greater(average_predictions, operating_threshold),
+                       [-1, 1]), tf.float32)
 
     # Metrics for finding best validation set.
     tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
@@ -201,7 +205,7 @@ for model_path in load_model_paths:
 
         test_init_op = iterator.make_initializer(test_dataset)
 
-	# Perform the evaluation.
+	    # Perform the evaluation.
         test_predictions = lib.evaluation.perform_test(
             sess=sess, init_op=test_init_op,
             feed_dict_fn=feed_images,
