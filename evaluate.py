@@ -97,7 +97,7 @@ else:
 def save_roc_plot(specificities, sensitivities, auc):
     fig = plt.figure()
     plt.plot(np.array([(1.0 - n) for n in sensitivities]),
-             sensitivities,
+             specificities,
              color="darkorange", lw=2,
              label="ROC curve (area = {:0.2f})".format(auc))
     plt.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
@@ -240,7 +240,7 @@ with tf.Session(graph=eval_graph) as sess:
 
     # Plot and save ROC curve figure to a specified path.
     if save_roc_plot_path is not None:
-        save_roc_plot(np.arange(0.0, 1.0, 0.005), test_sensitivities, auc)
+        save_roc_plot(np.arange(0.0, 1.0, 0.005), test_sensitivities, test_auc)
 
     # Print total roc auc score for validation.
     print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")

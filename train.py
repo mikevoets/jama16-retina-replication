@@ -74,7 +74,7 @@ train_batch_size = 64
 
 # Hyper-parameters for validation.
 num_epochs = 200
-wait_epochs = 25
+wait_epochs = 100
 min_delta_auc = 0.01
 val_batch_size = 64
 
@@ -291,7 +291,7 @@ all_labels = np.vstack(all_labels)
 
 with open(save_operating_points_path, 'w') as csvfile:
     writer = csv.writer(csvfile, delimiter=' ')
-    writer.writerow(['threshold', 'tp', 'fp', 'fn', 'tp', 'spec', 'sens'])
+    writer.writerow(['threshold', 'tp', 'fp', 'fn', 'tn', 'spec', 'sens'])
 
     for t in np.arange(0.0, 1.0, 1.0/thresholds):
         t_cls = (all_predictions > t).astype(int)
@@ -321,7 +321,7 @@ with open(save_operating_points_path, 'w') as csvfile:
 
         # Write to result file.
         writer.writerow(["{:0.4f}".format(x)
-                         for x in [t, _tp, _fp, _fn, _tp, spec, sens]])
+                         for x in [t, _tp, _fp, _fn, _tn, spec, sens]])
 
 # Close the session.
 sess.close()
