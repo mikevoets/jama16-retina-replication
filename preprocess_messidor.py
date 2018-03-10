@@ -9,9 +9,9 @@ from os import makedirs, rename
 from os.path import join, splitext, basename, exists
 from lib.preprocess import scale_normalize
 
-parser = argparse.ArgumentParser(description='Preprocess Messidor-2 data set.')
-parser.add_argument("--data_dir", help="Directory where Messidor-2 resides.",
-                    default="data/messidor2")
+parser = argparse.ArgumentParser(description='Preprocess Messidor-Original data set.')
+parser.add_argument("--data_dir", help="Directory where Messidor-Original resides.",
+                    default="data/messidor")
 
 args = parser.parse_args()
 data_dir = str(args.data_dir)
