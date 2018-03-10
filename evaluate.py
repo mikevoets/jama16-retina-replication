@@ -21,7 +21,7 @@ random.seed(432)
 
 # Default settings.
 default_eyepacs_dir = "./data/eyepacs/bin2/test"
-default_messidor2_dir = "./data/messidor2/bin2"
+default_messidor_dir = "./data/messidor/bin2"
 default_load_model_path = "./tmp/model"
 default_batch_size = 32
 
@@ -29,8 +29,8 @@ parser = argparse.ArgumentParser(
                     description="Evaluate performance of trained graph "
                                 "on test data set. "
                                 "Specify --data_dir if you use the -o param.")
-parser.add_argument("-m", "--messidor2", action="store_true",
-                    help="evaluate performance on Messidor-2")
+parser.add_argument("-m", "--messidor", action="store_true",
+                    help="evaluate performance on Messidor-Original")
 parser.add_argument("-e", "--eyepacs", action="store_true",
                     help="evaluate performance on EyePacs set")
 parser.add_argument("-o", "--other", action="store_true",
@@ -50,7 +50,7 @@ parser.add_argument("-op", "--operating_threshold",
 
 args = parser.parse_args()
 
-if bool(args.eyepacs) == bool(args.messidor2) == bool(args.other):
+if bool(args.eyepacs) == bool(args.messidor) == bool(args.other):
     print("Can only evaluate one data set at once!")
     parser.print_help()
     sys.exit(2)
@@ -59,8 +59,8 @@ if args.data_dir is not None:
     data_dir = str(args.data_dir)
 elif args.eyepacs:
     data_dir = default_eyepacs_dir
-elif args.messidor2:
-    data_dir = default_messidor2_dir
+elif args.messidor:
+    data_dir = default_messidor_dir
 elif args.other and args.data_dir is None:
     print("Please specify --data_dir.")
     parser.print_help()
@@ -82,7 +82,12 @@ elif any(char in load_model_path for char in '*+?'):
 else:
     load_model_paths = [load_model_path]
 
-print("Found model(s):\n{}".format("\n".join(load_model_paths)))
+print("""
+Evaluating: {},
+Saving AUROC plot at: {},
+Using operating treshold: {},
+""".format(data_dir, save_roc_plot_path, operating_threshold))
+print("Trying to load model(s):\n{}".format("\n".join(load_model_paths)))
 
 # Other setting variables.
 num_channels = 3
@@ -258,7 +263,7 @@ with tf.Session(graph=eval_graph) as sess:
     # Calculate specificity and sensitivity.
     test_tp, test_fp, test_fn, test_tn = \
         [np.asscalar(x) for x in [_tp, _fp, _fn, _tn]]
-    
+
     try:
         spec = test_tn/(test_tn + test_fp)
     except ZeroDivisionError:
