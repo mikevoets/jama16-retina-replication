@@ -33,15 +33,19 @@ Other requirements:
 
 ## Training
 
-To start training with default settings, run `$ python train.py`. Run `$ python train.py -h` to see optional parameters for where to save model checkpoints, summaries, or change the optimization function.
+To start training with default settings, run `$ python train.py`. To train with stochastic gradient descent, specify the `-sgd` flag. Optionally specify the path to where models checkpoints should be saved to with the `-sm` parameter.
+
+Run `$ python train.py -h` to see additional optional parameters for training with your own data set, or where to save summaries or operating threshold metrics.
 
 ## Evaluation
 
-To evaluate or test the trained neural network on the _Kaggle_ EyePACS test set, run `$ python evaluate.py -e`. To evaluate on Messidor-Original, run it with the `-m` flag instead. See `$ python evaluate.py -h` for other parameter options.
+To evaluate or test the trained neural network on the _Kaggle_ EyePACS test set, run `$ python evaluate.py -e`. To evaluate on Messidor-Original, run it with the `-m` flag instead.
 
 To create an ensemble of networks and evaluate the linear average of predictions, use the `-lm` parameter. To specify multiple models to evaluate as an ensemble, the model paths should be comma-separated or satisfy a regular expression. For example: `-lm=./tmp/model-1,model-2,model-3` or `-lm=./tmp/model-?`.
 
 The evaluation script outputs a confusion matrix, and specificity and sensitivity by using an operating threshold. The default operating threshold is 0.5, and can be changed with the `-op` parameter.
+
+Run `$ python evaluate.py -h` for additional parameter options.
 
 ## References
 
