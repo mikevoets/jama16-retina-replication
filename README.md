@@ -8,7 +8,7 @@ We have attempted to replicate some experiments in _Development and Validation o
 
 Python requirements:
 
-- Python >= 3
+- Python 3
 - Tensorflow >= 1.4
 - OpenCV >= 1.3
 - Pillow
@@ -21,13 +21,15 @@ Other requirements:
 
 ## Preprocessing before training
 
-1. Download the [_Kaggle_ EyePACS data set](https://www.kaggle.com/c/diabetic-retinopathy-detection) and place all files in the `data/eyepacs` folder.
+1. Run `$ git submodule update --init` to load the [create_tfrecords](https://github.com/mikevoets/create_tfrecords) repository. This tool will convert the data sets into TFRecord files.
 
-2. Run `$ ./eyepacs.sh` to preprocess the _Kaggle_ EyePACS data set, and redistribute this set into a training and test set. Run with the `--only_gradable` flag if you want to train with gradable images only. NB: This is a large data set, so this may take hours to finish.
+2. Download the [_Kaggle_ EyePACS data set](https://www.kaggle.com/c/diabetic-retinopathy-detection) and place all files in the `data/eyepacs` folder.
 
-3. Download the [Messidor-Original data set](http://www.adcis.net/en/Download-Third-Party/Messidor.html) and place all files in the `data/messidor` folder.
+3. Run `$ ./eyepacs.sh` to preprocess the _Kaggle_ EyePACS data set, and redistribute this set into a training and test set. Run with the `--only_gradable` flag if you want to train with gradable images only. NB: This is a large data set, so this may take hours to finish.
 
-4. Run `$ ./messidor.sh` to preprocess the Messidor-Original data set. Run with the `--only_gradable` flag if you want to train with gradable images only.
+4. Download the [Messidor-Original data set](http://www.adcis.net/en/Download-Third-Party/Messidor.html) and place all files in the `data/messidor` folder.
+
+5. Run `$ ./messidor.sh` to preprocess the Messidor-Original data set. Run with the `--only_gradable` flag if you want to train with gradable images only.
 
 ## Training
 
