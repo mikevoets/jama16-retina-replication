@@ -69,6 +69,8 @@ num_workers = 8
 
 # Hyper-parameters for training.
 learning_rate = 3e-3
+momentum = 0.9
+use_nesterov = True
 train_batch_size = 64
 
 # Hyper-parameters for validation.
@@ -144,8 +146,10 @@ if use_sgd:
     train_op = tf.train.GradientDescentOptimizer(learning_rate) \
         .minimize(loss=mean_xentropy, global_step=global_step)
 else:
-    train_op = tf.train.AdamOptimizer(learning_rate) \
-        .minimize(loss=mean_xentropy, global_step=global_step)
+    train_op = tf.train.MomentumOptimizer(
+        learning_rate=learning_rate, momentum=momentum,
+        use_nesterov=use_nesterov) \
+            .minimize(loss=mean_xentropy, global_step=global_step)
 
 # Metrics for finding best validation set.
 tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
