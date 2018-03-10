@@ -1,7 +1,6 @@
 import numpy as np
 import tensorflow as tf
 import os
-import pdb
 import random
 import sys
 import argparse
@@ -262,6 +261,9 @@ for epoch in range(num_epochs):
 
         # Reset waited epochs.
         waited_epochs = 0
+
+
+# TODO: Load saved model.
 
 all_predictions = []
 all_labels = []
