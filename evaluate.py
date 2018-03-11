@@ -146,19 +146,19 @@ with eval_graph.as_default() as g:
 
     # Metrics for finding best validation set.
     tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
-        lib.metrics.true_positives_at_thresholds, scope='tp',
+        tf.metrics.true_positives_at_thresholds, scope='tp',
         labels=all_labels, predictions=predictions, thresholds=thresholds)
 
     fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
-        lib.metrics.false_positives_at_threholds, scope='fp',
+        tf.metrics.false_positives_at_threholds, scope='fp',
         labels=all_labels, predictions=predictions, thresholds=thresholds)
 
     fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
-        lib.metrics.false_negatives_at_threholds, scope='fn',
+        tf.metrics.false_negatives_at_threholds, scope='fn',
         labels=all_labels, predictions=predictions, thresholds=thresholds)
 
     tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
-        lib.metrics.true_negatives_at_threholds, scope='tn',
+        tf.metrics.true_negatives_at_threholds, scope='tn',
         labels=all_labels, predictions=predictions, thresholds=thresholds)
 
     # Last element presents the metrics at operating threshold.
