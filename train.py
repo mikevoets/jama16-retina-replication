@@ -269,7 +269,6 @@ for epoch in range(num_epochs):
         # Reset waited epochs.
         waited_epochs = 0
 
-
 # Load the saved best meta graph and restore variables from that checkpoint.
 saver = tf.train.import_meta_graph("{}.meta".format(save_model_path))
 saver.restore(sess, save_model_path)
@@ -295,11 +294,10 @@ with open(save_operating_points_path, 'w') as csvfile:
         sess.run([specificities, sensitivities])
 
     for idx in range(num_thresholds):
-        # Write to result file.
         writer.writerow([
-            "{:0.4f}".format(x) for x in [train_specificities[idx],
-                                          train_sensitivities[idx],
-                                          thresholds[idx]]])
+            "{:0.4f}".format(x) for x in [
+                thresholds[idx], train_specificities[idx],
+                train_sensitivities[idx]]])
 
 # Close the session.
 sess.close()
