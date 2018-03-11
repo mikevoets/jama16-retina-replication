@@ -94,14 +94,11 @@ num_channels = 3
 num_workers = 8
 prefetch_buffer_size = 2 * batch_size
 num_thresholds = 200
+kepsilon = 1e-7
 
 # Define thresholds.
-kepsilon = 1e-7
-thresholds = [
-    (i + 1) * 1.0 / (num_thresholds - 1) for i in range(num_thresholds - 2)
-]
-thresholds = [0.0 - kepsilon] + thresholds \
-                + [1.0 - kepsilon, operating_threshold]
+thresholds = lib.metrics.generate_thresholds(num_thresholds, kepsilon) \
+                + [operating_threshold]
 
 # Set image datas format to channels first if GPU is available.
 if tf.test.is_gpu_available():
@@ -269,7 +266,7 @@ with tf.Session(graph=eval_graph) as sess:
     # Print sentivities and specificities.
     for idx in range(num_thresholds + 1):
         print("Specificity: {0:0.4f}, Sensitivity: {1:0.4f} at " \
-              "Operating Threshold {2:0.3f}." \
+              "Operating Threshold {2:0.4f}." \
               .format(test_specificities[idx], test_sensitivities[idx],
                       thresholds[idx]))
 

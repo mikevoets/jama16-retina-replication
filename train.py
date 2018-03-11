@@ -78,6 +78,11 @@ num_epochs = 200
 wait_epochs = 100
 min_delta_auc = 0.01
 val_batch_size = 64
+num_thresholds = 200
+kepsilon = 1e-7
+
+# Define thresholds.
+thresholds = lib.metrics.generate_thresholds(num_thresholds, kepsilon) + [0.5]
 
 # Buffer size for image shuffling.
 shuffle_buffer_size = 2048
@@ -130,10 +135,6 @@ logits = tf.layers.dense(base_model.output, units=1)
 # Get the predictions with a sigmoid activation function.
 predictions = tf.sigmoid(logits, name='predictions')
 
-# Get the class predictions for labels.
-predictions_classes = tf.round(predictions)
-thresholded_predictions_classes = \
-    tf.placeholder_with_default(predictions_classes, predictions_classes.shape)
 
 # Retrieve loss of network using cross entropy.
 mean_xentropy = tf.reduce_mean(
@@ -153,32 +154,34 @@ else:
 
 # Metrics for finding best validation set.
 tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
-    lib.metrics.true_positives, scope='tp', labels=y,
-    predictions=thresholded_predictions_classes)
+    tf.metrics.true_positives_at_thresholds, scope='tp',
+    labels=y, predictions=predictions, thresholds=thresholds)
 
 fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
-    lib.metrics.false_positives, scope='fp', labels=y,
-    predictions=thresholded_predictions_classes)
+    tf.metrics.false_positives_at_thresholds, scope='fp',
+    labels=y, predictions=predictions, thresholds=thresholds)
 
 fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
-    lib.metrics.false_negatives, scope='fn', labels=y,
-    predictions=thresholded_predictions_classes)
+    tf.metrics.false_negatives_at_thresholds, scope='fn',
+    labels=y, predictions=predictions, thresholds=thresholds)
 
 tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
-    lib.metrics.true_negatives, scope='tn', labels=y,
-    predictions=thresholded_predictions_classes)
+    tf.metrics.true_negatives_at_thresholds, scope='tn',
+    labels=y, predictions=predictions, thresholds=thresholds)
 
 confusion_matrix = lib.metrics.confusion_matrix(
-    tp[0], fp[0], fn[0], tn[0], scope='confusion_matrix')
+    tp[-1], fp[-1], fn[-1], tn[-1], scope='confusion_matrix')
 
 brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
     tf.metrics.mean_squared_error, scope='brier',
     labels=y, predictions=predictions)
 
 auc, update_auc, reset_auc = lib.metrics.create_reset_metric(
-    tf.metrics.auc, scope='auc',
-    labels=y, predictions=predictions)
+    tf.metrics.auc, scope='auc', labels=y, predictions=predictions)
 tf.summary.scalar('auc', auc)
+
+specificities = tf.div(tn, tn + fp + kepsilon)
+sensitivities = tf.div(tp, tp + fn + kepsilon)
 
 # Merge all the summaries and write them out.
 summaries_op = tf.summary.merge_all()
@@ -267,67 +270,36 @@ for epoch in range(num_epochs):
         waited_epochs = 0
 
 
-# TODO: Load saved model.
+# Load the saved best meta graph and restore variables from that checkpoint.
+saver = tf.train.import_meta_graph("{}.meta".format(save_model_path))
+saver.restore(sess, save_model_path)
 
-all_predictions = []
-all_labels = []
-thresholds = 200
 # Get predictions of all data of our training set.
 tf.keras.backend.set_learning_phase(False)
-sess.run(train_init_op)
-batch_num = 0
+sess.run([train_init_op, reset_tp, reset_fp, reset_fn, reset_tn])
 
 try:
     while True:
-        train_pred, train_y = sess.run([predictions, labels])
-        all_predictions.append(train_pred)
-        all_labels.append(train_y)
-
-        print(f"Getting predictions for batch no. {batch_num}", end="\r")
-
-        # Report summaries.
-        batch_num += 1
+        # Update all confusion metrics for each batch.
+        sess.run([update_tp, update_fp, update_fn, update_tn])
 
 except tf.errors.OutOfRangeError:
-    print("\nDone! Thresholding predictions...")
+    pass
 
-# Stack all predictions and labels.
-all_predictions = np.vstack(all_predictions)
-all_labels = np.vstack(all_labels)
-
+# Write sensitivities and specificities to file.
 with open(save_operating_points_path, 'w') as csvfile:
     writer = csv.writer(csvfile, delimiter=' ')
-    writer.writerow(['threshold', 'tp', 'fp', 'fn', 'tn', 'spec', 'sens'])
+    writer.writerow(['threshold', 'specificity', 'sensitivity'])
 
-    for t in np.arange(0.0, 1.0, 1.0/thresholds):
-        t_cls = (all_predictions > t).astype(int)
+    train_specificities, train_sensitivities = \
+        sess.run([specificities, sensitivities])
 
-        # Reset metrics variables.
-        sess.run([reset_tp, reset_fp, reset_fn, reset_tn])
-
-        # Update metrics variables with thresholded predictions.
-        sess.run([update_tp, update_fp, update_fn, update_tn],
-                 feed_dict={thresholded_predictions_classes: t_cls,
-                            y: all_labels})
-
-        # Retrieve metrics variables.
-        _tp, _fp, _fn, _tn = [np.asscalar(x)
-                              for x in sess.run([tp, fp, fn, tn])]
-
-        # Calculate specificity and sensitivity.
-        try:
-            spec = _tn/(_tn + _fp)
-        except ZeroDivisionError:
-            spec = 0
-
-        try:
-            sens = _tp/(_tp + _fn)
-        except ZeroDivisionError:
-            sens = 0
-
+    for idx in range(num_thresholds):
         # Write to result file.
-        writer.writerow(["{:0.4f}".format(x)
-                         for x in [t, _tp, _fp, _fn, _tn, spec, sens]])
+        writer.writerow([
+            "{:0.4f}".format(x) for x in [train_specificities[idx],
+                                          train_sensitivities[idx],
+                                          thresholds[idx]]])
 
 # Close the session.
 sess.close()
