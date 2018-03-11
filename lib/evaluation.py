@@ -33,7 +33,7 @@ def perform_test(sess, init_op, summary_writer=None, epoch=None,
                         'auc/auc/update_op:0',
                         'brier/mean_squared_error/value:0',
                         'auc/auc/value:0',
-                        'confusion_matrix/confusion_matrix:0',
+                        'confusion_matrix/Cast:0',
                         'Merge/MergeSummary:0'])
 
         # Reset all streaming variables.
