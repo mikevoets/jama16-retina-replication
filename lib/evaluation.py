@@ -25,7 +25,10 @@ def perform_test(sess, init_op, summary_writer=None, epoch=None,
         update_tp, update_fp, update_fn, update_tn, update_brier, update_auc, \
         brier, auc, confusion_matrix, summaries_op = \
             _get_tensors_by_names(
-                graph, ['tp/op:0', 'fp/op:0', 'fn/op:0', 'tn/op:0',
+                graph, ['tp/true_positives/AssignAdd:0',
+                        'fp/false_positives/AssignAdd:0',
+                        'fn/false_negatives/AssignAdd:0',
+                        'tn/true_negatives/AssignAdd:0',
                         'brier/mean_squared_error/update_op:0',
                         'auc/auc/update_op:0',
                         'brier/mean_squared_error/value:0',
