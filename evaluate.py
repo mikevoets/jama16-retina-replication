@@ -267,7 +267,7 @@ with tf.Session(graph=eval_graph) as sess:
     print(test_conf_matrix[0])
 
     # Print sentivities and specificities.
-    for idx in range(num_thresholds):
+    for idx in range(num_thresholds + 1):
         print("Specificity: {0:0.4f}, Sensitivity: {1:0.4f} at " \
               "Operating Threshold {2:0.3f}." \
               .format(test_specificities[i], test_sensitivities[i],
