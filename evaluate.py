@@ -257,7 +257,7 @@ with tf.Session(graph=eval_graph) as sess:
 
     # Plot and save ROC curve figure to a specified path.
     if save_roc_plot_path is not None:
-        save_roc_plot(test_spec, test_sens, test_auc)
+        save_roc_plot(test_specificities, test_sensitivities, test_auc)
 
     # Print total roc auc score for validation.
     print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
