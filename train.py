@@ -21,7 +21,7 @@ default_train_dir = "./data/eyepacs/bin2/train"
 default_val_dir = "./data/eyepacs/bin2/validation"
 default_save_model_path = "./tmp/model"
 default_save_summaries_dir = "./tmp/logs"
-default_save_operating_points_path = "./tmp/op_pts.csv"
+default_save_operating_thresholds_path = "./tmp/op_pts.csv"
 
 parser = argparse.ArgumentParser(
                     description="Trains and saves neural network for "
@@ -38,9 +38,9 @@ parser.add_argument("-sm", "--save_model_path",
 parser.add_argument("-ss", "--save_summaries_dir",
                     help="path to folder where summaries should be saved",
                     default=default_save_summaries_dir)
-parser.add_argument("-so", "--save_operating_points_path",
+parser.add_argument("-so", "--save_operating_thresholds_path",
                     help="path to where operating points should be saved",
-                    default=default_save_operating_points_path)
+                    default=default_save_operating_thresholds_path)
 parser.add_argument("-sgd", "--vanilla_sgd", action="store_true",
                     help="use vanilla stochastic gradient descent instead of "
                          "nesterov accelerated gradient descent")
@@ -50,7 +50,7 @@ train_dir = str(args.train_dir)
 val_dir = str(args.val_dir)
 save_model_path = str(args.save_model_path)
 save_summaries_dir = str(args.save_summaries_dir)
-save_operating_points_path = str(args.save_operating_points_path)
+save_operating_thresholds_path = str(args.save_operating_thresholds_path)
 use_sgd = bool(args.vanilla_sgd)
 
 print("""
@@ -61,7 +61,7 @@ Saving summaries at: {},
 Saving operating points at: {},
 Use SGD: {}
 """.format(train_dir, val_dir, save_model_path, save_summaries_dir,
-           save_operating_points_path, use_sgd))
+           save_operating_thresholds_path, use_sgd))
 
 # Various constants.
 num_channels = 3
@@ -69,8 +69,8 @@ num_workers = 8
 
 # Hyper-parameters for training.
 learning_rate = 3e-3
-momentum = 0.9
-use_nesterov = True
+momentum = 0.9  # Only used when not training with momentum optimizer
+use_nesterov = True  # Only used when not training with momentum optimizer
 train_batch_size = 64
 
 # Hyper-parameters for validation.
@@ -286,7 +286,7 @@ except tf.errors.OutOfRangeError:
     pass
 
 # Write sensitivities and specificities to file.
-with open(save_operating_points_path, 'w') as csvfile:
+with open(save_operating_thresholds_path, 'w') as csvfile:
     writer = csv.writer(csvfile, delimiter=' ')
     writer.writerow(['threshold', 'specificity', 'sensitivity'])
 

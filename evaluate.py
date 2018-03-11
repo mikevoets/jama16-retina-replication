@@ -23,6 +23,7 @@ random.seed(432)
 default_eyepacs_dir = "./data/eyepacs/bin2/test"
 default_messidor_dir = "./data/messidor/bin2"
 default_load_model_path = "./tmp/model"
+default_save_operating_thresholds_path = "./tmp/test_op_pts.csv"
 default_batch_size = 32
 
 parser = argparse.ArgumentParser(
@@ -41,8 +42,9 @@ parser.add_argument("-lm", "--load_model_path",
                          "creates an ensemble if paths are comma separated "
                          "or a regexp",
                     default=default_load_model_path)
-parser.add_argument("-sr", "--save_roc_plot_path",
-                    help="path to where roc plot should be saved")
+parser.add_argument("-so", "--save_operating_thresholds_path",
+                    help="path to where operating points metrics should be saved",
+                    default=default_save_operating_thresholds_path)
 parser.add_argument("-b", "--batch_size",
                     help="batch size", default=default_batch_size)
 parser.add_argument("-op", "--operating_threshold",
@@ -68,7 +70,7 @@ elif args.other and args.data_dir is None:
 
 load_model_path = str(args.load_model_path)
 batch_size = int(args.batch_size)
-save_roc_plot_path = str(args.save_roc_plot_path)
+save_operating_thresholds_path = str(args.save_operating_thresholds_path)
 operating_threshold = float(args.operating_threshold)
 
 # Check if the model path has comma-separated entries.
@@ -84,9 +86,9 @@ else:
 
 print("""
 Evaluating: {},
-Saving AUROC plot at: {},
+Saving operating thresholds metrics at: {},
 Using operating treshold: {},
-""".format(data_dir, save_roc_plot_path, operating_threshold))
+""".format(data_dir, save_operating_thresholds_path, operating_threshold))
 print("Trying to load model(s):\n{}".format("\n".join(load_model_paths)))
 
 # Other setting variables.
@@ -106,23 +108,6 @@ if tf.test.is_gpu_available():
     image_data_format = 'channels_first'
 else:
     image_data_format = 'channels_last'
-
-
-def save_roc_plot(specificities, sensitivities, auc):
-    fig = plt.figure()
-    plt.plot(np.array([(1.0 - n) for n in sensitivities]),
-             specificities,
-             color="darkorange", lw=2,
-             label="ROC curve (area = {:0.2f})".format(auc))
-    plt.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel("1 - Sensitivity")
-    plt.ylabel("Specificity")
-    plt.title("Receiver operating curve")
-    plt.legend(loc="lower right")
-    fig.savefig(save_roc_plot_path)
-
 
 got_all_y = False
 all_y = []
@@ -252,10 +237,6 @@ with tf.Session(graph=eval_graph) as sess:
             sess.run([confusion_matrix, brier, auc, specificities,
                       sensitivities])
 
-    # Plot and save ROC curve figure to a specified path.
-    if save_roc_plot_path is not None:
-        save_roc_plot(test_specificities, test_sensitivities, test_auc)
-
     # Print total roc auc score for validation.
     print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
 
@@ -263,11 +244,21 @@ with tf.Session(graph=eval_graph) as sess:
     print(f"Confusion matrix at operating threshold {operating_threshold:0.3f}")
     print(test_conf_matrix[0])
 
-    # Print sentivities and specificities.
-    for idx in range(num_thresholds + 1):
-        print("Specificity: {0:0.4f}, Sensitivity: {1:0.4f} at " \
-              "Operating Threshold {2:0.4f}." \
-              .format(test_specificities[idx], test_sensitivities[idx],
-                      thresholds[idx]))
+    # Print sensitivity and specificity at operating threshold.
+    print("Specificity: {0:0.4f}, Sensitivity: {1:0.4f} at " \
+          "Operating Threshold {2:0.4f}." \
+          .format(test_specificities[-1], test_sensitivities[-1],
+                  thresholds[-1]))
+
+    # Write sensitivities and specificities to file.
+    with open(save_operating_thresholds_path, 'w') as csvfile:
+        writer = csv.writer(csvfile, delimiter=' ')
+        writer.writerow(['threshold', 'specificity', 'sensitivity'])
+
+        for idx in range(num_thresholds):
+            writer.writerow([
+                "{:0.4f}".format(x) for x in [
+                    thresholds[idx], test_specificities[idx],
+                    test_sensitivities[idx]]])
 
 sys.exit(0)
