@@ -151,17 +151,17 @@ with eval_graph.as_default() as g:
         thresholds=thresholds)
 
     fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
-        tf.metrics.false_positives_at_threholds, scope='fp',
+        tf.metrics.false_positives_at_thresholds, scope='fp',
         labels=all_labels, predictions=average_predictions,
         thresholds=thresholds)
 
     fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
-        tf.metrics.false_negatives_at_threholds, scope='fn',
+        tf.metrics.false_negatives_at_thresholds, scope='fn',
         labels=all_labels, predictions=average_predictions,
         thresholds=thresholds)
 
     tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
-        tf.metrics.true_negatives_at_threholds, scope='tn',
+        tf.metrics.true_negatives_at_thresholds, scope='tn',
         labels=all_labels, predictions=average_predictions,
         thresholds=thresholds)
 
