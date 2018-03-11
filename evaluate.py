@@ -8,9 +8,7 @@ import numpy as np
 import lib.dataset
 import lib.evaluation
 import lib.metrics
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
+import csv
 from glob import glob
 
 print(f"Numpy version: {np.__version__}")
