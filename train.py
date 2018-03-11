@@ -75,7 +75,7 @@ train_batch_size = 64
 
 # Hyper-parameters for validation.
 num_epochs = 200
-wait_epochs = 100
+wait_epochs = 10
 min_delta_auc = 0.01
 val_batch_size = 64
 num_thresholds = 200
