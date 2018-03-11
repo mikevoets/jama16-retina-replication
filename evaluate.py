@@ -270,7 +270,7 @@ with tf.Session(graph=eval_graph) as sess:
     for idx in range(num_thresholds + 1):
         print("Specificity: {0:0.4f}, Sensitivity: {1:0.4f} at " \
               "Operating Threshold {2:0.3f}." \
-              .format(test_specificities[i], test_sensitivities[i],
-                      thresholds[i]))
+              .format(test_specificities[idx], test_sensitivities[idx],
+                      thresholds[idx]))
 
 sys.exit(0)

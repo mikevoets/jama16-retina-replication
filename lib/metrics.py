@@ -56,5 +56,6 @@ def create_reset_metric(metric, scope='reset_metrics', **metric_args):
 
 def confusion_matrix(tp, fp, fn, tn, num_labels=1, scope='confusion_matrix'):
     with tf.variable_scope(scope) as s:
-        return tf.reshape(tf.stack([tp, fp, fn, tn], 0), [num_labels, 2, 2],
-                          name='confusion_matrix')
+        return tf.cast(tf.reshape(tf.stack([tp, fp, fn, tn], 0),
+                                  [num_labels, 2, 2],
+                                  name='confusion_matrix'), dtype=tf.int32)
