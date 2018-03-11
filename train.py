@@ -169,7 +169,7 @@ tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
     predictions=thresholded_predictions_classes)
 
 confusion_matrix = lib.metrics.confusion_matrix(
-    tp, fp, fn, tn, scope='confusion_matrix')
+    tp[0], fp[0], fn[0], tn[0], scope='confusion_matrix')
 
 brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
     tf.metrics.mean_squared_error, scope='brier',
