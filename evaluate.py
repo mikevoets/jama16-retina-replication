@@ -26,6 +26,14 @@ default_load_model_path = "./tmp/model"
 default_batch_size = 32
 num_thresholds = 200
 
+# Define thresholds.
+kepsilon = 1e-7
+thresholds = [
+    (i + 1) * 1.0 / (num_thresholds - 1) for i in range(num_thresholds - 2)
+]
+thresholds = [0.0 - kepsilon] + thresholds \
+                + [1.0 - kepsilon, operating_threshold]
+
 parser = argparse.ArgumentParser(
                     description="Evaluate performance of trained graph "
                                 "on test data set. "
@@ -135,14 +143,6 @@ with eval_graph.as_default() as g:
     # Variable for average predictions.
     average_predictions = tf.placeholder(tf.float32, shape=[None, 1])
     all_labels = tf.placeholder(tf.float32, shape=[None, 1])
-
-    # Define thresholds.
-    kepsilon = 1e-7
-    thresholds = [
-        (i + 1) * 1.0 / (num_thresholds - 1) for i in range(num_thresholds - 2)
-    ]
-    thresholds = [0.0 - kepsilon] + thresholds \
-                    + [1.0 - kepsilon, operating_threshold]
 
     # Metrics for finding best validation set.
     tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
@@ -263,16 +263,14 @@ with tf.Session(graph=eval_graph) as sess:
     print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
 
     # Print confusion matrix.
-    print(f"Confusion matrix:")
+    print(f"Confusion matrix at operating threshold {operating_threshold:0.3f}")
     print(test_conf_matrix[0])
 
-    # Find sensitivity and specificity at operating threshold.
-    specificity_at_op = test_specificities[-1]
-    sensitivity_at_op = test_sensitivities[-1]
-
-    # Print these metrics.
-    print(f"Specificity: {specificity_at_op:0.4f}, "
-          f"Sensitivity: {sensitivity_at_op:0.4f} at "
-          f"Operating Threshold {operating_threshold:0.3f}.")
+    # Print sentivities and specificities.
+    for idx in range(num_thresholds):
+        print("Specificity: {0:0.4f}, Sensitivity: {1:0.4f} at " \
+              "Operating Threshold {2:0.3f}." \
+              .format(test_specificities[i], test_sensitivities[i],
+                      thresholds[i]))
 
 sys.exit(0)
