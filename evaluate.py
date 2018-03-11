@@ -24,6 +24,7 @@ default_eyepacs_dir = "./data/eyepacs/bin2/test"
 default_messidor_dir = "./data/messidor/bin2"
 default_load_model_path = "./tmp/model"
 default_batch_size = 32
+num_thresholds = 200
 
 parser = argparse.ArgumentParser(
                     description="Evaluate performance of trained graph "
@@ -135,30 +136,34 @@ with eval_graph.as_default() as g:
     average_predictions = tf.placeholder(tf.float32, shape=[None, 1])
     all_labels = tf.placeholder(tf.float32, shape=[None, 1])
 
-    # Get the class predictions for labels.
-    predictions_classes = tf.cast(
-            tf.reshape(tf.greater(average_predictions, operating_threshold),
-                       [-1, 1]), tf.float32)
+    # Define thresholds.
+    kepsilon = 1e-7
+    thresholds = [
+        (i + 1) * 1.0 / (num_thresholds - 1) for i in range(num_thresholds - 2)
+    ]
+    thresholds = [0.0 - kepsilon] + thresholds \
+                    + [1.0 - kepsilon, operating_threshold]
 
     # Metrics for finding best validation set.
     tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
-        lib.metrics.true_positives, scope='tp', labels=all_labels,
-        predictions=predictions_classes)
+        lib.metrics.true_positives_at_thresholds, scope='tp',
+        labels=all_labels, predictions=predictions, thresholds=thresholds)
 
     fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
-        lib.metrics.false_positives, scope='fp', labels=all_labels,
-        predictions=predictions_classes)
+        lib.metrics.false_positives_at_threholds, scope='fp',
+        labels=all_labels, predictions=predictions, thresholds=thresholds)
 
     fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
-        lib.metrics.false_negatives, scope='fn', labels=all_labels,
-        predictions=predictions_classes)
+        lib.metrics.false_negatives_at_threholds, scope='fn',
+        labels=all_labels, predictions=predictions, thresholds=thresholds)
 
     tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
-        lib.metrics.true_negatives, scope='tn', labels=all_labels,
-        predictions=predictions_classes)
+        lib.metrics.true_negatives_at_threholds, scope='tn',
+        labels=all_labels, predictions=predictions, thresholds=thresholds)
 
+    # Last element presents the metrics at operating threshold.
     confusion_matrix = lib.metrics.confusion_matrix(
-        tp, fp, fn, tn, scope='confusion_matrix')
+        tp[-1], fp[-1], fn[-1], tn[-1], scope='confusion_matrix')
 
     brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
         tf.metrics.mean_squared_error, scope='brier',
@@ -168,12 +173,9 @@ with eval_graph.as_default() as g:
         tf.metrics.auc, scope='auc',
         labels=all_labels, predictions=average_predictions)
 
-    sensitivities = [lib.metrics.create_reset_metric(
-                     tf.metrics.sensitivity_at_specificity, scope='sas',
-                     labels=all_labels, predictions=average_predictions,
-                     specificity=i)
-                     for i in np.arange(0.0, 1.0, 0.005)]
-    sens, update_sens, reset_sens = [list(x) for x in zip(*sensitivities)]
+    specificities = tf.div(tn, tn + fp + kepsilon)
+    sensitivities = tf.div(tp, tp + fn + kepsilon)
+
 
 all_predictions = []
 
@@ -236,22 +238,22 @@ all_y = np.vstack(all_y)
 # Use these predictions for printing evaluation results.
 with tf.Session(graph=eval_graph) as sess:
     # Reset all streaming variables.
-    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier,
-              reset_auc] + reset_sens)
+    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
 
     # Update all streaming variables with predictions.
-    sess.run([update_tp, update_fp, update_fn,
-              update_tn, update_brier, update_auc] + update_sens,
+    sess.run([update_tp, update_fp, update_fn, update_tn,
+              update_brier, update_auc],
               feed_dict={average_predictions: avg_pred, all_labels: all_y})
 
     # Retrieve confusion matrix and estimated roc auc score.
-    _tp, _fp, _fn, _tn, test_conf_matrix, test_brier, \
-        test_auc, *test_sensitivities = sess.run(
-            [tp, fp, fn, tn, confusion_matrix, brier, auc] + sens)
+    test_conf_matrix, test_brier, test_auc, test_specificities, \
+        test_sensitivities = \
+            sess.run([confusion_matrix, brier, auc, specificities,
+                      sensitivities])
 
     # Plot and save ROC curve figure to a specified path.
     if save_roc_plot_path is not None:
-        save_roc_plot(np.arange(0.0, 1.0, 0.005), test_sensitivities, test_auc)
+        save_roc_plot(test_spec, test_sens, test_auc)
 
     # Print total roc auc score for validation.
     print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
@@ -260,22 +262,13 @@ with tf.Session(graph=eval_graph) as sess:
     print(f"Confusion matrix:")
     print(test_conf_matrix[0])
 
-    # Calculate specificity and sensitivity.
-    test_tp, test_fp, test_fn, test_tn = \
-        [np.asscalar(x) for x in [_tp, _fp, _fn, _tn]]
-
-    try:
-        spec = test_tn/(test_tn + test_fp)
-    except ZeroDivisionError:
-        spec = 0
-
-    try:
-        sens = test_tp/(test_tp + test_fn)
-    except ZeroDivisionError:
-        sens = 0
+    # Find sensitivity and specificity at operating threshold.
+    specificity_at_op = test_specificities[-1]
+    sensitivity_at_op = test_sensitivities[-1]
 
     # Print these metrics.
-    print(f"Specificity: {spec:0.4f}, Sensitivity: {sens:0.4f} at "
-          f"operating threshold {operating_threshold:0.3f}.")
+    print(f"Specificity: {specificity_at_op:0.4f}, "
+          f"Sensitivity: {sensitivity_at_op:0.4f} at "
+          f"Operating Threshold {operating_threshold:0.3f}.")
 
 sys.exit(0)
