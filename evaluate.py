@@ -24,15 +24,6 @@ default_eyepacs_dir = "./data/eyepacs/bin2/test"
 default_messidor_dir = "./data/messidor/bin2"
 default_load_model_path = "./tmp/model"
 default_batch_size = 32
-num_thresholds = 200
-
-# Define thresholds.
-kepsilon = 1e-7
-thresholds = [
-    (i + 1) * 1.0 / (num_thresholds - 1) for i in range(num_thresholds - 2)
-]
-thresholds = [0.0 - kepsilon] + thresholds \
-                + [1.0 - kepsilon, operating_threshold]
 
 parser = argparse.ArgumentParser(
                     description="Evaluate performance of trained graph "
@@ -102,6 +93,15 @@ print("Trying to load model(s):\n{}".format("\n".join(load_model_paths)))
 num_channels = 3
 num_workers = 8
 prefetch_buffer_size = 2 * batch_size
+num_thresholds = 200
+
+# Define thresholds.
+kepsilon = 1e-7
+thresholds = [
+    (i + 1) * 1.0 / (num_thresholds - 1) for i in range(num_thresholds - 2)
+]
+thresholds = [0.0 - kepsilon] + thresholds \
+                + [1.0 - kepsilon, operating_threshold]
 
 # Set image datas format to channels first if GPU is available.
 if tf.test.is_gpu_available():
