@@ -1,3 +1,3 @@
 [submodule "create_tfrecords"]
 	path = create_tfrecords
-	url = git@github.com:mikevoets/create_tfrecords.git
+	url = https://github.com/mikevoets/create_tfrecords.git
