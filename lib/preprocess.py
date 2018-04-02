@@ -185,7 +185,7 @@ def _scale_normalize_all(image_paths, save_path, diameter, verbosity):
 
 
 def scale_normalize(save_path=None, images_path=None, image_paths=None,
-                    image_path=None, diameter=512, verbosity=1):
+                    image_path=None, diameter=299, verbosity=1):
     """
     Function for normalizing scale of images.
 
@@ -195,8 +195,14 @@ def scale_normalize(save_path=None, images_path=None, image_paths=None,
     :param images_path:
         Optional. Path to directory in where images reside.
 
+    :param image_path:
+        Optional. Single path to image.
+
+    :param image_paths:
+        Optional. List of paths to images.
+
     :param diameter:
-        Optional. Result diameter of fundus. Defaults to 512.
+        Optional. Result diameter of fundus. Defaults to 299.
 
     :return:
         Nothing.
@@ -225,7 +231,7 @@ def scale_normalize(save_path=None, images_path=None, image_paths=None,
                                     diameter=diameter, verbosity=verbosity)
 
 
-def resize(images_paths, size=512):
+def resize(images_paths, size=299):
     """
     Function for resizing images.
 
@@ -233,7 +239,7 @@ def resize(images_paths, size=512):
         Required. Paths to images.
 
     :param size:
-        Optional. Size to which resize to. Defaults to 512.
+        Optional. Size to which resize to. Defaults to 299.
 
     :return:
         Nothing.
