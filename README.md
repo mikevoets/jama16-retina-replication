@@ -8,7 +8,7 @@ We have attempted to replicate some experiments in _Development and Validation o
 
 Python requirements:
 
-- Python 3
+- Python >= 3.6
 - Tensorflow >= 1.4
 - OpenCV >= 1.3
 - Pillow
