@@ -32,22 +32,9 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
                        num_workers=1, prefetch_buffer_size=None,
                        shuffle_buffer_size=None,
                        image_data_format='channels_last',
-                       num_channels=3):
+                       num_channels=3, image_dim=[299, 299]):
     # Retrieve data set from pattern.
     dataset = _tfrecord_dataset_from_folder(image_dir)
-
-    # Find metadata file with image dimensions.
-    image_dim_fn = os.path.join(image_dir, 'dimensions.txt')
-
-    # Parse dimensions.txt file in data set folder for image dimensions.
-    with open(image_dim_fn, 'r') as f:
-        image_dims = list(filter(None, f.read().split('\n')))
-
-        if len(image_dims) > 1:
-            raise TypeError(
-                "can't initialize dataset with multiple image dims")
-
-        image_dim = [int(x) for x in image_dims[0].split('x')]
 
     # Specify image shape.
     if image_data_format == 'channels_first':
