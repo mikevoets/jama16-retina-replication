@@ -8,7 +8,7 @@ We have attempted to replicate some experiments in _Development and Validation o
 
 Python requirements:
 
-- Python 3
+- Python >= 3.6
 - Tensorflow >= 1.4
 - OpenCV >= 1.3
 - Pillow
@@ -23,9 +23,9 @@ Other requirements:
 
 1. Run `$ git submodule update --init` to load the [create_tfrecords](https://github.com/mikevoets/create_tfrecords) repository. This tool will convert the data sets into TFRecord files.
 
-2. Download the [_Kaggle_ EyePACS data set](https://www.kaggle.com/c/diabetic-retinopathy-detection) and place all files in the `data/eyepacs` folder.
+2. Download the compressed [_Kaggle_ EyePACS data set](https://www.kaggle.com/c/diabetic-retinopathy-detection) and place all files (i.e. train and test set and labels) in the `data/eyepacs` folder. We recommend you to use the [Kaggle API](https://github.com/Kaggle/kaggle-api).
 
-3. Run `$ ./eyepacs.sh` to preprocess the _Kaggle_ EyePACS data set, and redistribute this set into a training and test set. Run with the `--only_gradable` flag if you want to train and evaluate with gradable images only. NB: This is a large data set, so this may take hours to finish.
+3. Run `$ ./eyepacs.sh` to decompress and preprocess the _Kaggle_ EyePACS data set, and redistribute this set into a training and test set. Run with the `--only_gradable` flag if you want to train and evaluate with gradable images only. NB: This is a large data set, so this may take hours to finish.
 
 4. Download the [Messidor-Original data set](http://www.adcis.net/en/Download-Third-Party/Messidor.html) and place all files in the `data/messidor` folder.
 
@@ -46,6 +46,18 @@ To create an ensemble of networks and evaluate the linear average of predictions
 The evaluation script outputs a confusion matrix, and specificity and sensitivity by using an operating threshold. The default operating threshold is 0.5, and can be changed with the `-op` parameter.
 
 Run `$ python evaluate.py -h` for additional parameter options.
+
+### Evaluate on a custom data set
+
+To evaluate the trained neural network on a different data set, follow these steps:
+
+1. Create a Python script or start a Python session, and preprocess and resize all images to 299x299 pixels with `.scale_normalize` from `lib/preprocess.py`.
+
+2. Create a directory with two subdirectories `image_dir/0` and `image_dir/1`. Move the preprocessed images diagnosed with referable diabetic retinopathy to `image_dir/1` and the images without rDR to `image_dir/0`.
+
+3. Create TFRecords: `$ python ./create_tfrecords/create_tfrecord.py --dataset_dir=image_dir` (run with `-h` for optional parameters).
+
+4. To evaluate, run `$ python evaluate.py -o=image_dir`. Run with `-h` for optional parameters.
 
 ## References
 
