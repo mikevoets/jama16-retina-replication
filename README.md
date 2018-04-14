@@ -14,6 +14,7 @@ Python requirements:
 - Pillow
 - h5py
 - xlrd
+- matplotlib >= 2.1
 
 Other requirements:
 
