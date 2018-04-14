@@ -118,6 +118,13 @@ if ! echo "$@" | grep -c -- "--redistribute" >/dev/null; then
     exit 1
   fi
 
+  # Test preprocess script.
+  error=$(python preprocess_eyepacs.py -h 2>&1 1>/dev/null)
+  if [ $? -ne 0 ]; then
+    echo "$error" >&2
+    exit 1
+  fi
+
   echo "Unzip the data set (0/2)..."
 
   # Check if p7zip is installed.
