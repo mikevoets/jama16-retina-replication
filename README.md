@@ -5,7 +5,9 @@ Published article link: [arXiv:1803.04337](https://arxiv.org/abs/1803.04337v2).
 ## Abstract
 
 We have attempted to replicate the main method in _Development and validation of a deep learning algorithm for detection of diabetic retinopathy in retinal fundus photographs_ published in JAMA 2016; 316(22) ([link](https://jamanetwork.com/journals/jama/fullarticle/2588763)). We re-implemented the method since the source code is not available, and we used publicly available data sets.
+
 The original study used non-public fundus images from EyePACS and three hospitals in India for training. We used a different EyePACS data set from Kaggle. The original study used the benchmark data set Messidor-2 to evaluate the algorithm's performance. We used the similar Messidor-Original data. In the original study, ophthalmologists re-graded all images for diabetic retinopathy, macular edema, and image gradability. There was one diabetic retinopathy grade per image for our data sets, and we assessed image gradability ourselves. Hyper-parameter settings for training and validation were not described in the original study.
+
 We were not able to replicate the original study. Our algorithm's area under the receiver operating curve (AUC) of 0.74 on the Kaggle EyePACS test set and 0.59 on Messidor-Original did not come close to the reported AUC of 0.99 in the original study. This may be caused by the use of a single grade per image, or different hyper-parameter settings. By changing the pre-processing methods, our replica algorithm's AUC increased to 0.94 and 0.82, respectively.
 
 ## Requirements
