@@ -68,7 +68,7 @@ To evaluate the trained neural network on a different data set, follow these ste
 
 ## Benchmarks
 
-We forked the repository for TensorFlow benchmarks ([tensorflow/benchmarks](https://github.com/tensorflow/benchmarks)) to run the benchmarks with the retinal fundus images and labels used in this study ([link](https://github.com/mikevoets/benchmarks)). The [maikovich/tf_cnn_benchmarks](https://hub.docker.com/r/maikovich/tf_cnn_benchmarks/) provides a Docker image for running the benchmarks effectively.
+We forked the repository for TensorFlow benchmarks ([tensorflow/benchmarks](https://github.com/tensorflow/benchmarks)) to run the benchmarks with the retinal fundus images and labels used in this study ([link](https://github.com/mikevoets/benchmarks)). We further provide a Docker image [maikovich/tf_cnn_benchmarks](https://hub.docker.com/r/maikovich/tf_cnn_benchmarks/) to run the benchmarks easily.
 
 To run the benchmarks for training with this study's data on GPUs, run the following command with Docker. Substitute `path/to/train_dir` with the path to the directory that contains the TFRecord shards with the training set. The `--num_gpu`, `--batch_size` flags can be modified according to your environment's capabilities. For other flags, see the forked repository.
 
