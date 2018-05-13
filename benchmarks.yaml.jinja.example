@@ -1,0 +1,118 @@
+{%- set name = "benchmark" -%}
+{%- set image = "maikovich/tf_cnn_benchmarks:latest" -%}
+{%- set worker_replicas = 2 -%}
+{%- set ps_replicas = 2 -%}
+{%- set batch_size = 64 -%}
+{%- set data_dir = "/data" -%}
+{%- set train_dir = "/data/model" -%}
+
+{%- set port = 5000 -%}
+{%- set replicas = {"worker": worker_replicas, "ps": ps_replicas} -%}
+
+{%- set gpu_per_node = "2" -%}
+{%- set cpu_per_node = "3" -%}
+{%- set mem_per_node = "4Gi" -%}
+
+{%- set volume_mount_path = "/data" -%}
+
+{%- set namespace = "namespace" -%}
+{%- set volume_mount_name = "volume_name" -%}
+{%- set volume_claim_name = "volume_claim_name" -%}
+
+{%- macro worker_hosts() -%}
+  {%- for i in range(worker_replicas) -%}
+    {%- if not loop.first -%},{%- endif -%}
+    {{ name }}-worker-{{ i }}:{{ port }}
+  {%- endfor -%}
+{%- endmacro -%}
+
+{%- macro ps_hosts() -%}
+  {%- for i in range(ps_replicas) -%}
+    {%- if not loop.first -%},{%- endif -%}
+    {{ name }}-ps-{{ i }}:{{ port }}
+  {%- endfor -%}
+{%- endmacro -%}
+
+{%- for job in ["ps", "worker"] -%}
+{%- for i in range(replicas[job]) -%}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ name }}-{{ job }}-{{ i }}
+  namespace: {{ namespace }}
+  labels:
+    task: {{ name }}-{{ i }}
+spec:
+  selector:
+    name: {{ name }}
+    job: {{ job }}
+    task: "{{ i }}"
+  ports:
+  - port: {{ port }}
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ name }}-{{ job }}-{{ i }}
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ name }}
+        job: {{ job }}
+        task: "{{ i }}"
+{% if gpu_per_node != "" %}
+        driver: nvidia-gpu
+{% endif %}
+    spec:
+      containers:
+      - name: tensorflow
+        image: {{ image }}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: {{ port }}
+        args:
+        - "--data_dir={{ data_dir }}"
+        - "--train_dir={{ train_dir }}"
+        - "--task_index={{ i }}"
+        - "--job_name={{ job }}"
+        - "--worker_hosts={{ worker_hosts() }}"
+        - "--ps_hosts={{ ps_hosts() }}"
+        - "--num_gpus={{ gpu_per_node }}"
+        - "--batch_size={{ batch_size }}"
+        - "--model=inception3"
+        - "--variable_update=parameter_server"
+        - "--local_parameter_device=cpu"
+        - "--optimizer=sgd"
+        - "--data_format=NCHW"
+        - "--data_name=retina"
+{% endif %}
+{% if gpu_per_node != "" %}
+        resources:
+          requests:
+{% if job != "ps" %}
+            alpha.kubernetes.io/nvidia-gpu: {{ gpu_per_node }}
+{% endif %}
+            cpu: {{ cpu_per_node }}
+            memory: {{ mem_per_node }}
+          limits:
+{% if job != "ps" %}
+            alpha.kubernetes.io/nvidia-gpu: {{ gpu_per_node }}
+{% endif %}
+            cpu: {{ cpu_per_node }}
+            memory: {{ mem_per_node }}
+{% endif %}
+{% if volume_mount_name != "" %}
+        volumeMounts:
+        - name: {{ volume_mount_name }}
+          mountPath: {{ volume_mount_path }}
+      volumes:
+      - name: {{ volume_mount_name }}
+        persistentVolumeClaim:
+          claimName: {{ volume_claim_name }}
+{% endif %}
+---
+{% endfor %}
+{%- endfor -%}

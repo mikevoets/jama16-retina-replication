@@ -65,3 +65,19 @@ To evaluate the trained neural network on a different data set, follow these ste
 3. Create TFRecords: `$ python ./create_tfrecords/create_tfrecord.py --dataset_dir=image_dir` (run with `-h` for optional parameters).
 
 4. To evaluate, run `$ python evaluate.py -o=image_dir`. Run with `-h` for optional parameters.
+
+## Benchmarks
+
+We forked the repository for TensorFlow benchmarks ([tensorflow/benchmarks](https://github.com/tensorflow/benchmarks)) to run the benchmarks with the retinal fundus images and labels used in this study ([link](https://github.com/mikevoets/benchmarks)). The [maikovich/tf_cnn_benchmarks](https://hub.docker.com/r/maikovich/tf_cnn_benchmarks/) provides a Docker image for running the benchmarks effectively.
+
+To run the benchmarks for training with this study's data on GPUs, run the following command with Docker. Substitute `path/to/train_dir` with the path to the directory that contains the TFRecord shards with the training set. The `--num_gpu`, `--batch_size` flags can be modified according to your environment's capabilities. For other flags, see the forked repository.
+
+```
+$ nvidia-docker run --mount type=bind,source=/path/to/train_dir,target=/data maikovich/tf_cnn_benchmarks:latest --data_dir=/data --model=inception3 --data_name=retina --num_gpus=2 --batch_size=64
+```
+
+To run the benchmarks to measure performance of evaluating test data sets, run the above command with the `--eval` flag and substitute the mount source directory with the path to the directory containing the TFRecord shards with test data.
+
+In this repository, we also provide a example _jinja_ file (see _benchmarks.yaml.jinja.example_) to generate a Kubernetes yaml description. This can be used to run the benchmarks in a distributed fashion on multiple nodes on a Kubernetes cluster. To see more information about how to compile the jinja file into yaml, see this [README](https://github.com/tensorflow/ecosystem/tree/master/kubernetes).
+
+An overview of the original benchmark results with e.g. ImageNet data can be found [here](https://www.tensorflow.org/performance/benchmarks).
