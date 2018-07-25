@@ -1,6 +1,6 @@
 # Code for JAMA 2016; 316(22) Replication Study
 
-Published article link: [arXiv:1803.04337](https://arxiv.org/abs/1803.04337v2).
+Published article link: [arXiv:1803.04337v1](https://arxiv.org/abs/1803.04337v1).
 
 ## Abstract
 
