@@ -1,5 +1,13 @@
 import tensorflow as tf
+from random import shuffle
 import os
+
+BRIGHTNESS_MAX_DELTA = 0.125
+SATURATION_LOWER = 0.5
+SATURATION_UPPER = 1.5
+HUE_MAX_DELTA = 0.2
+CONTRAST_LOWER = 0.5
+CONTRAST_UPPER = 1.5
 
 
 def _tfrecord_dataset_from_folder(folder, ext='.tfrecord'):
@@ -8,7 +16,7 @@ def _tfrecord_dataset_from_folder(folder, ext='.tfrecord'):
     return tf.data.TFRecordDataset(tfrecords)
 
 
-def _parse_example(proto, image_dim):
+def _parse_example(proto, num_channels, image_data_format):
     features = {"image/encoded": tf.FixedLenFeature((), tf.string),
                 "image/format": tf.FixedLenFeature((), tf.string),
                 "image/class/label": tf.FixedLenFeature((), tf.int64),
@@ -16,11 +24,35 @@ def _parse_example(proto, image_dim):
                 "image/width": tf.FixedLenFeature((), tf.int64)}
     parsed = tf.parse_single_example(proto, features)
 
-    # Rescale to 1./255.
-    image = tf.image.convert_image_dtype(
-        tf.image.decode_jpeg(parsed["image/encoded"]), tf.float32)
+    image = tf.image.decode_jpeg(parsed["image/encoded"], num_channels)
+    image = tf.cast(image, tf.float32)
 
-    image = tf.reshape(image, image_dim)
+    # Rescale image from [0, 255] to [0, 2].
+    image = tf.multiply(image, 1. / 127.5)
+    # Rescale to [-1, 1].
+    image = tf.subtract(image, 1.0)
+
+    # Apply data augmentations randomly.
+    augmentations = [
+        {'fn': tf.image.random_flip_left_right},
+        {'fn': tf.image.random_brightness,
+         'args': [BRIGHTNESS_MAX_DELTA]},
+        {'fn': tf.image.random_saturation,
+         'args': [SATURATION_LOWER, SATURATION_UPPER]},
+        {'fn': tf.image.random_hue,
+         'args': [HUE_MAX_DELTA]},
+        {'fn': tf.image.random_contrast,
+         'args': [CONTRAST_LOWER, CONTRAST_UPPER]}]
+
+    for aug in augmentations:
+        if 'args' in aug:
+            image = aug['fn'](image, *aug['args'])
+        else:
+            image = aug['fn'](image)
+
+    if image_data_format == 'channels_first':
+        image = tf.transpose(image, [2, 0, 1])
+
     label = tf.cast(
                 tf.reshape(parsed["image/class/label"], [-1]),
                 tf.float32)
@@ -36,16 +68,9 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
     # Retrieve data set from pattern.
     dataset = _tfrecord_dataset_from_folder(image_dir)
 
-    # Specify image shape.
-    if image_data_format == 'channels_first':
-        image_dim = [num_channels, image_dim[0], image_dim[1]]
-    elif image_data_format == 'channels_last':
-        image_dim = [image_dim[0], image_dim[1], num_channels]
-    else:
-        raise TypeError('invalid image date format setting')
-
-    dataset = dataset.map(lambda e: _parse_example(e, image_dim),
-                          num_parallel_calls=num_workers)
+    dataset = dataset.map(
+        lambda e: _parse_example(e, num_channels, image_data_format),
+        num_parallel_calls=num_workers)
 
     if shuffle_buffer_size is not None:
         dataset = dataset.shuffle(shuffle_buffer_size)
