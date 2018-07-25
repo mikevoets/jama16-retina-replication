@@ -9,6 +9,7 @@ from glob import glob
 import lib.metrics
 import lib.dataset
 import lib.evaluation
+from lib.preprocess import rescale_min_1_to_1, rescale_0_to_1
 
 print(f"Numpy version: {np.__version__}")
 print(f"Tensorflow version: {tf.__version__}")
@@ -61,6 +62,7 @@ Saving operating points at: {},
 # Various constants.
 num_channels = 3
 num_workers = 8
+normalization_fn = rescale_min_1_to_1
 
 # Hyper-parameters for training.
 learning_rate = 1e-3
@@ -100,13 +102,15 @@ train_dataset = lib.dataset.initialize_dataset(
     train_dir, train_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size,
-    image_data_format=image_data_format, num_channels=num_channels)
+    image_data_format=image_data_format, num_channels=num_channels,
+    normalization_fn=normalization_fn)
 
 val_dataset = lib.dataset.initialize_dataset(
     val_dir, val_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size,
-    image_data_format=image_data_format, num_channels=num_channels)
+    image_data_format=image_data_format, num_channels=num_channels,
+    normalization_fn=normalization_fn)
 
 # Create initializable iterators.
 iterator = tf.data.Iterator.from_structure(
