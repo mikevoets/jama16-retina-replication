@@ -44,6 +44,8 @@ def _parse_example(proto, num_channels, image_data_format):
         {'fn': tf.image.random_contrast,
          'args': [CONTRAST_LOWER, CONTRAST_UPPER]}]
 
+    shuffle(augmentations)
+
     for aug in augmentations:
         if 'args' in aug:
             image = aug['fn'](image, *aug['args'])
