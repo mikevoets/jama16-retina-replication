@@ -106,7 +106,7 @@ echo "Converting data set to tfrecords..."
 git submodule update --init
 
 python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir" \
-       --tfrecord_filename=messidor --num_shards=2 || \
+       --num_shards=2 || \
     { echo "Submodule not initialized. Run git submodule update --init";
       exit 1; }
 
