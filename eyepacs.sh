@@ -227,7 +227,7 @@ python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir/train" \
       exit 1; }
 
 echo "Moving validation tfrecords to separate folder."
-find "$output_dir/train" -name "*eyepacs_validation*.tfrecord" -exec mv {} "$output_dir/validation/." \;
+find "$output_dir/train" -name "validation*.tfrecord" -exec mv {} "$output_dir/validation/." \;
 find "$output_dir/train" -maxdepth 1 -iname "*.txt" -exec cp {} "$output_dir/validation/." \;
 
 python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir/test" \
