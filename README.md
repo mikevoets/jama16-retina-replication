@@ -37,13 +37,13 @@ Other requirements:
 
 For Messidor-Original:
 
-4a. Download the [Messidor-Original data set](http://www.adcis.net/en/Download-Third-Party/Messidor.html) and place all files in the `data/messidor` folder.
+4. Download the [Messidor-Original data set](http://www.adcis.net/en/Download-Third-Party/Messidor.html) and place all files in the `data/messidor` folder.
 
-4b. Run `$ ./messidor.sh` to preprocess the Messidor-Original data set. Run with the `--only_gradable` flag if you want to evaluate with gradable images only.
+5. Run `$ ./messidor.sh` to preprocess the Messidor-Original data set. Run with the `--only_gradable` flag if you want to evaluate with gradable images only.
 
 For Messidor-2:
 
-4a. Run `$ ./messidor2.sh` to download, unpack, and preprocess the Messidor-2 data set. This data set is downloaded from the Datasets and Algorithms' section on Michael D. Abramoff's page [here](https://medicine.uiowa.edu/eye/abramoff).
+6. Run `$ ./messidor2.sh` to download, unpack, and preprocess the Messidor-2 data set. This data set is downloaded from the Datasets and Algorithms' section on Michael D. Abramoff's page [here](https://medicine.uiowa.edu/eye/abramoff).
 
 
 ## Training
