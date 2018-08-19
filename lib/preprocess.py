@@ -6,9 +6,12 @@
 #
 ########################################################################
 
+import tensorflow as tf
 import os
 import sys
 import cv2
+import matplotlib
+matplotlib.use('agg')
 from pylab import array, arange, uint8
 
 ########################################################################
@@ -76,7 +79,7 @@ def _get_filename(file_path):
     return file_path.split("/")[-1]
 
 
-def _scale_normalize(image, diameter):
+def _resize_and_center_fundus(image, diameter):
     """
     Helper function for scale normalizing image.
     """
@@ -137,7 +140,7 @@ def _get_image_paths(images_path):
     return [os.path.join(images_path, fn) for fn in os.listdir(images_path)]
 
 
-def _scale_normalize_all(image_paths, save_path, diameter, verbosity):
+def _resize_and_center_fundus_all(image_paths, save_path, diameter, verbosity):
     # Get the total amount of images.
     num_images = len(image_paths)
     success = 0
@@ -157,8 +160,7 @@ def _scale_normalize_all(image_paths, save_path, diameter, verbosity):
             # Load the image and clone it for output.
             image = cv2.imread(os.path.abspath(image_path), -1)
 
-            # Scale normalize the image.
-            processed = _scale_normalize(image, diameter=diameter)
+            processed = _resize_and_center_fundus(image, diameter=diameter)
 
             if processed is None:
                 print("Could not preprocess {}...".format(image_path))
@@ -184,10 +186,10 @@ def _scale_normalize_all(image_paths, save_path, diameter, verbosity):
 ########################################################################
 
 
-def scale_normalize(save_path=None, images_path=None, image_paths=None,
+def resize_and_center_fundus(save_path=None, images_path=None, image_paths=None,
                     image_path=None, diameter=299, verbosity=1):
     """
-    Function for normalizing scale of images.
+    Function for resizing and centering fundus in image.
 
     :param save_path:
         Required. Saves preprocessed image to the given path.
@@ -213,22 +215,25 @@ def scale_normalize(save_path=None, images_path=None, image_paths=None,
     save_path = os.path.abspath(save_path)
 
     if image_paths is not None:
-        return _scale_normalize_all(image_paths=image_paths,
-                                    save_path=save_path,
-                                    diameter=diameter, verbosity=verbosity)
+        return _resize_and_center_fundus_all(image_paths=image_paths,
+                                             save_path=save_path,
+                                             diameter=diameter,
+                                             verbosity=verbosity)
 
     elif images_path is not None:
         # Get the paths to all images.
         image_paths = _get_image_paths(images_path)
         # Scale all images.
-        return _scale_normalize_all(image_paths=image_paths,
-                                    save_path=save_path,
-                                    diameter=diameter, verbosity=verbosity)
+        return _resize_and_center_fundus_all(image_paths=image_paths,
+                                             save_path=save_path,
+                                             diameter=diameter,
+                                             verbosity=verbosity)
 
     elif image_path is not None:
-        return _scale_normalize_all(image_paths=[image_path],
-                                    save_path=save_path,
-                                    diameter=diameter, verbosity=verbosity)
+        return _resize_and_center_fundus_all(image_paths=[image_path],
+                                             save_path=save_path,
+                                             diameter=diameter,
+                                             verbosity=verbosity)
 
 
 def resize(images_paths, size=299):
@@ -252,3 +257,34 @@ def resize(images_paths, size=299):
 
         # Save the image.
         cv2.imwrite(image_path, image, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+
+
+def rescale_min_1_to_1(image):
+    """
+    Rescale image to [-1, 1].
+
+    :param image:
+        Required. Image tensor.
+
+    :return:
+        Scaled image.
+    """
+    # Image must be casted to float32 first.
+    image = tf.cast(image, tf.float32)
+    # Rescale image from [0, 255] to [0, 2].
+    image = tf.multiply(image, 1. / 127.5)
+    # Rescale to [-1, 1].
+    return tf.subtract(image, 1.0)
+
+
+def rescale_0_to_1(image):
+    """
+    Rescale image to [0, 1].
+
+    :param image:
+        Required. Image tensor.
+
+    :return:
+        Scaled image.
+    """
+    return tf.image.convert_image_dtype(image, tf.float32)

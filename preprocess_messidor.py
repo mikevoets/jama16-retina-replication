@@ -7,7 +7,7 @@ from PIL import Image
 from glob import glob
 from os import makedirs, rename
 from os.path import join, splitext, basename, exists
-from lib.preprocess import scale_normalize
+from lib.preprocess import resize_and_center_fundus
 
 parser = argparse.ArgumentParser(description='Preprocess Messidor-Original data set.')
 parser.add_argument("--data_dir", help="Directory where Messidor-Original resides.",
@@ -58,8 +58,8 @@ for shard in shards_paths:
 
         # Find contour of eye fundus in image, and scale
         #  diameter of fundus to 299 pixels and crop the edges.
-        res = scale_normalize(save_path=tmp_path, image_path=im_path,
-                              diameter=299, verbosity=0)
+        res = resize_and_center_fundus(save_path=tmp_path, image_path=im_path,
+                                       diameter=299, verbosity=0)
 
         # Status-message.
         msg = "\r- Preprocessing image: {0:>6} / {1}".format(

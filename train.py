@@ -9,6 +9,7 @@ from glob import glob
 import lib.metrics
 import lib.dataset
 import lib.evaluation
+from lib.preprocess import rescale_min_1_to_1, rescale_0_to_1
 
 print(f"Numpy version: {np.__version__}")
 print(f"Tensorflow version: {tf.__version__}")
@@ -41,9 +42,6 @@ parser.add_argument("-ss", "--save_summaries_dir",
 parser.add_argument("-so", "--save_operating_thresholds_path",
                     help="path to where operating points should be saved",
                     default=default_save_operating_thresholds_path)
-parser.add_argument("-sgd", "--vanilla_sgd", action="store_true",
-                    help="use vanilla stochastic gradient descent instead of "
-                         "nesterov accelerated gradient descent")
 
 args = parser.parse_args()
 train_dir = str(args.train_dir)
@@ -51,7 +49,6 @@ val_dir = str(args.val_dir)
 save_model_path = str(args.save_model_path)
 save_summaries_dir = str(args.save_summaries_dir)
 save_operating_thresholds_path = str(args.save_operating_thresholds_path)
-use_sgd = bool(args.vanilla_sgd)
 
 print("""
 Training images folder: {},
@@ -59,25 +56,24 @@ Validation images folder: {},
 Saving model and graph checkpoints at: {},
 Saving summaries at: {},
 Saving operating points at: {},
-Use SGD: {}
 """.format(train_dir, val_dir, save_model_path, save_summaries_dir,
-           save_operating_thresholds_path, use_sgd))
+           save_operating_thresholds_path))
 
 # Various constants.
 num_channels = 3
 num_workers = 8
+normalization_fn = rescale_min_1_to_1
 
 # Hyper-parameters for training.
-learning_rate = 3e-3
-momentum = 0.9  # Only used when not training with momentum optimizer
-use_nesterov = True  # Only used when not training with momentum optimizer
-train_batch_size = 64
+learning_rate = 1e-3
+decay = 4e-5
+train_batch_size = 32
 
 # Hyper-parameters for validation.
 num_epochs = 200
 wait_epochs = 10
 min_delta_auc = 0.01
-val_batch_size = 64
+val_batch_size = 32
 num_thresholds = 200
 kepsilon = 1e-7
 
@@ -106,13 +102,15 @@ train_dataset = lib.dataset.initialize_dataset(
     train_dir, train_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size,
-    image_data_format=image_data_format, num_channels=num_channels)
+    image_data_format=image_data_format, num_channels=num_channels,
+    normalization_fn=normalization_fn)
 
 val_dataset = lib.dataset.initialize_dataset(
     val_dir, val_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size,
-    image_data_format=image_data_format, num_channels=num_channels)
+    image_data_format=image_data_format, num_channels=num_channels,
+    normalization_fn=normalization_fn)
 
 # Create initializable iterators.
 iterator = tf.data.Iterator.from_structure(
@@ -135,7 +133,6 @@ logits = tf.layers.dense(base_model.output, units=1)
 # Get the predictions with a sigmoid activation function.
 predictions = tf.sigmoid(logits, name='predictions')
 
-
 # Retrieve loss of network using cross entropy.
 mean_xentropy = tf.reduce_mean(
     tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=logits))
@@ -143,14 +140,9 @@ mean_xentropy = tf.reduce_mean(
 # Define optimizer.
 global_step = tf.Variable(0, dtype=tf.int32)
 
-if use_sgd:
-    train_op = tf.train.GradientDescentOptimizer(learning_rate) \
+train_op = tf.train.RMSPropOptimizer(
+    learning_rate=learning_rate, decay=decay) \
         .minimize(loss=mean_xentropy, global_step=global_step)
-else:
-    train_op = tf.train.MomentumOptimizer(
-        learning_rate=learning_rate, momentum=momentum,
-        use_nesterov=use_nesterov) \
-            .minimize(loss=mean_xentropy, global_step=global_step)
 
 # Metrics for finding best validation set.
 tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
@@ -209,6 +201,7 @@ saver = tf.train.Saver()
 # Initialize variables.
 sess.run(tf.global_variables_initializer())
 sess.run(tf.local_variables_initializer())
+
 
 # Train for the specified amount of epochs.
 # Can be stopped early if peak of validation auc (Area under curve)

@@ -222,16 +222,16 @@ echo "Converting data set to tfrecords..."
 git submodule update --init
 
 python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir/train" \
-       --tfrecord_filename=eyepacs --num_shards=8 --validation_size=0.2 || \
+       --num_shards=8 --validation_size=0.2 || \
     { echo "Submodule not initialized. Run git submodule update --init";
       exit 1; }
 
 echo "Moving validation tfrecords to separate folder."
-find "$output_dir/train" -name "*eyepacs_validation*.tfrecord" -exec mv {} "$output_dir/validation/." \;
+find "$output_dir/train" -name "validation*.tfrecord" -exec mv {} "$output_dir/validation/." \;
 find "$output_dir/train" -maxdepth 1 -iname "*.txt" -exec cp {} "$output_dir/validation/." \;
 
 python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir/test" \
-       --tfrecord_filename=eyepacs --num_shards=4 || exit 1
+       --num_shards=4 || exit 1
 
 echo "Done!"
 exit

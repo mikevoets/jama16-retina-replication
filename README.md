@@ -1,6 +1,6 @@
 # Code for JAMA 2016; 316(22) Replication Study
 
-Published article link: [arXiv:1803.04337](https://arxiv.org/abs/1803.04337v2).
+Published article link: [arXiv:1803.04337](https://arxiv.org/abs/1803.04337). Updated article (v3) coming soon.
 
 ## Abstract
 
@@ -25,6 +25,7 @@ Python requirements:
 Other requirements:
 
 - p7zip-full
+- unzip
 
 ## Preprocessing before training
 
@@ -34,9 +35,16 @@ Other requirements:
 
 3. Run `$ ./eyepacs.sh` to decompress and preprocess the _Kaggle_ EyePACS data set, and redistribute this set into a training and test set. Run with the `--only_gradable` flag if you want to train and evaluate with gradable images only. NB: This is a large data set, so this may take hours to finish.
 
-4. Download the [Messidor-Original data set](http://www.adcis.net/en/Download-Third-Party/Messidor.html) and place all files in the `data/messidor` folder.
+For Messidor-Original:
 
-5. Run `$ ./messidor.sh` to preprocess the Messidor-Original data set. Run with the `--only_gradable` flag if you want to evaluate with gradable images only.
+4a. Download the [Messidor-Original data set](http://www.adcis.net/en/Download-Third-Party/Messidor.html) and place all files in the `data/messidor` folder.
+
+4b. Run `$ ./messidor.sh` to preprocess the Messidor-Original data set. Run with the `--only_gradable` flag if you want to evaluate with gradable images only.
+
+For Messidor-2:
+
+4a. Run `$ ./messidor2.sh` to download, unpack, and preprocess the Messidor-2 data set. This data set is downloaded from the Datasets and Algorithms' section on Michael D. Abramoff's page [here](https://medicine.uiowa.edu/eye/abramoff).
+
 
 ## Training
 
@@ -46,7 +54,7 @@ Run `$ python train.py -h` to see additional optional parameters for training wi
 
 ## Evaluation
 
-To evaluate or test the trained neural network on the _Kaggle_ EyePACS test set, run `$ python evaluate.py -e`. To evaluate on Messidor-Original, run it with the `-m` flag instead.
+To evaluate or test the trained neural network on the _Kaggle_ EyePACS test set, run `$ python evaluate.py -e`. To evaluate on Messidor-Original, run it with the `-m` flag. To evaluate on Messidor-2, use the `-m2` flag.
 
 To create an ensemble of networks and evaluate the linear average of predictions, use the `-lm` parameter. To specify multiple models to evaluate as an ensemble, the model paths should be comma-separated or satisfy a regular expression. For example: `-lm=./tmp/model-1,./tmp/model-2,./tmp/model-3` or `-lm=./tmp/model-?`.
 
