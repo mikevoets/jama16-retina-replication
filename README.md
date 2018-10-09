@@ -1,3 +1,5 @@
+English - [中文](https://github.com/mikevoets/jama16-retina-replication/blob/master/README.zh.md)
+
 # Code for JAMA 2016; 316(22) Replication Study
 
 Published article link: [arXiv:1803.04337](https://arxiv.org/abs/1803.04337).
@@ -48,7 +50,7 @@ For Messidor-2:
 
 ## Training
 
-To start training with default settings, run `$ python train.py`. To train with stochastic gradient descent, specify the `-sgd` flag. Optionally specify the path to where models checkpoints should be saved to with the `-sm` parameter.
+To start training with default settings, run `$ python train.py`. Optionally specify the path to where models checkpoints should be saved to with the `-sm` parameter.
 
 Run `$ python train.py -h` to see additional optional parameters for training with your own data set, or where to save summaries or operating threshold metrics.
 
