@@ -86,6 +86,8 @@ To run the benchmarks for training with this study's data on GPUs, run the follo
 $ nvidia-docker run --mount type=bind,source=/path/to/train_dir,target=/data maikovich/tf_cnn_benchmarks:latest --data_dir=/data --model=inception3 --data_name=retina --num_gpus=2 --batch_size=64
 ```
 
+As a reference, our training speed was 91.1 (± 0.4) images per second with one NVIDIA GTX 1080. For our training set of 57 146 images, that means approximately a minute per epoch of training. Add half a minute validation after each epoch due to initialization and loading into memory. Total training took typically 80 to 100 epochs, so it took around 2 to 2.5 hours to train one model.
+
 To run the benchmarks to measure performance of evaluating test data sets, run the above command with the `--eval` flag and substitute the mount source directory with the path to the directory containing the TFRecord shards with test data.
 
 In this repository, we also provide a example _jinja_ file (see _benchmarks.yaml.jinja.example_) to generate a Kubernetes yaml description. This can be used to run the benchmarks in a distributed fashion on multiple nodes on a Kubernetes cluster. To see more information about how to compile the jinja file into yaml, see this [README](https://github.com/tensorflow/ecosystem/tree/master/kubernetes).
