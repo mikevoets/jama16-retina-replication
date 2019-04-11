@@ -190,7 +190,7 @@ for model_path in load_model_paths:
 
         # Initialize the test set.
         test_dataset = lib.dataset.initialize_dataset(
-            data_dir, batch_size,
+            data_dir, batch_size, augmentation=False,
             num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
             image_data_format=image_data_format, num_channels=num_channels)
 

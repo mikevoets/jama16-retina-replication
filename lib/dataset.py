@@ -16,7 +16,7 @@ def _tfrecord_dataset_from_folder(folder, ext='.tfrecord'):
     return tf.data.TFRecordDataset(tfrecords)
 
 
-def _parse_example(proto, num_channels, image_data_format, normalization_fn):
+def _parse_example(proto, num_channels, image_data_format, normalization_fn, augmentation=True):
     features = {"image/encoded": tf.FixedLenFeature((), tf.string),
                 "image/format": tf.FixedLenFeature((), tf.string),
                 "image/class/label": tf.FixedLenFeature((), tf.int64),
@@ -41,11 +41,12 @@ def _parse_example(proto, num_channels, image_data_format, normalization_fn):
 
     shuffle(augmentations)
 
-    for aug in augmentations:
-        if 'args' in aug:
-            image = aug['fn'](image, *aug['args'])
-        else:
-            image = aug['fn'](image)
+    if augmentation:
+        for aug in augmentations:
+            if 'args' in aug:
+                image = aug['fn'](image, *aug['args'])
+            else:
+                image = aug['fn'](image)
 
     if image_data_format == 'channels_first':
         image = tf.transpose(image, [2, 0, 1])
@@ -62,13 +63,14 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
                        shuffle_buffer_size=None,
                        normalization_fn=tf.image.per_image_standardization,
                        image_data_format='channels_last',
-                       num_channels=3, image_dim=[299, 299]):
+                       num_channels=3, image_dim=[299, 299],
+                       augmentation=True):
     # Retrieve data set from pattern.
     dataset = _tfrecord_dataset_from_folder(image_dir)
 
     dataset = dataset.map(
         lambda e: _parse_example(
-            e, num_channels, image_data_format, normalization_fn),
+            e, num_channels, image_data_format, normalization_fn, augmentation),
         num_parallel_calls=num_workers)
 
     if shuffle_buffer_size is not None:

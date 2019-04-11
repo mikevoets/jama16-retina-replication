@@ -110,7 +110,8 @@ val_dataset = lib.dataset.initialize_dataset(
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size,
     image_data_format=image_data_format, num_channels=num_channels,
-    normalization_fn=normalization_fn)
+    normalization_fn=normalization_fn,
+    augmentation=False)
 
 # Create initializable iterators.
 iterator = tf.data.Iterator.from_structure(
