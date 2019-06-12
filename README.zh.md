@@ -2,7 +2,7 @@
 
 # 代码给 JAMA 2016年; 316(22) 复制研究
 
-发表文章链接：[arXiv:1803.04337](https://arxiv.org/abs/1803.04337)。
+发表文章链接：[doi:10.1371/journal.pone.0217541](https://doi.org/10.1371/journal.pone.0217541)。
 
 ## 摘要
 
@@ -37,15 +37,15 @@ Python要求：
 
 3.执行 `$ ./eyepacs.sh` 来解压缩并预先处理 _Kaggle_ EyePACS 数据集，和将此集重新分配到训练和测试集中。如果您只想使用可分级图像来进行训练和评估，使用 `--only_gradable` 标志来执行。注意：这是一个大型的数据集，因此可能需要数小时才能完成。
 
-对于 Messidor-Original：
-
-4.下载 [Messidor-Original 数据集](http://www.adcis.net/en/Download-Third-Party/Messidor.html) 并将所有的文件放在  `data/messidor` 的文件夹中。
-
-5.执行 `$ ./messidor.sh` 来预先处理 Messidor-Original 数据集。如果只要可分级图像而进行评估，使用 `--only_gradable` 标志执行。
-
 对于 Messidor-2：
 
-6.执行 `$ ./messidor2.sh` 来下载，解压缩和预先处理 Messidor-2 的数据集。该数据集可从Michael D. Abramoff的页面 [此处](https://medicine.uiowa.edu/eye/abramoff) 上的数据集和算法部分下载。
+4.执行 `$ ./messidor2.sh` 来下载，解压缩和预先处理 Messidor-2 的数据集。该数据集可从Michael D. Abramoff的页面 [此处](https://medicine.uiowa.edu/eye/abramoff) 上的数据集和算法部分下载。
+
+对于 Messidor-Original：
+
+5.下载 [Messidor-Original 数据集](http://www.adcis.net/en/Download-Third-Party/Messidor.html) 并将所有的文件放在  `data/messidor` 的文件夹中。
+
+6.执行 `$ ./messidor.sh` 来预先处理 Messidor-Original 数据集。如果只要可分级图像而进行评估，使用 `--only_gradable` 标志执行。
 
 ## 培训
 

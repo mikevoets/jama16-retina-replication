@@ -2,13 +2,13 @@ English - [中文](https://github.com/mikevoets/jama16-retina-replication/blob/m
 
 # Code for JAMA 2016; 316(22) Replication Study
 
-Published article link: [arXiv:1803.04337](https://arxiv.org/abs/1803.04337).
+Published article link: [doi:10.1371/journal.pone.0217541](https://doi.org/10.1371/journal.pone.0217541).
 
 ## Abstract
 
-We have attempted to reproduce the results in _Development and validation of a deep learning algorithm for detection of diabetic retinopathy in retinal fundus photographs_, published in JAMA 2016; 316(22) ([link](https://jamanetwork.com/journals/jama/fullarticle/2588763)), using publicly available data sets. We re-implemented the main method in the original study since the source code is not available.
+We have attempted to replicate the methods and reproduce the results in _Development and validation of a deep learning algorithm for detection of diabetic retinopathy in retinal fundus photographs_, published in JAMA 2016; 316(22) ([link](https://jamanetwork.com/journals/jama/fullarticle/2588763)), using publicly available data sets. We re-implemented the main method in the original study since the source code is not available.
 
-The original study used non-public fundus images from EyePACS and three hospitals in India for training. We used a different EyePACS data set from Kaggle. The original study used the benchmark data set Messidor-2 to evaluate the algorithm’s performance. We used another distribution of the Messidor-2 data set, since the original data set is no longer available. In the original study, ophthalmologists re-graded all images for diabetic retinopathy, macular edema, and image gradability. We have one diabetic retinopathy grade per image for our data sets, and we assessed image gradability ourselves. 
+The original study used non-public fundus images from EyePACS and three hospitals in India for training. We used a different EyePACS data set from Kaggle. The original study used the benchmark data set Messidor-2 to evaluate the algorithm’s performance. We used another distribution of the Messidor-2 data set, since the original data set is no longer available. In the original study, ophthalmologists re-graded all images for diabetic retinopathy, macular edema, and image gradability. We have one diabetic retinopathy grade per image for our data sets, and we assessed image gradability ourselves.
 
 We were not able to reproduce the original study’s results with publicly available data. Our algorithm’s area under the receiver operating characteristic curve (AUC) of 0.951 (95% CI, 0.947-0.956) on the Kaggle EyePACS test set and 0.853 (95% CI, 0.835-0.871) on Messidor-2 did not come close to the reported AUC of 0.99 on both test sets in the original study. This may be caused by the use of a single grade per image, or different data. This study shows the challenges of reproducing deep learning method results, and the need for more replication and reproduction studies to validate deep learning methods, especially for medical image analysis.
 
@@ -37,16 +37,15 @@ Other requirements:
 
 3. Run `$ ./eyepacs.sh` to decompress and preprocess the _Kaggle_ EyePACS data set, and redistribute this set into a training and test set. Run with the `--only_gradable` flag if you want to train and evaluate with gradable images only. NB: This is a large data set, so this may take hours to finish.
 
-For Messidor-Original:
-
-4. Download the [Messidor-Original data set](http://www.adcis.net/en/Download-Third-Party/Messidor.html) and place all files in the `data/messidor` folder.
-
-5. Run `$ ./messidor.sh` to preprocess the Messidor-Original data set. Run with the `--only_gradable` flag if you want to evaluate with gradable images only.
-
 For Messidor-2:
 
-6. Run `$ ./messidor2.sh` to download, unpack, and preprocess the Messidor-2 data set. This data set is downloaded from the Datasets and Algorithms' section on Michael D. Abramoff's page [here](https://medicine.uiowa.edu/eye/abramoff).
+4. Run `$ ./messidor2.sh` to download, unpack, and preprocess the Messidor-2 data set. This data set is downloaded from the Datasets and Algorithms' section on Michael D. Abramoff's page [here](https://medicine.uiowa.edu/eye/abramoff).
 
+For Messidor-Original:
+
+5. Download the [Messidor-Original data set](http://www.adcis.net/en/Download-Third-Party/Messidor.html) and place all files in the `data/messidor` folder.
+
+6. Run `$ ./messidor.sh` to preprocess the Messidor-Original data set. Run with the `--only_gradable` flag if you want to evaluate with gradable images only.
 
 ## Training
 
