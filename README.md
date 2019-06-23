@@ -4,6 +4,8 @@ English - [中文](https://github.com/mikevoets/jama16-retina-replication/blob/m
 
 Published article link: [doi:10.1371/journal.pone.0217541](https://doi.org/10.1371/journal.pone.0217541).
 
+Published trained neural network models: [doi:10.6084/m9.figshare.8312183](https://doi.org/10.6084/m9.figshare.8312183).
+
 ## Abstract
 
 We have attempted to replicate the methods and reproduce the results in _Development and validation of a deep learning algorithm for detection of diabetic retinopathy in retinal fundus photographs_, published in JAMA 2016; 316(22) ([link](https://jamanetwork.com/journals/jama/fullarticle/2588763)), using publicly available data sets. We re-implemented the main method in the original study since the source code is not available.
@@ -55,9 +57,11 @@ Run `$ python train.py -h` to see additional optional parameters for training wi
 
 ## Evaluation
 
-To evaluate or test the trained neural network on the _Kaggle_ EyePACS test set, run `$ python evaluate.py -e`. To evaluate on Messidor-Original, run it with the `-m` flag. To evaluate on Messidor-2, use the `-m2` flag.
+To evaluate or test the trained neural network on the _Kaggle_ EyePACS test set, run `$ python evaluate.py -e`. To evaluate on Messidor-2, use the `-m2` flag. To evaluate on Messidor-Original, run it with the `-m` flag.
 
 To create an ensemble of networks and evaluate the linear average of predictions, use the `-lm` parameter. To specify multiple models to evaluate as an ensemble, the model paths should be comma-separated or satisfy a regular expression. For example: `-lm=./tmp/model-1,./tmp/model-2,./tmp/model-3` or `-lm=./tmp/model-?`.
+
+NB: The trained models used in this study are publicly accessible and can be downloaded from [here](https://doi.org/10.6084/m9.figshare.8312183).
 
 The evaluation script outputs a confusion matrix, and specificity and sensitivity by using an operating threshold. The default operating threshold is 0.5, and can be changed with the `-op` parameter.
 

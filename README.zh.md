@@ -4,6 +4,8 @@
 
 发表文章链接：[doi:10.1371/journal.pone.0217541](https://doi.org/10.1371/journal.pone.0217541)。
 
+发布训练的神经网络模型：[doi:10.6084/m9.figshare.8312183](https://doi.org/10.6084/m9.figshare.8312183).
+
 ## 摘要
 
 我们试图复制开发以及验证深度学习算法的主要方法，是用来检测在 JAMA 2016 上所发表的视网膜眼底照片中的糖尿病视网膜病变（Development and Validation of a Deep Learning Algorithm for Detection of Diabetic Retinopathy in Retinal Fundus Photographs; JAMA 2016年, 316(22); [链接](https://jamanetwork.com/journals/jama/fullarticle/2588763))。我们重新实现了该方法，但是源代码不可使用，因此我们使用了公开可使用的数据集。
@@ -58,6 +60,8 @@ Python要求：
 要在 _Kaggle_ EyePACS 测试集上评估或者测试训练神经网络，执行 `$ python evaluate.py -e`。要评估 Messidor-Original，要使用 `-m` 标志来执行它。要评估 Messidor-2，使用 `-m2` 标志。
 
 为创建网络集合和评估预测的线性平均值，要使用 `-lm` 参数。要指定要评估为集合的多个模型，模型路径应要以逗号分隔或者满足正则的表达式。例如：`-lm =./tmp/model-1，./tmp/model-2，./tmp/model-3` 或者 `-lm =./tmp/model-？`。
+
+注意：本研究中使用的训练模型可公开访问，可以下载; [链接](https://doi.org/10.6084/m9.figshare.8312183)。
 
 评估脚本通过使用操作阈值而输出混淆的矩阵，特异性和灵敏度。默认的操作阈值为0.5，也可以使用 `-op` 参数来进行更改。
 
