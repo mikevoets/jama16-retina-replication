@@ -71,7 +71,7 @@ Run `$ python evaluate.py -h` for additional parameter options.
 
 To evaluate the trained neural network on a different data set, follow these steps:
 
-1. Create a Python script or start a Python session, and preprocess and resize all images to 299x299 pixels with `.scale_normalize` from `lib/preprocess.py`.
+1. Create a Python script or start a Python session, and preprocess and resize all images to 299x299 pixels with `resize_and_center_fundus` from `lib/preprocess.py`.
 
 2. Create a directory with two subdirectories `image_dir/0` and `image_dir/1`. Move the preprocessed images diagnosed with referable diabetic retinopathy to `image_dir/1` and the images without rDR to `image_dir/0`.
 

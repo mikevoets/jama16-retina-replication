@@ -71,7 +71,7 @@ Python要求：
 
 要在不同的数据集上来评估训练的神经网络，请按照下列的步骤操作：
 
-1.创建 Python 的脚本或启动 Python 的会期，使用 `lib/preprocess.py` 中的 `.scale_normalize` 来预先处理所有的图像并把其调整为299x299的像素。
+1.创建 Python 的脚本或启动 Python 的会期，使用 `lib/preprocess.py` 中的 `resize_and_center_fundus` 来预先处理所有的图像并把其调整为299x299的像素。
 
 2.创建一个目录包含着两个子目录 `image_dir/0` 和 `image_dir/1`。把诊断为可接受糖尿病视网膜病变的预先处理图像移动到 `image_dir/1` ，把没有rDR的图像移动到 `image_dir/0`。
 
