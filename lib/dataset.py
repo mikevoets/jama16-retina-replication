@@ -16,7 +16,7 @@ def _tfrecord_dataset_from_folder(folder, ext='.tfrecord'):
     return tf.data.TFRecordDataset(tfrecords)
 
 
-def _parse_example(proto, num_channels, image_data_format, normalization_fn, augmentation=True):
+def _parse_example(proto, num_channels, normalization_fn, augmentation=True):
     features = {"image/encoded": tf.FixedLenFeature((), tf.string),
                 "image/format": tf.FixedLenFeature((), tf.string),
                 "image/class/label": tf.FixedLenFeature((), tf.int64),
@@ -48,8 +48,9 @@ def _parse_example(proto, num_channels, image_data_format, normalization_fn, aug
             else:
                 image = aug['fn'](image)
 
-    if image_data_format == 'channels_first':
-        image = tf.transpose(image, [2, 0, 1])
+    # Transpose images to channels first since training is done on GPU(s)
+    #  and cuDNN works more efficiently with channels in first dimension.
+    image = tf.transpose(image, [2, 0, 1])
 
     label = tf.cast(
                 tf.reshape(parsed["image/class/label"], [-1]),
@@ -62,15 +63,13 @@ def initialize_dataset(image_dir, batch_size, num_epochs=1,
                        num_workers=1, prefetch_buffer_size=None,
                        shuffle_buffer_size=None,
                        normalization_fn=tf.image.per_image_standardization,
-                       image_data_format='channels_last',
                        num_channels=3, image_dim=[299, 299],
                        augmentation=True):
     # Retrieve data set from pattern.
     dataset = _tfrecord_dataset_from_folder(image_dir)
 
     dataset = dataset.map(
-        lambda e: _parse_example(
-            e, num_channels, image_data_format, normalization_fn, augmentation),
+        lambda e: _parse_example(e, num_channels, normalization_fn, augmentation),
         num_parallel_calls=num_workers)
 
     if shuffle_buffer_size is not None:

@@ -84,12 +84,8 @@ thresholds = lib.metrics.generate_thresholds(num_thresholds, kepsilon) + [0.5]
 shuffle_buffer_size = 2048
 prefetch_buffer_size = 2 * train_batch_size
 
-# Set image datas format to channels first if GPU is available.
-if tf.test.is_gpu_available():
-    print("Found GPU! Using channels first as default image data format.")
-    image_data_format = 'channels_first'
-else:
-    image_data_format = 'channels_last'
+# Set image datas format to channels first.
+image_data_format = 'channels_first'
 
 # Set up a session and bind it to Keras.
 sess = tf.Session()
@@ -101,17 +97,14 @@ tf.keras.backend.set_image_data_format(image_data_format)
 train_dataset = lib.dataset.initialize_dataset(
     train_dir, train_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-    shuffle_buffer_size=shuffle_buffer_size,
-    image_data_format=image_data_format, num_channels=num_channels,
+    shuffle_buffer_size=shuffle_buffer_size, num_channels=num_channels,
     normalization_fn=normalization_fn)
 
 val_dataset = lib.dataset.initialize_dataset(
     val_dir, val_batch_size,
     num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-    shuffle_buffer_size=shuffle_buffer_size,
-    image_data_format=image_data_format, num_channels=num_channels,
-    normalization_fn=normalization_fn,
-    augmentation=False)
+    shuffle_buffer_size=shuffle_buffer_size, num_channels=num_channels,
+    normalization_fn=normalization_fn, augmentation=False)
 
 # Create initializable iterators.
 iterator = tf.data.Iterator.from_structure(

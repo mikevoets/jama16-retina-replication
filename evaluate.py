@@ -105,13 +105,6 @@ kepsilon = 1e-7
 thresholds = lib.metrics.generate_thresholds(num_thresholds, kepsilon) \
                 + [operating_threshold]
 
-# Set image datas format to channels first if GPU is available.
-if tf.test.is_gpu_available():
-    print("Found GPU! Using channels first as default image data format.")
-    image_data_format = 'channels_first'
-else:
-    image_data_format = 'channels_last'
-
 got_all_y = False
 all_y = []
 
@@ -173,7 +166,6 @@ for model_path in load_model_paths:
     with tf.Session(graph=tf.Graph()) as sess:
         tf.keras.backend.set_session(sess)
         tf.keras.backend.set_learning_phase(False)
-        tf.keras.backend.set_image_data_format(image_data_format)
 
         # Load the meta graph and restore variables from training.
         saver = tf.train.import_meta_graph("{}.meta".format(model_path))
@@ -190,9 +182,9 @@ for model_path in load_model_paths:
 
         # Initialize the test set.
         test_dataset = lib.dataset.initialize_dataset(
-            data_dir, batch_size, augmentation=False,
-            num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-            image_data_format=image_data_format, num_channels=num_channels)
+            data_dir, batch_size, num_workers=num_workers,
+            prefetch_buffer_size=prefetch_buffer_size,
+            num_channels=num_channels, augmentation=False)
 
         # Create an iterator.
         iterator = tf.data.Iterator.from_structure(
