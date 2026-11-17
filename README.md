@@ -61,7 +61,7 @@ For Messidor-Original:
 
 To start training with default settings, run `$ python train.py`. The model with the highest validation AUC is saved to `./tmp/model.keras`. Optionally specify another path with the `-sm` parameter (for example `-sm=./tmp/model-1`).
 
-Training starts from Inception-v3 weights pre-trained on ImageNet. Run with `--weights=none` to start from randomly initialized weights instead.
+As described in the study, training starts from Inception-v3 weights pre-trained on ImageNet and uses RMSProp with a learning rate of 0.001 and a weight decay of 4·10⁻⁵.
 
 Run `$ python train.py -h` to see additional optional parameters for training with your own data set, or where to save summaries or operating threshold metrics.
 

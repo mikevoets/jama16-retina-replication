@@ -47,9 +47,6 @@ parser.add_argument("-ss", "--save_summaries_dir",
 parser.add_argument("-so", "--save_operating_thresholds_path",
                     help="path to where operating points should be saved",
                     default=default_save_operating_thresholds_path)
-parser.add_argument("--weights", choices=["imagenet", "none"],
-                    default="imagenet",
-                    help="initial weights of Inception-v3 (default: imagenet)")
 
 args = parser.parse_args()
 train_dir = str(args.train_dir)
@@ -58,7 +55,6 @@ save_model_path = lib.model.model_path_stem(str(args.save_model_path)) \
                   or str(args.save_model_path)
 save_summaries_dir = str(args.save_summaries_dir)
 save_operating_thresholds_path = str(args.save_operating_thresholds_path)
-initial_weights = None if args.weights == "none" else args.weights
 
 print("""
 Training images folder: {},
@@ -78,10 +74,13 @@ normalization_fn = rescale_min_1_to_1
 
 # Hyper-parameters for training.
 learning_rate = 1e-3
-# NB: In the TensorFlow 1 version of this code this value was passed as the
-#  `decay` argument of `tf.train.RMSPropOptimizer`, which is the discounting
-#  factor for the moving average of squared gradients (`rho` in Keras).
-rho = 4e-5
+# Weight decay as reported in the study: L2 regularization of the
+#  convolutional and dense kernels, as in the Inception-v3 reference training
+#  setup (`weight_decay * sum(w ** 2) / 2`).
+weight_decay = 4e-5
+# The study does not report these RMSProp settings; these are the defaults of
+#  `tf.train.RMSPropOptimizer` in TensorFlow 1.
+rho = 0.9
 rmsprop_epsilon = 1e-10
 train_batch_size = 32
 
@@ -113,10 +112,17 @@ val_dataset = lib.dataset.initialize_dataset(
     normalization_fn=normalization_fn, augmentation=False)
 
 # Inception-v3 with a dense layer with one output (the logit).
-model = lib.model.build_model(weights=initial_weights)
+# Weights are pre-initialized from Inception-v3 trained on ImageNet.
+model = lib.model.build_model(weights="imagenet")
 
 optimizer = keras.optimizers.RMSprop(
     learning_rate=learning_rate, rho=rho, epsilon=rmsprop_epsilon)
+
+# Kernels of the convolutional and dense layers, to which weight decay is
+#  applied (not to biases or batch normalization parameters).
+regularized_weights = [
+    layer.kernel for layer in model.layers
+    if isinstance(layer, (keras.layers.Conv2D, keras.layers.Dense))]
 
 
 @tf.function
@@ -127,8 +133,11 @@ def train_step(images, labels):
         mean_xentropy = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(
                 labels=labels, logits=logits))
+        l2_loss = weight_decay * tf.add_n(
+            [tf.nn.l2_loss(w) for w in regularized_weights])
+        loss = mean_xentropy + l2_loss
 
-    gradients = tape.gradient(mean_xentropy, model.trainable_variables)
+    gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
     squared_errors = tf.square(tf.sigmoid(logits) - labels)
