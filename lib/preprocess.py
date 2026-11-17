@@ -2,17 +2,16 @@
 #
 # Functions for preprocessing data-set.
 #
-# Implemented in Python 3.5
+# Implemented in Python 3
 #
 ########################################################################
 
-import tensorflow as tf
 import os
 import sys
+
 import cv2
-import matplotlib
-matplotlib.use('agg')
-from pylab import array, arange, uint8
+import numpy as np
+import tensorflow as tf
 
 ########################################################################
 
@@ -25,17 +24,15 @@ def _increase_contrast(image):
     copy = image.copy()
 
     maxIntensity = 255.0
-    x = arange(maxIntensity)
 
     # Parameters for manipulating image data.
     phi = 1.3
     theta = 1.5
-    y = (maxIntensity/phi)*(x/(maxIntensity/theta))**0.5
 
     # Decrease intensity such that dark pixels become much darker,
     # and bright pixels become slightly dark.
     copy = (maxIntensity/phi)*(copy/(maxIntensity/theta))**2
-    copy = array(copy, dtype=uint8)
+    copy = np.array(copy, dtype=np.uint8)
 
     return copy
 

@@ -128,8 +128,7 @@ if ! echo "$@" | grep -c -- "--redistribute" >/dev/null; then
   echo "Unzip the data set (0/2)..."
 
   # Check if p7zip is installed.
-  dpkg -l | grep p7zip-full
-  if [ $? -gt 0 ]; then
+  if ! command -v 7z >/dev/null 2>&1; then
     echo "Please install p7zip-full: apt-get/yum install p7zip-full" >&2
     exit 1
   fi
@@ -219,18 +218,14 @@ echo "Gathering images for test set (1/2)"
 distribute_images "$bin2_1" tail "$(expr $bin2_1_cnt - $bin2_1_tr_cnt)" "$output_dir/test/1/."
 
 echo "Converting data set to tfrecords..."
-git submodule update --init
-
-python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir/train" \
-       --num_shards=8 --validation_size=0.2 || \
-    { echo "Submodule not initialized. Run git submodule update --init";
-      exit 1; }
+python create_tfrecords.py --dataset_dir="$output_dir/train" \
+       --num_shards=8 --validation_size=0.2 || exit 1
 
 echo "Moving validation tfrecords to separate folder."
 find "$output_dir/train" -name "validation*.tfrecord" -exec mv {} "$output_dir/validation/." \;
 find "$output_dir/train" -maxdepth 1 -iname "*.txt" -exec cp {} "$output_dir/validation/." \;
 
-python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir/test" \
+python create_tfrecords.py --dataset_dir="$output_dir/test" \
        --num_shards=4 || exit 1
 
 echo "Done!"
