@@ -1,81 +1,64 @@
-import tensorflow as tf
+import csv
+
 import numpy as np
+import tensorflow as tf
 
-def _get_operations_by_names(graph, names):
-    return [graph.get_operation_by_name(name) for name in names]
-
-
-def _get_tensors_by_names(graph, names):
-    return [graph.get_tensor_by_name(name) for name in names]
+import lib.metrics
 
 
-def perform_test(sess, init_op, summary_writer=None, epoch=None,
-                 feed_dict_fn=None, feed_dict_args={}, custom_tensors=[]):
-    tf.keras.backend.set_learning_phase(False)
-    sess.run(init_op)
+def predict(model, dataset, batch_statistics=False):
+    """Run the model over a dataset of (images, labels) batches.
 
-    if len(custom_tensors) == 0:
-        # Retrieve all default tensors and operations.
-        graph = tf.get_default_graph()
-        reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc = \
-            _get_operations_by_names(
-                graph, ['tp/reset', 'fp/reset', 'fn/reset', 'tn/reset',
-                        'brier/reset', 'auc/reset'])
+    Returns a tuple of NumPy arrays `(predictions, labels)`, both with shape
+    [num_examples, 1].
 
-        update_tp, update_fp, update_fn, update_tn, update_brier, update_auc, \
-        brier, auc, confusion_matrix, summaries_op = \
-            _get_tensors_by_names(
-                graph, ['tp/true_positives/AssignAdd:0',
-                        'fp/false_positives/AssignAdd:0',
-                        'fn/false_negatives/AssignAdd:0',
-                        'tn/true_negatives/AssignAdd:0',
-                        'brier/mean_squared_error/update_op:0',
-                        'auc/auc/update_op:0',
-                        'brier/mean_squared_error/value:0',
-                        'auc/auc/value:0',
-                        'confusion_matrix/Cast:0',
-                        'Merge/MergeSummary:0'])
+    If `batch_statistics` is true, batch normalization layers normalize with
+    the statistics of each batch instead of their moving averages. This is
+    how the TensorFlow 1 graphs of the published models behaved, and is needed
+    to reproduce their results.
+    """
+    @tf.function(reduce_retracing=True)
+    def predict_batch(images):
+        return tf.sigmoid(model(images, training=batch_statistics))
 
-        # Reset all streaming variables.
-        sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
+    all_predictions = []
+    all_labels = []
 
-        # Create an array with tensors to run for each batch.
-        tensors = [update_tp, update_fp, update_fn,
-                         update_tn, update_brier, update_auc]
-    else:
-        tensors = custom_tensors
+    for images, labels in dataset:
+        all_predictions.append(predict_batch(images).numpy())
+        all_labels.append(labels.numpy())
 
-    try:
-        batch_results = []
-        while True:
-            if feed_dict_fn is not None:
-                feed_dict = feed_dict_fn(**feed_dict_args)
-            else:
-                feed_dict = None
+    return np.vstack(all_predictions), np.vstack(all_labels)
 
-            # Retrieve the validation set confusion metrics.
-            batch_results.append(sess.run(tensors, feed_dict))
 
-    except tf.errors.OutOfRangeError:
-        pass
+def report(labels, predictions, operating_threshold=0.5):
+    """Print Brier score, AUC and the confusion matrix. Returns the AUC."""
+    brier = lib.metrics.brier_score(labels, predictions)
+    auc = lib.metrics.auc(labels, predictions)
+    tp, fp, fn, tn = lib.metrics.confusion_at_thresholds(
+        labels, predictions, [operating_threshold])
 
-    # Yield the result if custom tensors were defined.
-    if len(custom_tensors) > 0:
-        return [np.vstack(x) for x in zip(*batch_results)]
+    print(f"Brier score: {brier:6.4}, AUC: {auc:10.8}")
+    print(f"Confusion matrix at operating threshold {operating_threshold:0.3f}:")
+    print(lib.metrics.confusion_matrix(tp[0], fp[0], fn[0], tn[0]))
 
-    # Retrieve confusion matrix and estimated roc auc score.
-    test_conf_matrix, test_brier, test_auc, summaries = sess.run(
-        [confusion_matrix, brier, auc, summaries_op])
+    return auc
 
-    # Write summary.
-    if summary_writer is not None:
-        summary_writer.add_summary(summaries, epoch)
 
-    # Print total roc auc score for validation.
-    print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
+def write_operating_thresholds(path, labels, predictions, thresholds):
+    """Write specificity and sensitivity at each threshold to a csv file."""
+    tp, fp, fn, tn = lib.metrics.confusion_at_thresholds(
+        labels, predictions, thresholds)
+    specificities, sensitivities = \
+        lib.metrics.specificities_sensitivities(tp, fp, fn, tn)
 
-    # Print confusion matrix.
-    print(f"Confusion matrix:")
-    print(test_conf_matrix[0])
+    with open(path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=' ')
+        writer.writerow(['threshold', 'specificity', 'sensitivity'])
 
-    return test_auc
+        for idx in range(len(thresholds)):
+            writer.writerow([
+                "{:0.4f}".format(x) for x in [
+                    thresholds[idx], specificities[idx], sensitivities[idx]]])
+
+    return specificities, sensitivities

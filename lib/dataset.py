@@ -1,6 +1,7 @@
-import tensorflow as tf
-from random import shuffle
 import os
+from random import shuffle
+
+import tensorflow as tf
 
 BRIGHTNESS_MAX_DELTA = 0.125
 SATURATION_LOWER = 0.5
@@ -13,18 +14,20 @@ CONTRAST_UPPER = 1.5
 def _tfrecord_dataset_from_folder(folder, ext='.tfrecord'):
     tfrecords = [os.path.join(folder, n)
                  for n in os.listdir(folder) if n.endswith(ext)]
+    if len(tfrecords) == 0:
+        raise FileNotFoundError(f"No {ext} files found in {folder}.")
     return tf.data.TFRecordDataset(tfrecords)
 
 
 def _parse_example(proto, num_channels, normalization_fn, augmentation=True):
-    features = {"image/encoded": tf.FixedLenFeature((), tf.string),
-                "image/format": tf.FixedLenFeature((), tf.string),
-                "image/class/label": tf.FixedLenFeature((), tf.int64),
-                "image/height": tf.FixedLenFeature((), tf.int64),
-                "image/width": tf.FixedLenFeature((), tf.int64)}
-    parsed = tf.parse_single_example(proto, features)
+    features = {"image/encoded": tf.io.FixedLenFeature((), tf.string),
+                "image/format": tf.io.FixedLenFeature((), tf.string),
+                "image/class/label": tf.io.FixedLenFeature((), tf.int64),
+                "image/height": tf.io.FixedLenFeature((), tf.int64),
+                "image/width": tf.io.FixedLenFeature((), tf.int64)}
+    parsed = tf.io.parse_single_example(proto, features)
 
-    image = tf.image.decode_jpeg(parsed["image/encoded"], num_channels)
+    image = tf.io.decode_jpeg(parsed["image/encoded"], num_channels)
     image = normalization_fn(image)
 
     # Apply data augmentations randomly.
@@ -39,6 +42,8 @@ def _parse_example(proto, num_channels, normalization_fn, augmentation=True):
         {'fn': tf.image.random_contrast,
          'args': [CONTRAST_LOWER, CONTRAST_UPPER]}]
 
+    # The order of augmentations is fixed when the input pipeline is built
+    #  (and is seeded with `random.seed` in train.py).
     shuffle(augmentations)
 
     if augmentation:
@@ -48,28 +53,26 @@ def _parse_example(proto, num_channels, normalization_fn, augmentation=True):
             else:
                 image = aug['fn'](image)
 
-    # Transpose images to channels first since training is done on GPU(s)
-    #  and cuDNN works more efficiently with channels in first dimension.
-    image = tf.transpose(image, [2, 0, 1])
-
     label = tf.cast(
                 tf.reshape(parsed["image/class/label"], [-1]),
                 tf.float32)
 
+    # Images are returned with channels last (NHWC), which works on both CPUs
+    #  and GPUs.
     return image, label
 
 
 def initialize_dataset(image_dir, batch_size, num_epochs=1,
-                       num_workers=1, prefetch_buffer_size=None,
+                       num_workers=tf.data.AUTOTUNE, prefetch_buffer_size=None,
                        shuffle_buffer_size=None,
                        normalization_fn=tf.image.per_image_standardization,
-                       num_channels=3, image_dim=[299, 299],
-                       augmentation=True):
-    # Retrieve data set from pattern.
+                       num_channels=3, augmentation=True):
+    # Retrieve data set from folder.
     dataset = _tfrecord_dataset_from_folder(image_dir)
 
     dataset = dataset.map(
-        lambda e: _parse_example(e, num_channels, normalization_fn, augmentation),
+        lambda e: _parse_example(e, num_channels, normalization_fn,
+                                 augmentation),
         num_parallel_calls=num_workers)
 
     if shuffle_buffer_size is not None:

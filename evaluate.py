@@ -1,20 +1,23 @@
-import re
-import os
-import sys
 import argparse
+import os
 import random
-import tensorflow as tf
-import numpy as np
-import lib.dataset
-import lib.evaluation
-import lib.metrics
-import csv
+import sys
 from glob import glob
+
+os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
+
+import numpy as np  # noqa: E402
+import tensorflow as tf  # noqa: E402
+
+import lib.dataset  # noqa: E402
+import lib.evaluation  # noqa: E402
+import lib.metrics  # noqa: E402
+import lib.model  # noqa: E402
+from lib.preprocess import rescale_min_1_to_1  # noqa: E402
 
 print(f"Numpy version: {np.__version__}")
 print(f"Tensorflow version: {tf.__version__}")
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 random.seed(432)
 
 # Default settings.
@@ -39,9 +42,9 @@ parser.add_argument("-o", "--other", action="store_true",
                     help="evaluate performance on your own dataset")
 parser.add_argument("--data_dir", help="directory where data set resides")
 parser.add_argument("-lm", "--load_model_path",
-                    help="path to where graph model should be loaded from "
+                    help="path to where model should be loaded from; "
                          "creates an ensemble if paths are comma separated "
-                         "or a regexp",
+                         "or a glob pattern",
                     default=default_load_model_path)
 parser.add_argument("-so", "--save_operating_thresholds_path",
                     help="path to where operating points metrics should be saved",
@@ -53,8 +56,9 @@ parser.add_argument("-op", "--operating_threshold",
 
 args = parser.parse_args()
 
-if bool(args.eyepacs) == bool(args.messidor) == bool(args.messidor2) == bool(args.other):
-    print("Can only evaluate one data set at once!")
+if sum([bool(args.eyepacs), bool(args.messidor), bool(args.messidor2),
+        bool(args.other)]) != 1:
+    print("Specify exactly one data set to evaluate!")
     parser.print_help()
     sys.exit(2)
 
@@ -66,7 +70,7 @@ elif args.messidor:
     data_dir = default_messidor_dir
 elif args.messidor2:
     data_dir = default_messidor2_dir
-elif args.other and args.data_dir is None:
+else:
     print("Please specify --data_dir.")
     parser.print_help()
     sys.exit(2)
@@ -79,181 +83,85 @@ operating_threshold = float(args.operating_threshold)
 # Check if the model path has comma-separated entries.
 if "," in load_model_path:
     load_model_paths = load_model_path.split(",")
-# Check if the model path has a regexp character.
-elif any(char in load_model_path for char in '*+?'):
-    load_model_paths = [".".join(x.split(".")[:-1])
-                        for x in glob("{}*".format(load_model_path))]
-    load_model_paths = list(set(load_model_paths))
+# Check if the model path is a glob pattern.
+elif any(char in load_model_path for char in '*?['):
+    load_model_paths = sorted(set(
+        stem for stem in map(lib.model.model_path_stem,
+                             glob("{}*".format(load_model_path)))
+        if stem is not None))
 else:
     load_model_paths = [load_model_path]
+
+if len(load_model_paths) == 0:
+    print(f"No models found matching {load_model_path}.")
+    sys.exit(1)
 
 print("""
 Evaluating: {},
 Saving operating thresholds metrics at: {},
-Using operating treshold: {},
+Using operating threshold: {},
 """.format(data_dir, save_operating_thresholds_path, operating_threshold))
 print("Trying to load model(s):\n{}".format("\n".join(load_model_paths)))
 
 # Other setting variables.
 num_channels = 3
-num_workers = 8
-prefetch_buffer_size = 2 * batch_size
 num_thresholds = 200
-kepsilon = 1e-7
 
 # Define thresholds.
-thresholds = lib.metrics.generate_thresholds(num_thresholds, kepsilon) \
-                + [operating_threshold]
-
-got_all_y = False
-all_y = []
-
-
-def feed_images(sess, x_tensor, y_tensor, x_batcher, y_batcher):
-    _x, _y = sess.run([x_batcher, y_batcher])
-    if not got_all_y:
-        all_y.append(_y)
-    return {x_tensor: _x, y_tensor: _y}
-
-
-eval_graph = tf.Graph()
-with eval_graph.as_default() as g:
-    # Variable for average predictions.
-    average_predictions = tf.placeholder(tf.float32, shape=[None, 1])
-    all_labels = tf.placeholder(tf.float32, shape=[None, 1])
-
-    # Metrics for finding best validation set.
-    tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
-        tf.metrics.true_positives_at_thresholds, scope='tp',
-        labels=all_labels, predictions=average_predictions,
-        thresholds=thresholds)
-
-    fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
-        tf.metrics.false_positives_at_thresholds, scope='fp',
-        labels=all_labels, predictions=average_predictions,
-        thresholds=thresholds)
-
-    fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
-        tf.metrics.false_negatives_at_thresholds, scope='fn',
-        labels=all_labels, predictions=average_predictions,
-        thresholds=thresholds)
-
-    tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
-        tf.metrics.true_negatives_at_thresholds, scope='tn',
-        labels=all_labels, predictions=average_predictions,
-        thresholds=thresholds)
-
-    # Last element presents the metrics at operating threshold.
-    confusion_matrix = lib.metrics.confusion_matrix(
-        tp[-1], fp[-1], fn[-1], tn[-1], scope='confusion_matrix')
-
-    brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
-        tf.metrics.mean_squared_error, scope='brier',
-        labels=all_labels, predictions=average_predictions)
-
-    auc, update_auc, reset_auc = lib.metrics.create_reset_metric(
-        tf.metrics.auc, scope='auc',
-        labels=all_labels, predictions=average_predictions)
-
-    specificities = tf.div(tn, tn + fp + kepsilon)
-    sensitivities = tf.div(tp, tp + fn + kepsilon)
-
+thresholds = lib.metrics.generate_thresholds(num_thresholds)
 
 all_predictions = []
+all_labels = None
 
 for model_path in load_model_paths:
-    # Start session.
-    with tf.Session(graph=tf.Graph()) as sess:
-        tf.keras.backend.set_session(sess)
-        tf.keras.backend.set_learning_phase(False)
+    model, is_legacy = lib.model.load_model(model_path)
 
-        # Load the meta graph and restore variables from training.
-        saver = tf.train.import_meta_graph("{}.meta".format(model_path))
-        saver.restore(sess, model_path)
+    if is_legacy:
+        # Evaluate the published TensorFlow 1 models exactly like the
+        #  original version of this script did: images are standardized per
+        #  image, and batch normalization uses the statistics of each batch.
+        #  See `lib.model.load_legacy_checkpoint`.
+        print(f"{model_path}: legacy TensorFlow 1 checkpoint.")
+        normalization_fn = tf.image.per_image_standardization
+    else:
+        # Use the same normalization as during training.
+        normalization_fn = rescale_min_1_to_1
 
-        graph = tf.get_default_graph()
-        x = graph.get_tensor_by_name("x:0")
-        y = graph.get_tensor_by_name("y:0")
+    # Initialize the test set.
+    test_dataset = lib.dataset.initialize_dataset(
+        data_dir, batch_size, prefetch_buffer_size=tf.data.AUTOTUNE,
+        num_channels=num_channels, normalization_fn=normalization_fn,
+        augmentation=False)
 
-        try:
-            predictions = graph.get_tensor_by_name("predictions:0")
-        except KeyError:
-            predictions = graph.get_tensor_by_name("predictions/Sigmoid:0")
+    # Perform the evaluation.
+    test_predictions, test_labels = lib.evaluation.predict(
+        model, test_dataset, batch_statistics=is_legacy)
 
-        # Initialize the test set.
-        test_dataset = lib.dataset.initialize_dataset(
-            data_dir, batch_size, num_workers=num_workers,
-            prefetch_buffer_size=prefetch_buffer_size,
-            num_channels=num_channels, augmentation=False)
+    if all_labels is None:
+        all_labels = test_labels
 
-        # Create an iterator.
-        iterator = tf.data.Iterator.from_structure(
-            test_dataset.output_types, test_dataset.output_shapes)
-
-        test_images, test_labels = iterator.get_next()
-
-        test_init_op = iterator.make_initializer(test_dataset)
-
-	    # Perform the evaluation.
-        test_predictions = lib.evaluation.perform_test(
-            sess=sess, init_op=test_init_op,
-            feed_dict_fn=feed_images,
-            feed_dict_args={"sess": sess, "x_tensor": x, "y_tensor": y,
-                            "x_batcher": test_images, "y_batcher": test_labels},
-            custom_tensors=[predictions])
-
-        all_predictions.append(test_predictions[0])
-
-    tf.reset_default_graph()
-    got_all_y = True
-
-# Convert the predictions to a numpy array.
-all_predictions = np.array(all_predictions)
+    all_predictions.append(test_predictions)
 
 # Calculate the linear average of all predictions.
-avg_pred = np.mean(all_predictions, axis=0)
+avg_pred = np.mean(np.array(all_predictions), axis=0)
 
-# Convert all labels to numpy array.
-all_y = np.vstack(all_y)
+# Print Brier score, AUC and confusion matrix.
+lib.evaluation.report(all_labels, avg_pred, operating_threshold)
 
-# Use these predictions for printing evaluation results.
-with tf.Session(graph=eval_graph) as sess:
-    # Reset all streaming variables.
-    sess.run([reset_tp, reset_fp, reset_fn, reset_tn, reset_brier, reset_auc])
+# Print sensitivity and specificity at operating threshold.
+op_tp, op_fp, op_fn, op_tn = lib.metrics.confusion_at_thresholds(
+    all_labels, avg_pred, [operating_threshold])
+op_specificities, op_sensitivities = \
+    lib.metrics.specificities_sensitivities(op_tp, op_fp, op_fn, op_tn)
 
-    # Update all streaming variables with predictions.
-    sess.run([update_tp, update_fp, update_fn, update_tn,
-              update_brier, update_auc],
-              feed_dict={average_predictions: avg_pred, all_labels: all_y})
+print("Specificity: {0:0.4f}, Sensitivity: {1:0.4f} at "
+      "Operating Threshold {2:0.4f}."
+      .format(op_specificities[0], op_sensitivities[0], operating_threshold))
 
-    # Retrieve confusion matrix and estimated roc auc score.
-    test_conf_matrix, test_brier, test_auc, test_specificities, \
-        test_sensitivities = \
-            sess.run([confusion_matrix, brier, auc, specificities,
-                      sensitivities])
-
-    # Print total roc auc score for validation.
-    print(f"Brier score: {test_brier:6.4}, AUC: {test_auc:10.8}")
-
-    # Print confusion matrix.
-    print(f"Confusion matrix at operating threshold {operating_threshold:0.3f}")
-    print(test_conf_matrix[0])
-
-    # Print sensitivity and specificity at operating threshold.
-    print("Specificity: {0:0.4f}, Sensitivity: {1:0.4f} at " \
-          "Operating Threshold {2:0.4f}." \
-          .format(test_specificities[-1], test_sensitivities[-1],
-                  thresholds[-1]))
-
-    # Write sensitivities and specificities to file.
-    with open(save_operating_thresholds_path, 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter=' ')
-        writer.writerow(['threshold', 'specificity', 'sensitivity'])
-
-        for idx in range(num_thresholds):
-            writer.writerow([
-                "{:0.4f}".format(x) for x in [
-                    thresholds[idx], test_specificities[idx],
-                    test_sensitivities[idx]]])
+# Write sensitivities and specificities to file.
+os.makedirs(os.path.dirname(os.path.abspath(save_operating_thresholds_path)),
+            exist_ok=True)
+lib.evaluation.write_operating_thresholds(
+    save_operating_thresholds_path, all_labels, avg_pred, thresholds)
 
 sys.exit(0)

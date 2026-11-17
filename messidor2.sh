@@ -56,8 +56,7 @@ count_files=$(ls $messidor_dir/Messidor-2 2>/dev/null | wc -l)
 if [ !ls "$messidor_dir/Messidor-2" >/dev/null 2>&1 ] || \
     [[ $count_files -ne 1757 ]]; then
   # Check if unzip has been installed.
-  dpkg -l | grep unzip
-  if [ $? -gt 0 ]; then
+  if ! command -v unzip >/dev/null 2>&1; then
     echo "Please install unzip: apt-get/yum install unzip" >&2
     exit 1
   fi
@@ -86,12 +85,8 @@ find "$messidor_dir/1" -iname "*.jpg" -exec mv {} "$output_dir/1/." \;
 
 # Convert the data set to tfrecords.
 echo "Converting data set to tfrecords..."
-git submodule update --init
-
-python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir" \
-       --num_shards=2 || \
-    { echo "Submodule not initialized. Run git submodule update --init";
-      exit 1; }
+python create_tfrecords.py --dataset_dir="$output_dir" \
+       --num_shards=2 || exit 1
 
 echo "Cleaning up..."
 rm -r "$messidor_path" "$messidor_dir/Messidor-2" "$messidor_dir/labels.csv"

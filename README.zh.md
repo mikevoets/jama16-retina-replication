@@ -18,40 +18,50 @@
 
 Python要求：
 
-- Python >= 3.6
-- Tensorflow >= 1.4
-- OpenCV >= 1.3
+- Python 3.10 至 3.13
+- TensorFlow >= 2.16（含 Keras 3）
+- OpenCV
 - Pillow
-- h5py
-- xlrd
-- matplotlib >= 2.1
+- xlrd >= 2
+
+使用以下指令安装：
+
+```
+$ pip install -r requirements.txt
+```
+
+训练可以在 CPU 上执行，但实际上需要 GPU。在 Linux 上，使用 `$ pip install "tensorflow[and-cuda]"` 安装支持 GPU 的 TensorFlow。
 
 其他需求：
 
 - p7zip-full
 - unzip
 
+数据集脚本（`eyepacs.sh`、`messidor.sh` 和 `messidor2.sh`）使用 GNU coreutils，应在 Linux 上执行。
+
+注意：此代码最初是为 TensorFlow 1 编写的。发表研究所使用的版本位于 commit [15f2af3](https://github.com/mikevoets/jama16-retina-replication/tree/15f2af3)。
+
 ## 训练前的预先处理
 
-1.执行 `$ git submodule update --init` 来加载 [create_tfrecords](https://github.com/mikevoets/create_tfrecords) 存储库。这工具会将数据集转换为 TFRecord 文件。
+1.下载压缩的 [_Kaggle_ EyePACS数据集](https://www.kaggle.com/competitions/diabetic-retinopathy-detection) 并将所有的文件（即训练和测试集和标签）放在 `data/eyepacs` 文件夹。我们建议您使用 [Kaggle API](https://github.com/Kaggle/kaggle-api)。
 
-2.下载压缩的 [_Kaggle_ EyePACS数据集](https://www.kaggle.com/c/diabetic-retinopathy-detection) 并将所有的文件（即训练和测试集和标签）放在 `data/eyepacs` 文件夹。我们建议您使用 [Kaggle API](https://github.com/Kaggle/kaggle-api)。
-
-3.执行 `$ ./eyepacs.sh` 来解压缩并预先处理 _Kaggle_ EyePACS 数据集，和将此集重新分配到训练和测试集中。如果您只想使用可分级图像来进行训练和评估，使用 `--only_gradable` 标志来执行。注意：这是一个大型的数据集，因此可能需要数小时才能完成。
+2.执行 `$ ./eyepacs.sh` 来解压缩并预先处理 _Kaggle_ EyePACS 数据集，和将此集重新分配到训练和测试集中。如果您只想使用可分级图像来进行训练和评估，使用 `--only_gradable` 标志来执行。注意：这是一个大型的数据集，因此可能需要数小时才能完成。
 
 对于 Messidor-2：
 
-4.执行 `$ ./messidor2.sh` 来下载，解压缩和预先处理 Messidor-2 的数据集。该数据集可从Michael D. Abramoff的页面 [此处](https://medicine.uiowa.edu/eye/abramoff) 上的数据集和算法部分下载。
+3.执行 `$ ./messidor2.sh` 来下载，解压缩和预先处理 [Messidor-2 的数据集](https://www.adcis.net/en/third-party/messidor2/)。图像从爱荷华大学下载，该大学代表 Michael D. Abramoff 托管此数据集。
 
 对于 Messidor-Original：
 
-5.下载 [Messidor-Original 数据集](http://www.adcis.net/en/Download-Third-Party/Messidor.html) 并将所有的文件放在  `data/messidor` 的文件夹中。
+4.下载 [Messidor-Original 数据集](https://www.adcis.net/en/third-party/messidor/) 并将所有的文件放在  `data/messidor` 的文件夹中。
 
-6.执行 `$ ./messidor.sh` 来预先处理 Messidor-Original 数据集。如果只要可分级图像而进行评估，使用 `--only_gradable` 标志执行。
+5.执行 `$ ./messidor.sh` 来预先处理 Messidor-Original 数据集。如果只要可分级图像而进行评估，使用 `--only_gradable` 标志执行。
 
 ## 培训
 
-使用默认设置来开始训练，并执行 `$ python train.py`。可选使用 `-sm` 参数来指定模型检查点应保存到的路径。
+使用默认设置来开始训练，并执行 `$ python train.py`。验证 AUC 最高的模型会保存到 `./tmp/model.keras`。可选使用 `-sm` 参数来指定其他路径（例如 `-sm=./tmp/model-1`）。
+
+训练从在 ImageNet 上预训练的 Inception-v3 权重开始。使用 `--weights=none` 执行则从随机初始化的权重开始。
 
 运行 `$ python train.py -h` 以查看用于使用您自己的数据集进行培训的其他可选参数，或者保存摘要或操作阈值指标的位置。
 
@@ -59,9 +69,13 @@ Python要求：
 
 要在 _Kaggle_ EyePACS 测试集上评估或者测试训练神经网络，执行 `$ python evaluate.py -e`。要评估 Messidor-Original，要使用 `-m` 标志来执行它。要评估 Messidor-2，使用 `-m2` 标志。
 
-为创建网络集合和评估预测的线性平均值，要使用 `-lm` 参数。要指定要评估为集合的多个模型，模型路径应要以逗号分隔或者满足正则的表达式。例如：`-lm =./tmp/model-1，./tmp/model-2，./tmp/model-3` 或者 `-lm =./tmp/model-？`。
+为创建网络集合和评估预测的线性平均值，要使用 `-lm` 参数。要指定要评估为集合的多个模型，模型路径应要以逗号分隔或者符合 glob 模式。例如：`-lm =./tmp/model-1，./tmp/model-2，./tmp/model-3` 或者 `-lm =./tmp/model-？`。
 
-注意：本研究中使用的训练模型可公开访问，可以下载; [链接](https://doi.org/10.6084/m9.figshare.8312183)。
+### 评估已发布的模型
+
+本研究中使用的训练模型可公开访问，可以下载; [链接](https://doi.org/10.6084/m9.figshare.8312183)。这些是 TensorFlow 1 检查点（`model-N.index`、`model-N.meta` 和 `model-N.data-00000-of-00001`）。`evaluate.py` 可以直接加载它们：将文件放在例如 `./tmp` 中，然后执行 `$ python evaluate.py -e -lm=./tmp/model-1`（或使用 `-lm=./tmp/model-*` 评估集合）。
+
+注意：已发布模型的批量归一化层在训练时没有更新批量统计的移动平均值。因此，这些模型与其来源的 TensorFlow 1 计算图一样，在评估时也使用每个批次自身的统计值进行归一化。因此它们的预测取决于批次大小，默认值与研究中相同，为 32。对于这些模型，`evaluate.py` 也像原始评估脚本一样对每张图像进行标准化。使用当前版本 `train.py` 训练的模型没有这些问题。
 
 评估脚本通过使用操作阈值而输出混淆的矩阵，特异性和灵敏度。默认的操作阈值为0.5，也可以使用 `-op` 参数来进行更改。
 
@@ -75,11 +89,13 @@ Python要求：
 
 2.创建一个目录包含着两个子目录 `image_dir/0` 和 `image_dir/1`。把诊断为可接受糖尿病视网膜病变的预先处理图像移动到 `image_dir/1` ，把没有rDR的图像移动到 `image_dir/0`。
 
-3.创建 TFRecords： `$ python ./create_tfrecords/create_tfrecord.py --dataset_dir=image_dir`（执行 `-h` 来使用可选参数)。
+3.创建 TFRecords： `$ python create_tfrecords.py --dataset_dir=image_dir`（执行 `-h` 来使用可选参数)。
 
-4.为了评估，执行 `$ python evaluate.py -o=image_dir`。执行 `-h` 来使用可选参数。
+4.为了评估，执行 `$ python evaluate.py -o --data_dir=image_dir`。执行 `-h` 来使用可选参数。
 
 ## 基准
+
+注意：基准测试基于 TensorFlow 1，尚未更新。
 
 我们将存储库分为 TensorFlow 基准测试（[tensorflow/benchmarks](https://github.com/tensorflow/benchmarks)）来执行本研究中所使用的视网膜眼底图像和标签的基准（[链接到 fork](https://github.com/mikevoets/benchmarks))。我们还提供了一个 Docker 图像 [maikovich/tf_cnn_benchmarks](https://hub.docker.com/r/maikovich/tf_cnn_benchmarks/) 是为了更加轻松地执行基准测试。
 
@@ -92,5 +108,3 @@ $ nvidia-docker run --mount type=bind，source=/path/to/train_dir，target=/data
 执行基准来测量评估测试数据集的性能，使用 `--eval` 标志来执行以上的指令，并用带有测试数据的 TFRecord 分片集目录的路径，来替换安装源目录。
 
 在这存储库中，我们也提供了一个例子 _jinja_ file（请参阅 _benchmarks.yaml.jinja.example_）以产生 Kubernetes yaml 的描述。这可以使用在 Kubernetes 集群上的多个节点上以分布式方式，来执行基准测试。要查看更多有关如何将 jinja 文件编译为 yaml 的信息，请参阅 [自述文件](https://github.com/tensorflow/ecosystem/tree/master/kubernetes)。
-
-原版基准的概述结果，例如：ImageNet 的数据可以在 [此处](https://www.tensorflow.org/performance/benchmarks) 找到。
