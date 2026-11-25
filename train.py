@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import random
 import sys
@@ -47,6 +48,11 @@ parser.add_argument("-ss", "--save_summaries_dir",
 parser.add_argument("-so", "--save_operating_thresholds_path",
                     help="path to where operating points should be saved",
                     default=default_save_operating_thresholds_path)
+parser.add_argument("-sc", "--save_checkpoint_dir",
+                    help="path to folder where a checkpoint is saved after "
+                         "every epoch; training resumes from it if it exists "
+                         "(default: model path + '_checkpoint')",
+                    default=None)
 
 args = parser.parse_args()
 train_dir = str(args.train_dir)
@@ -55,6 +61,8 @@ save_model_path = lib.model.model_path_stem(str(args.save_model_path)) \
                   or str(args.save_model_path)
 save_summaries_dir = str(args.save_summaries_dir)
 save_operating_thresholds_path = str(args.save_operating_thresholds_path)
+save_checkpoint_dir = str(args.save_checkpoint_dir or
+                          f"{save_model_path}_checkpoint")
 
 print("""
 Training images folder: {},
@@ -62,8 +70,9 @@ Validation images folder: {},
 Saving model at: {}.keras,
 Saving summaries at: {},
 Saving operating points at: {},
+Saving checkpoints at: {},
 """.format(train_dir, val_dir, save_model_path, save_summaries_dir,
-           save_operating_thresholds_path))
+           save_operating_thresholds_path, save_checkpoint_dir))
 
 for path in [save_model_path, save_operating_thresholds_path]:
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -124,6 +133,37 @@ regularized_weights = [
     layer.kernel for layer in model.layers
     if isinstance(layer, (keras.layers.Conv2D, keras.layers.Dense))]
 
+# Checkpoint of the model, the optimizer and the early stopping state after
+#  every epoch, so that an interrupted run continues where it stopped.
+optimizer.build(model.trainable_variables)
+checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
+checkpoint_manager = tf.train.CheckpointManager(
+    checkpoint, save_checkpoint_dir, max_to_keep=2)
+checkpoint_state_path = os.path.join(save_checkpoint_dir, "state.json")
+
+state = {"epoch": -1, "latest_peak_auc": 0., "waited_epochs": 0,
+         "finished": False, "checkpoint": None}
+
+if os.path.exists(checkpoint_state_path):
+    with open(checkpoint_state_path) as f:
+        state = json.load(f)
+    # The checkpoint is stored by name, so that the folder can be moved.
+    checkpoint_path = os.path.join(save_checkpoint_dir, state["checkpoint"])
+    checkpoint.restore(checkpoint_path).assert_existing_objects_matched()
+    print("Resuming from {} after epoch {} (peak auc {:10.8}, waited {} "
+          "epochs).".format(checkpoint_path, state["epoch"],
+                            state["latest_peak_auc"], state["waited_epochs"]))
+
+
+def save_checkpoint(epoch, latest_peak_auc, waited_epochs, finished):
+    path = checkpoint_manager.save(checkpoint_number=epoch)
+    new_state = {"epoch": epoch, "latest_peak_auc": float(latest_peak_auc),
+                 "waited_epochs": waited_epochs, "finished": finished,
+                 "checkpoint": os.path.basename(path)}
+    with open(checkpoint_state_path + ".tmp", "w") as f:
+        json.dump(new_state, f)
+    os.replace(checkpoint_state_path + ".tmp", checkpoint_state_path)
+
 
 @tf.function
 def train_step(images, labels):
@@ -165,10 +205,11 @@ summary_writer = tf.summary.create_file_writer(
 # Train for the specified amount of epochs.
 # Can be stopped early if peak of validation auc (Area under curve)
 #  is reached.
-latest_peak_auc = 0
-waited_epochs = 0
+latest_peak_auc = state["latest_peak_auc"]
+waited_epochs = state["waited_epochs"]
+start_epoch = num_epochs if state["finished"] else state["epoch"] + 1
 
-for epoch in range(num_epochs):
+for epoch in range(start_epoch, num_epochs):
     # Track brier score for an indication on convergence.
     sum_squared_errors = 0.
     num_examples = 0
@@ -195,6 +236,8 @@ for epoch in range(num_epochs):
         tf.summary.scalar('auc', val_auc, step=epoch)
         tf.summary.scalar('brier', train_brier, step=epoch)
 
+    stop = False
+
     if val_auc < latest_peak_auc + min_delta_auc:
         # Stop early if peak of val auc has been reached.
         # If it is lower than the previous auc value, wait up to `wait_epochs`
@@ -203,9 +246,9 @@ for epoch in range(num_epochs):
         if wait_epochs == waited_epochs:
             print("Stopped early at epoch {0} with saved peak auc {1:10.8}"
                   .format(epoch+1, latest_peak_auc))
-            break
-
-        waited_epochs += 1
+            stop = True
+        else:
+            waited_epochs += 1
     else:
         latest_peak_auc = val_auc
         print(f"New peak auc reached: {val_auc:10.8}")
@@ -215,6 +258,12 @@ for epoch in range(num_epochs):
 
         # Reset waited epochs.
         waited_epochs = 0
+
+    save_checkpoint(epoch, latest_peak_auc, waited_epochs,
+                    finished=stop or epoch == num_epochs - 1)
+
+    if stop:
+        break
 
 summary_writer.close()
 
