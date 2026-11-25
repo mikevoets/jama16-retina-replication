@@ -18,7 +18,7 @@
 
 已发布的模型是在 2019 年训练的，当时的代码在两个方面与论文中描述的方法不同（见 [#22](https://github.com/mikevoets/jama16-retina-replication/pull/22)）：ImageNet 权重很可能在训练前被覆盖，而 4·10⁻⁵ 的权重衰减被当作 RMSProp 的衰减率使用。当前的 `train.py` 遵循论文的描述。我们希望用它在 Kaggle EyePACS 数据集上重新训练 10 个模型的集成，以检验按论文描述的方法能否重现报告的 AUC：0.951（EyePACS）和 0.853（Messidor-2）。
 
-我们没有用于此项工作的经费或 GPU。在一块 NVIDIA GTX 1080 上，每个模型的训练大约需要 2 到 2.5 小时（见[基准](#基准)），因此整个集成在单个 GPU 上大约需要 20 到 30 小时，在较新的 GPU 上会更短。如果您能捐赠 GPU 时间或云计算额度，请[提交 issue](https://github.com/mikevoets/jama16-retina-replication/issues)。我们会在这里发布新的模型和结果。
+我们没有用于此项工作的经费或 GPU。在一块 NVIDIA GTX 1080 上，每个模型的训练大约需要 12 到 15 小时（见[基准](#基准)），因此整个集成在同类 GPU 上大约需要 120 到 150 小时。较新的 GPU 要快数倍。如果您能捐赠 GPU 时间或云计算额度，请[提交 issue](https://github.com/mikevoets/jama16-retina-replication/issues)。我们会在这里发布新的模型和结果。
 
 ## 要求
 
@@ -110,7 +110,7 @@ $ pip install -r requirements.txt
 要使用本研究的 GPU 数据来执行基准训练，使用Docker 来执行以下指令。将 `path/to/train_dir` 替换成为带有测试数据的 TFRecord 分片集目录的路径。可以根据环境的功能，而修改 `--num_gpu` ，`--batch_size` 标志。对于其它的标志，请参阅分叉存储库。
 
 ```
-$ nvidia-docker run --mount type=bind，source=/path/to/train_dir，target=/data maikovich/tf_cnn_benchmarks:latest --data_dir=/data --model=inception3 --data_name=retina --num_gpus=2 --batch_size=64
+$ nvidia-docker run --mount type=bind,source=/path/to/train_dir,target=/data maikovich/tf_cnn_benchmarks:latest --data_dir=/data --model=inception3 --data_name=retina --num_gpus=2 --batch_size=64
 ```
 
 执行基准来测量评估测试数据集的性能，使用 `--eval` 标志来执行以上的指令，并用带有测试数据的 TFRecord 分片集目录的路径，来替换安装源目录。
