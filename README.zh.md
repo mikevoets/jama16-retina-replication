@@ -69,6 +69,8 @@ $ pip install -r requirements.txt
 
 使用默认设置来开始训练，并执行 `$ python train.py`。验证 AUC 最高的模型会保存到 `./tmp/model.keras`。可选使用 `-sm` 参数来指定其他路径（例如 `-sm=./tmp/model-1`）。
 
+每个训练周期结束后，模型、优化器和提前停止状态的检查点会保存到 `./tmp/model_checkpoint`（模型路径加上 `_checkpoint`，或使用 `-sc` 指定的路径）。如果训练中断，再次运行相同的命令即可从最后完成的周期继续训练。
+
 如研究中所述，训练从在 ImageNet 上预训练的 Inception-v3 权重开始，并使用学习率为 0.001、权重衰减为 4·10⁻⁵ 的 RMSProp。
 
 运行 `$ python train.py -h` 以查看用于使用您自己的数据集进行培训的其他可选参数，或者保存摘要或操作阈值指标的位置。
