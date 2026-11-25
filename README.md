@@ -53,6 +53,8 @@ NB: This code was originally written for TensorFlow 1. The version used for the 
 
 2. Run `$ ./eyepacs.sh` to decompress and preprocess the _Kaggle_ EyePACS data set, and redistribute this set into a training and test set. Run with the `--only_gradable` flag if you want to train and evaluate with gradable images only. NB: This is a large data set, so this may take hours to finish.
 
+   The split into a training and a test set only depends on the image names and the seed (`--seed`, default 42), and is written to `data/eyepacs/bin2/split.csv`. With the default seed, it should match `vendor/eyepacs/split.csv` (or `vendor/eyepacs/split_gradable.csv` with `--only_gradable`), and the script warns if it does not. NB: This split is not the one used for the published study. The 2019 split depended on the OpenSSL version and on the order in which the file system listed the images, and it cannot be recovered. An estimated 57% of the non-referable and 96% of the referable images in this test set were in the training or validation set of the published models, so use it to evaluate newly trained models only.
+
 For Messidor-2:
 
 3. Run `$ ./messidor2.sh` to download, unpack, and preprocess the [Messidor-2 data set](https://www.adcis.net/en/third-party/messidor2/). The images are downloaded from the University of Iowa, which hosts the data set on behalf of Michael D. Abramoff.

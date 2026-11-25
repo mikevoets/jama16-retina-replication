@@ -53,6 +53,8 @@ $ pip install -r requirements.txt
 
 2.执行 `$ ./eyepacs.sh` 来解压缩并预先处理 _Kaggle_ EyePACS 数据集，和将此集重新分配到训练和测试集中。如果您只想使用可分级图像来进行训练和评估，使用 `--only_gradable` 标志来执行。注意：这是一个大型的数据集，因此可能需要数小时才能完成。
 
+   训练集和测试集的划分只取决于图像文件名和随机种子（`--seed`，默认为 42），并写入 `data/eyepacs/bin2/split.csv`。使用默认种子时，划分结果应与 `vendor/eyepacs/split.csv`（使用 `--only_gradable` 时为 `vendor/eyepacs/split_gradable.csv`）一致，否则脚本会发出警告。注意：此划分并非发表的研究中所使用的划分。2019 年的划分取决于 OpenSSL 的版本以及文件系统列出图像的顺序，已无法恢复。据估计，此测试集中约 57% 的无可转诊病变图像和 96% 的可转诊病变图像曾属于已发布模型的训练集或验证集，因此此测试集只应用于评估新训练的模型。
+
 对于 Messidor-2：
 
 3.执行 `$ ./messidor2.sh` 来下载，解压缩和预先处理 [Messidor-2 的数据集](https://www.adcis.net/en/third-party/messidor2/)。图像从爱荷华大学下载，该大学代表 Michael D. Abramoff 托管此数据集。

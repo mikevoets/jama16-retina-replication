@@ -55,7 +55,9 @@ def get_filenames_and_classes(dataset_dir):
         for filename in os.listdir(directory):
             photo_filenames.append(os.path.join(directory, filename))
 
-    return photo_filenames, sorted(class_names)
+    # Sort so that the seeded train/validation split below does not depend
+    # on the order in which the file system lists the files.
+    return sorted(photo_filenames), sorted(class_names)
 
 
 def dataset_filename(dataset_dir, split_name, shard_id, num_shards):
