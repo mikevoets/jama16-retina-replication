@@ -9,13 +9,6 @@ default_shuffle_seed=42
 default_output_dir="$eyepacs_dir/bin2"
 grad_grades="./vendor/eyepacs/eyepacs_gradability_grades.csv"
 
-# From [1].
-get_seeded_random()
-{
-  seed="$1"
-  openssl enc -aes-256-ctr -pass pass:"$seed" -nosalt </dev/zero 2>/dev/null
-}
-
 print_usage()
 {
   echo ""
@@ -165,57 +158,35 @@ if ! echo "$@" | grep -c -- "--redistribute" >/dev/null; then
   fi
 fi
 
-# Distribution numbers for data sets with ungradable images.
-if echo "$@" | grep -c -- "--only_gradable" >/dev/null; then
-  bin2_0_cnt=39202
-  bin2_0_tr_cnt=31106
-  bin2_1_tr_cnt=12582
-else
-  bin2_0_cnt=48784
-  bin2_0_tr_cnt=40688
-  bin2_1_tr_cnt=16458
-fi
-
 echo "Finding images..."
 for i in {0..4}; do
   k=$(find "$pool_dir/$i" -iname "*.jpg" | wc -l)
   echo "Found $k images in class $i."
 done
 
-# Define distributions for data sets.
-bin2_0=$(
-find "$pool_dir/"[0-1] -iname "*.jpg" |
-shuf --random-source=<(get_seeded_random "$shuffle_seed") |
-head -n "$bin2_0_cnt"
-)
+# Distribute the images into a training and a test set. The split only
+# depends on the image names and the seed (see split_eyepacs.py).
+if echo "$@" | grep -c -- "--only_gradable" >/dev/null; then
+  gradable_flag="--only_gradable"
+  reference_split="./vendor/eyepacs/split_gradable.csv"
+else
+  gradable_flag=""
+  reference_split="./vendor/eyepacs/split.csv"
+fi
 
-bin2_1=$(find "$pool_dir/"[2-4] -iname "*.jpg")
-bin2_1_cnt=$(echo $bin2_1 | tr " " "\n" | wc -l)
-
-echo "Creating directories for data sets"
-mkdir -p "$output_dir/train/0" "$output_dir/train/1"
-mkdir -p "$output_dir/test/0" "$output_dir/test/1"
+echo "Distributing images into a training and a test set..."
+python split_eyepacs.py --pool_dir="$pool_dir" --output_dir="$output_dir" \
+       --seed="$shuffle_seed" $gradable_flag || exit 1
 mkdir -p "$output_dir/validation"
 
-distribute_images()
-{
-  echo "$1" |
-  tr " " "\n" |
-  $2 -n "$3" |
-  xargs -I{} cp "{}" "$4"
-}
-
-echo "Gathering images for train set (0/2)"
-distribute_images "$bin2_0" head "$bin2_0_tr_cnt" "$output_dir/train/0/."
-
-echo "Gathering images for train set (1/2)"
-distribute_images "$bin2_1" head "$bin2_1_tr_cnt" "$output_dir/train/1/."
-
-echo "Gathering images for test set (0/2)"
-distribute_images "$bin2_0" tail "$(expr $bin2_0_cnt - $bin2_0_tr_cnt)" "$output_dir/test/0/."
-
-echo "Gathering images for test set (1/2)"
-distribute_images "$bin2_1" tail "$(expr $bin2_1_cnt - $bin2_1_tr_cnt)" "$output_dir/test/1/."
+# With the default seed, the split should match the one in vendor/.
+if [ "$shuffle_seed" -eq "$default_shuffle_seed" ]; then
+  if cmp -s "$output_dir/split.csv" "$reference_split"; then
+    echo "The split matches $reference_split."
+  else
+    echo "WARNING: the split differs from $reference_split." >&2
+  fi
+fi
 
 echo "Converting data set to tfrecords..."
 python create_tfrecords.py --dataset_dir="$output_dir/train" \
@@ -231,5 +202,3 @@ python create_tfrecords.py --dataset_dir="$output_dir/test" \
 echo "Done!"
 exit
 
-# References:
-# [1] https://stackoverflow.com/questions/41962359/shuffling-numbers-in-bash-using-seed
