@@ -18,7 +18,7 @@ We were not able to reproduce the original study’s results with publicly avail
 
 The published models were trained in 2019 with code that differed from the method described in the paper in two ways (see [#22](https://github.com/mikevoets/jama16-retina-replication/pull/22)): the ImageNet weights were most likely overwritten before training, and the weight decay of 4·10⁻⁵ was applied as RMSProp's decay rate instead. The current `train.py` follows the paper. We would like to retrain the ensemble of 10 models with it on the Kaggle EyePACS data set, to check whether the method as described reproduces the reported AUCs of 0.951 (EyePACS) and 0.853 (Messidor-2).
 
-We do not have funding or GPUs for this. Training took about 2 to 2.5 hours per model on one NVIDIA GTX 1080 (see [Benchmarks](#benchmarks)), so the full ensemble needs roughly 20 to 30 hours on a single GPU, or less on a current one. If you can donate GPU time or cloud credits, please [open an issue](https://github.com/mikevoets/jama16-retina-replication/issues). We will publish the new models and results here.
+We do not have funding or GPUs for this. Training took about 12 to 15 hours per model on one NVIDIA GTX 1080 (see [Benchmarks](#benchmarks)), so the full ensemble needs roughly 120 to 150 hours on a GPU of that class. Current GPUs are several times faster. If you can donate GPU time or cloud credits, please [open an issue](https://github.com/mikevoets/jama16-retina-replication/issues). We will publish the new models and results here.
 
 ## Requirements
 
@@ -113,7 +113,7 @@ To run the benchmarks for training with this study's data on GPUs, run the follo
 $ nvidia-docker run --mount type=bind,source=/path/to/train_dir,target=/data maikovich/tf_cnn_benchmarks:latest --data_dir=/data --model=inception3 --data_name=retina --num_gpus=2 --batch_size=64
 ```
 
-As a reference, our training speed was 91.1 (± 0.4) images per second with one NVIDIA GTX 1080. For our training set of 57 146 images, that means approximately a minute per epoch of training. Add half a minute validation after each epoch due to initialization and loading into memory. Total training took typically 80 to 100 epochs, so it took around 2 to 2.5 hours to train one model.
+As a reference, our training speed was 91.1 (± 0.4) images per second with one NVIDIA GTX 1080. For our training set of 45 717 images (80% of the 57 146 images; the other 20% are for validation), that means approximately 8.5 minutes per epoch of training. Add half a minute validation after each epoch due to initialization and loading into memory. Total training took typically 80 to 100 epochs, so it took around 12 to 15 hours to train one model. (An earlier version of this README stated a minute per epoch and 2 to 2.5 hours per model, which does not match the measured speed.)
 
 To run the benchmarks to measure performance of evaluating test data sets, run the above command with the `--eval` flag and substitute the mount source directory with the path to the directory containing the TFRecord shards with test data.
 
