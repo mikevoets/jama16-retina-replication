@@ -103,12 +103,8 @@ rmdir "$messidor_dir/"[0-3]
 
 # Convert the data set to tfrecords.
 echo "Converting data set to tfrecords..."
-git submodule update --init
-
-python ./create_tfrecords/create_tfrecord.py --dataset_dir="$output_dir" \
-       --num_shards=2 || \
-    { echo "Submodule not initialized. Run git submodule update --init";
-      exit 1; }
+python create_tfrecords.py --dataset_dir="$output_dir" \
+       --num_shards=2 || exit 1
 
 echo "Done!"
 exit

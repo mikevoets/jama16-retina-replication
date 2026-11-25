@@ -1,20 +1,24 @@
-import numpy as np
-import tensorflow as tf
+import argparse
 import os
 import random
 import sys
-import argparse
-import csv
-from glob import glob
-import lib.metrics
-import lib.dataset
-import lib.evaluation
-from lib.preprocess import rescale_min_1_to_1, rescale_0_to_1
+
+os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
+
+import keras  # noqa: E402
+import numpy as np  # noqa: E402
+import tensorflow as tf  # noqa: E402
+
+import lib.dataset  # noqa: E402
+import lib.evaluation  # noqa: E402
+import lib.metrics  # noqa: E402
+import lib.model  # noqa: E402
+from lib.preprocess import rescale_min_1_to_1  # noqa: E402
 
 print(f"Numpy version: {np.__version__}")
 print(f"Tensorflow version: {tf.__version__}")
+print(f"Keras version: {keras.__version__}")
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 random.seed(432)
 
 # Various loading and saving constants.
@@ -34,7 +38,8 @@ parser.add_argument("-v", "--val_dir",
                     help="path to folder that contains validation tfrecords",
                     default=default_val_dir)
 parser.add_argument("-sm", "--save_model_path",
-                    help="path to where graph model should be saved",
+                    help="path to where the model should be saved "
+                         "('.keras' is appended)",
                     default=default_save_model_path)
 parser.add_argument("-ss", "--save_summaries_dir",
                     help="path to folder where summaries should be saved",
@@ -46,27 +51,37 @@ parser.add_argument("-so", "--save_operating_thresholds_path",
 args = parser.parse_args()
 train_dir = str(args.train_dir)
 val_dir = str(args.val_dir)
-save_model_path = str(args.save_model_path)
+save_model_path = lib.model.model_path_stem(str(args.save_model_path)) \
+                  or str(args.save_model_path)
 save_summaries_dir = str(args.save_summaries_dir)
 save_operating_thresholds_path = str(args.save_operating_thresholds_path)
 
 print("""
 Training images folder: {},
 Validation images folder: {},
-Saving model and graph checkpoints at: {},
+Saving model at: {}.keras,
 Saving summaries at: {},
 Saving operating points at: {},
 """.format(train_dir, val_dir, save_model_path, save_summaries_dir,
            save_operating_thresholds_path))
 
+for path in [save_model_path, save_operating_thresholds_path]:
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+
 # Various constants.
 num_channels = 3
-num_workers = 8
 normalization_fn = rescale_min_1_to_1
 
 # Hyper-parameters for training.
 learning_rate = 1e-3
-decay = 4e-5
+# Weight decay as reported in the study: L2 regularization of the
+#  convolutional and dense kernels, as in the Inception-v3 reference training
+#  setup (`weight_decay * sum(w ** 2) / 2`).
+weight_decay = 4e-5
+# The study does not report these RMSProp settings; these are the defaults of
+#  `tf.train.RMSPropOptimizer` in TensorFlow 1.
+rho = 0.9
+rmsprop_epsilon = 1e-10
 train_batch_size = 32
 
 # Hyper-parameters for validation.
@@ -75,104 +90,59 @@ wait_epochs = 10
 min_delta_auc = 0.01
 val_batch_size = 32
 num_thresholds = 200
-kepsilon = 1e-7
 
 # Define thresholds.
-thresholds = lib.metrics.generate_thresholds(num_thresholds, kepsilon) + [0.5]
+thresholds = lib.metrics.generate_thresholds(num_thresholds)
 
 # Buffer size for image shuffling.
 shuffle_buffer_size = 2048
-prefetch_buffer_size = 2 * train_batch_size
-
-# Set image datas format to channels first.
-image_data_format = 'channels_first'
-
-# Set up a session and bind it to Keras.
-sess = tf.Session()
-tf.keras.backend.set_session(sess)
-tf.keras.backend.set_learning_phase(True)
-tf.keras.backend.set_image_data_format(image_data_format)
+prefetch_buffer_size = tf.data.AUTOTUNE
 
 # Initialize each data set.
 train_dataset = lib.dataset.initialize_dataset(
     train_dir, train_batch_size,
-    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
+    prefetch_buffer_size=prefetch_buffer_size,
     shuffle_buffer_size=shuffle_buffer_size, num_channels=num_channels,
     normalization_fn=normalization_fn)
 
 val_dataset = lib.dataset.initialize_dataset(
     val_dir, val_batch_size,
-    num_workers=num_workers, prefetch_buffer_size=prefetch_buffer_size,
-    shuffle_buffer_size=shuffle_buffer_size, num_channels=num_channels,
+    prefetch_buffer_size=prefetch_buffer_size,
+    num_channels=num_channels,
     normalization_fn=normalization_fn, augmentation=False)
 
-# Create initializable iterators.
-iterator = tf.data.Iterator.from_structure(
-    train_dataset.output_types, train_dataset.output_shapes)
+# Inception-v3 with a dense layer with one output (the logit).
+# Weights are pre-initialized from Inception-v3 trained on ImageNet.
+model = lib.model.build_model(weights="imagenet")
 
-images, labels = iterator.get_next()
-x = tf.placeholder_with_default(images, images.shape, name='x')
-y = tf.placeholder_with_default(labels, labels.shape, name='y')
+optimizer = keras.optimizers.RMSprop(
+    learning_rate=learning_rate, rho=rho, epsilon=rmsprop_epsilon)
 
-train_init_op = iterator.make_initializer(train_dataset)
-val_init_op = iterator.make_initializer(val_dataset)
+# Kernels of the convolutional and dense layers, to which weight decay is
+#  applied (not to biases or batch normalization parameters).
+regularized_weights = [
+    layer.kernel for layer in model.layers
+    if isinstance(layer, (keras.layers.Conv2D, keras.layers.Dense))]
 
-# Base model InceptionV3 without top and global average pooling.
-base_model = tf.keras.applications.InceptionV3(
-    include_top=False, weights='imagenet', pooling='avg', input_tensor=x)
 
-# Add dense layer with the same amount of neurons as labels.
-logits = tf.layers.dense(base_model.output, units=1)
+@tf.function
+def train_step(images, labels):
+    with tf.GradientTape() as tape:
+        logits = model(images, training=True)
+        # Retrieve loss of network using cross entropy.
+        mean_xentropy = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(
+                labels=labels, logits=logits))
+        l2_loss = weight_decay * tf.add_n(
+            [tf.nn.l2_loss(w) for w in regularized_weights])
+        loss = mean_xentropy + l2_loss
 
-# Get the predictions with a sigmoid activation function.
-predictions = tf.sigmoid(logits, name='predictions')
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-# Retrieve loss of network using cross entropy.
-mean_xentropy = tf.reduce_mean(
-    tf.nn.sigmoid_cross_entropy_with_logits(labels=y, logits=logits))
+    squared_errors = tf.square(tf.sigmoid(logits) - labels)
+    return mean_xentropy, tf.reduce_sum(squared_errors), tf.size(labels)
 
-# Define optimizer.
-global_step = tf.Variable(0, dtype=tf.int32)
-
-train_op = tf.train.RMSPropOptimizer(
-    learning_rate=learning_rate, decay=decay) \
-        .minimize(loss=mean_xentropy, global_step=global_step)
-
-# Metrics for finding best validation set.
-tp, update_tp, reset_tp = lib.metrics.create_reset_metric(
-    tf.metrics.true_positives_at_thresholds, scope='tp',
-    labels=y, predictions=predictions, thresholds=thresholds)
-
-fp, update_fp, reset_fp = lib.metrics.create_reset_metric(
-    tf.metrics.false_positives_at_thresholds, scope='fp',
-    labels=y, predictions=predictions, thresholds=thresholds)
-
-fn, update_fn, reset_fn = lib.metrics.create_reset_metric(
-    tf.metrics.false_negatives_at_thresholds, scope='fn',
-    labels=y, predictions=predictions, thresholds=thresholds)
-
-tn, update_tn, reset_tn = lib.metrics.create_reset_metric(
-    tf.metrics.true_negatives_at_thresholds, scope='tn',
-    labels=y, predictions=predictions, thresholds=thresholds)
-
-confusion_matrix = lib.metrics.confusion_matrix(
-    tp[-1], fp[-1], fn[-1], tn[-1], scope='confusion_matrix')
-
-brier, update_brier, reset_brier = lib.metrics.create_reset_metric(
-    tf.metrics.mean_squared_error, scope='brier',
-    labels=y, predictions=predictions)
-
-auc, update_auc, reset_auc = lib.metrics.create_reset_metric(
-    tf.metrics.auc, scope='auc', labels=y, predictions=predictions)
-tf.summary.scalar('auc', auc)
-
-specificities = tf.div(tn, tn + fp + kepsilon)
-sensitivities = tf.div(tp, tp + fn + kepsilon)
-
-# Merge all the summaries and write them out.
-summaries_op = tf.summary.merge_all()
-train_writer = tf.summary.FileWriter(save_summaries_dir + "/train")
-test_writer = tf.summary.FileWriter(save_summaries_dir + "/test")
 
 def print_training_status(epoch, num_epochs, batch_num, xent, i_step=None):
     def length(x): return len(str(x))
@@ -189,13 +159,8 @@ def print_training_status(epoch, num_epochs, batch_num, xent, i_step=None):
     print(", ".join(m), end="\r")
 
 
-# Add ops for saving and restoring all variables.
-saver = tf.train.Saver()
-
-# Initialize variables.
-sess.run(tf.global_variables_initializer())
-sess.run(tf.local_variables_initializer())
-
+summary_writer = tf.summary.create_file_writer(
+    os.path.join(save_summaries_dir, "validation"))
 
 # Train for the specified amount of epochs.
 # Can be stopped early if peak of validation auc (Area under curve)
@@ -204,36 +169,31 @@ latest_peak_auc = 0
 waited_epochs = 0
 
 for epoch in range(num_epochs):
-    # Start training.
-    tf.keras.backend.set_learning_phase(True)
-    sess.run(train_init_op)
-    batch_num = 0
+    # Track brier score for an indication on convergence.
+    sum_squared_errors = 0.
+    num_examples = 0
 
-    # Track brier score for an indication on convergance.
-    sess.run(reset_brier)
+    for batch_num, (images, labels) in enumerate(train_dataset):
+        # Optimize cross entropy.
+        batch_xent, batch_sse, batch_size = train_step(images, labels)
+        sum_squared_errors += float(batch_sse)
+        num_examples += int(batch_size)
 
-    try:
-        while True:
-            # Optimize cross entropy.
-            i_global, batch_xent, *_ = sess.run(
-                [global_step, mean_xentropy, train_op, update_brier])
+        # Print a nice training status.
+        print_training_status(
+            epoch, num_epochs, batch_num, float(batch_xent),
+            int(optimizer.iterations.numpy()))
 
-            # Print a nice training status.
-            print_training_status(
-                epoch, num_epochs, batch_num, batch_xent, i_global)
-
-            # Report summaries.
-            batch_num += 1
-
-    except tf.errors.OutOfRangeError:
-        # Retrieve training brier score.
-        train_brier = sess.run(brier)
-        print("\nEnd of epoch {0}! (Brier: {1:8.6})".format(epoch, train_brier))
+    train_brier = sum_squared_errors / max(num_examples, 1)
+    print("\nEnd of epoch {0}! (Brier: {1:8.6})".format(epoch, train_brier))
 
     # Perform validation.
-    val_auc = lib.evaluation.perform_test(
-        sess=sess, init_op=val_init_op,
-        summary_writer=train_writer, epoch=epoch)
+    val_predictions, val_labels = lib.evaluation.predict(model, val_dataset)
+    val_auc = lib.evaluation.report(val_labels, val_predictions)
+
+    with summary_writer.as_default():
+        tf.summary.scalar('auc', val_auc, step=epoch)
+        tf.summary.scalar('brier', train_brier, step=epoch)
 
     if val_auc < latest_peak_auc + min_delta_auc:
         # Stop early if peak of val auc has been reached.
@@ -250,42 +210,30 @@ for epoch in range(num_epochs):
         latest_peak_auc = val_auc
         print(f"New peak auc reached: {val_auc:10.8}")
 
-        # Save the model weights.
-        saver.save(sess, save_model_path)
+        # Save the model.
+        model.save(f"{save_model_path}.keras")
 
         # Reset waited epochs.
         waited_epochs = 0
 
-# Load the saved best meta graph and restore variables from that checkpoint.
-saver = tf.train.import_meta_graph("{}.meta".format(save_model_path))
-saver.restore(sess, save_model_path)
+summary_writer.close()
 
-# Get predictions of all data of our training set.
-tf.keras.backend.set_learning_phase(False)
-sess.run([train_init_op, reset_tp, reset_fp, reset_fn, reset_tn])
+# Load the best saved model.
+model, _ = lib.model.load_model(save_model_path)
 
-try:
-    while True:
-        # Update all confusion metrics for each batch.
-        sess.run([update_tp, update_fp, update_fn, update_tn])
+# Get predictions of all data of our training set, without augmentation.
+train_eval_dataset = lib.dataset.initialize_dataset(
+    train_dir, val_batch_size,
+    prefetch_buffer_size=prefetch_buffer_size,
+    num_channels=num_channels,
+    normalization_fn=normalization_fn, augmentation=False)
 
-except tf.errors.OutOfRangeError:
-    pass
+train_predictions, train_labels = lib.evaluation.predict(
+    model, train_eval_dataset)
 
 # Write sensitivities and specificities to file.
-with open(save_operating_thresholds_path, 'w') as csvfile:
-    writer = csv.writer(csvfile, delimiter=' ')
-    writer.writerow(['threshold', 'specificity', 'sensitivity'])
+lib.evaluation.write_operating_thresholds(
+    save_operating_thresholds_path, train_labels, train_predictions,
+    thresholds)
 
-    train_specificities, train_sensitivities = \
-        sess.run([specificities, sensitivities])
-
-    for idx in range(num_thresholds):
-        writer.writerow([
-            "{:0.4f}".format(x) for x in [
-                thresholds[idx], train_specificities[idx],
-                train_sensitivities[idx]]])
-
-# Close the session.
-sess.close()
 sys.exit(0)
