@@ -14,6 +14,12 @@ The original study used non-public fundus images from EyePACS and three hospital
 
 We were not able to reproduce the original study’s results with publicly available data. Our algorithm’s area under the receiver operating characteristic curve (AUC) of 0.951 (95% CI, 0.947-0.956) on the Kaggle EyePACS test set and 0.853 (95% CI, 0.835-0.871) on Messidor-2 did not come close to the reported AUC of 0.99 on both test sets in the original study. This may be caused by the use of a single grade per image, or different data. This study shows the challenges of reproducing deep learning method results, and the need for more replication and reproduction studies to validate deep learning methods, especially for medical image analysis.
 
+## Help wanted: GPU time to retrain the models
+
+The published models were trained in 2019 with code that differed from the method described in the paper in two ways (see [#22](https://github.com/mikevoets/jama16-retina-replication/pull/22)): the ImageNet weights were most likely overwritten before training, and the weight decay of 4·10⁻⁵ was applied as RMSProp's decay rate instead. The current `train.py` follows the paper. We would like to retrain the ensemble of 10 models with it on the Kaggle EyePACS data set, to check whether the method as described reproduces the reported AUCs of 0.951 (EyePACS) and 0.853 (Messidor-2).
+
+We do not have funding or GPUs for this. Training took about 2 to 2.5 hours per model on one NVIDIA GTX 1080 (see [Benchmarks](#benchmarks)), so the full ensemble needs roughly 20 to 30 hours on a single GPU, or less on a current one. If you can donate GPU time or cloud credits, please [open an issue](https://github.com/mikevoets/jama16-retina-replication/issues). We will publish the new models and results here.
+
 ## Requirements
 
 Python requirements:
